@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>양호후환 전투 시스템</title>
+    <link rel="stylesheet" href="css/base.css">
+    <link rel="stylesheet" href="css/shared.css">
+    <link rel="stylesheet" href="css/main-screen.css">
+    <link rel="stylesheet" href="css/combat-screen.css">
+    <link rel="stylesheet" href="css/dark-theme.css">
+</head>
+<body>
+    <div class="container">
+        <!-- 헤더 -->
+        <header class="app-header">
+            <div class="header-left">
+                <h1>⚔️ 양호후환 전투 시스템 ⚔️</h1>
+                <p class="subtitle">Made by Marunero</p>
+            </div>
+            <div class="header-right">
+                <div class="nav-buttons">
+                    <button id="nav-selection" class="nav-btn">선택</button>
+                    <button id="nav-list" class="nav-btn">목록</button>
+                    <button id="nav-history" class="nav-btn">기록</button>
+                    <button id="nav-combat" class="nav-btn">전투</button>
+                </div>
+                <button id="theme-toggle" class="btn-icon" aria-label="테마 전환">🌙</button>
+            </div>
+        </header>
+
+        <main>
+            <!-- 캐릭터 선택 화면 -->
+            <section id="character-selection" class="screen screen-active">
+                <div class="main-layout">
+                    <!-- 왼쪽: 캐릭터 선택 -->
+                    <div class="left-panel">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                            <h2 style="margin: 0;">캐릭터 선택</h2>
+                            <div style="display: flex; gap: 10px;">
+                                <button id="view-character-list" class="btn-management">
+                                    <span>📋</span> 캐릭터 목록
+                                </button>
+                                <button id="view-battle-history" class="btn-management">
+                                    <span>📜</span> 전투 기록
+                                </button>
+                            </div>
+                        </div>
+                        <div class="teams-grid">
+                            <!-- 히어로 팀 -->
+                            <div class="team-box">
+                                <h3 class="team-title">
+                                    <span class="team-icon">👤</span> 히어로
+                                </h3>
+                                <input type="text" id="team1-search" class="search-input" placeholder="🔍 캐릭터 검색...">
+                                <div id="team1-characters" class="character-list"></div>
+                                <button id="add-team1" class="btn-add-character">+ 추가</button>
+                            </div>
+
+                            <!-- 정부 팀 -->
+                            <div class="team-box">
+                                <h3 class="team-title">
+                                    <span class="team-icon">👤</span> 정부
+                                </h3>
+                                <input type="text" id="team2-search" class="search-input" placeholder="🔍 캐릭터 검색...">
+                                <div id="team2-characters" class="character-list"></div>
+                                <button id="add-team2" class="btn-add-character">+ 추가</button>
+                            </div>
+
+                            <!-- 빌런 팀 -->
+                            <div class="team-box">
+                                <h3 class="team-title">
+                                    <span class="team-icon">👤</span> 빌런
+                                </h3>
+                                <input type="text" id="team3-search" class="search-input" placeholder="🔍 캐릭터 검색...">
+                                <div id="team3-characters" class="character-list"></div>
+                                <button id="add-team3" class="btn-add-character">+ 추가</button>
+                            </div>
+                        </div>
+
+                        <!-- 선택된 캐릭터 표시 -->
+                        <div class="selected-characters-section">
+                            <h3 class="selected-title">선택된 캐릭터 (<span id="selected-count">0</span>명)</h3>
+                            <div class="selected-characters-list">
+                                <div id="hero-selected" class="selected-team">
+                                    <div class="team-label">
+                                        <span class="team-icon">👤</span> 히어로
+                                    </div>
+                                </div>
+                                <div id="gov-selected" class="selected-team">
+                                    <div class="team-label">
+                                        <span class="team-icon">👤</span> 정부
+                                    </div>
+                                </div>
+                                <div id="villain-selected" class="selected-team">
+                                    <div class="team-label">
+                                        <span class="team-icon">👤</span> 빌런
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 오른쪽: 시간 & 컨트롤 -->
+                    <div class="right-panel">
+                        <div class="time-display">
+                            <div class="time-label">현재 시간</div>
+                            <div id="current-time" class="time-value">00:00:00</div>
+                            <div id="current-date" class="date-value">2025년 12월 26일</div>
+                        </div>
+
+                        <div class="battle-mode">
+                            <div class="mode-label">
+                                <span class="mode-icon">⚔️</span> 팀전
+                            </div>
+                            <div class="mode-toggle">
+                                <button id="mode-team" class="mode-btn active">⚔️ 팀전</button>
+                                <button id="mode-1v1" class="mode-btn">▶ 전투 시작</button>
+                            </div>
+                        </div>
+
+                        <div class="character-management">
+                            <h3 class="management-title">캐릭터 관리</h3>
+                            <div class="management-status">
+                                <span class="status-icon">✅</span> 캐릭터는 자동으로 저장됩니다
+                            </div>
+                            <div class="management-buttons">
+                                <button id="save-characters" class="btn-management">
+                                    <span>💾</span> 저장
+                                </button>
+                                <button id="copy-characters" class="btn-management">
+                                    <span>📋</span> 복사
+                                </button>
+                                <button id="load-characters" class="btn-management">
+                                    <span>📥</span> 불러오기
+                                </button>
+                                <button id="paste-json" class="btn-management">
+                                    <span>📝</span> 붙여넣기
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 2단계: 커스텀 캐릭터 생성/수정 모달 -->
+            <div id="custom-character-modal" class="modal">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h2 id="modal-title">캐릭터 생성</h2>
+                        <div class="modal-actions">
+                            <button id="modal-delete" class="btn btn-danger modal-delete hidden">🗑️ 삭제</button>
+                            <button id="modal-close" class="modal-close">&times;</button>
+                        </div>
+                    </div>
+                    <div class="modal-body">
+                        <div class="form-group">
+                            <label for="char-name">캐릭터 이름:</label>
+                            <input type="text" id="char-name" placeholder="예: 아이언맨" maxlength="30">
+
+                            <label for="char-hp">체력 (HP) - 최대 100:</label>
+                            <input type="number" id="char-hp" min="10" max="100" value="100">
+
+                            <label>공격력 (1-5):</label>
+                            <div class="stat-selector">
+                                <div class="stat-circles">
+                                    <label class="stat-circle"><input type="radio" name="attack" value="1"><span>1</span></label>
+                                    <label class="stat-circle"><input type="radio" name="attack" value="2"><span>2</span></label>
+                                    <label class="stat-circle"><input type="radio" name="attack" value="3" checked><span>3</span></label>
+                                    <label class="stat-circle"><input type="radio" name="attack" value="4"><span>4</span></label>
+                                    <label class="stat-circle"><input type="radio" name="attack" value="5"><span>5</span></label>
+                                </div>
+                                <div class="stat-display"> <span id="attack-value">3</span></div>
+                            </div>
+
+                            <label>방어력 (1-5):</label>
+                            <div class="stat-selector">
+                                <div class="stat-circles">
+                                    <label class="stat-circle"><input type="radio" name="defense" value="1"><span>1</span></label>
+                                    <label class="stat-circle"><input type="radio" name="defense" value="2"><span>2</span></label>
+                                    <label class="stat-circle"><input type="radio" name="defense" value="3" checked><span>3</span></label>
+                                    <label class="stat-circle"><input type="radio" name="defense" value="4"><span>4</span></label>
+                                    <label class="stat-circle"><input type="radio" name="defense" value="5"><span>5</span></label>
+                                </div>
+                                <div class="stat-display"> <span id="defense-value">3</span></div>
+                            </div>
+
+                            <label>민첩 (1-5):</label>
+                            <div class="stat-selector">
+                                <div class="stat-circles">
+                                    <label class="stat-circle"><input type="radio" name="agility" value="1"><span>1</span></label>
+                                    <label class="stat-circle"><input type="radio" name="agility" value="2"><span>2</span></label>
+                                    <label class="stat-circle"><input type="radio" name="agility" value="3" checked><span>3</span></label>
+                                    <label class="stat-circle"><input type="radio" name="agility" value="4"><span>4</span></label>
+                                    <label class="stat-circle"><input type="radio" name="agility" value="5"><span>5</span></label>
+                                </div>
+                                <div class="stat-display"> <span id="agility-value">3</span></div>
+                            </div>
+
+                            <label>스킬 (1-5):</label>
+                            <div class="stat-selector">
+                                <div class="stat-circles">
+                                    <label class="stat-circle"><input type="radio" name="skill" value="1"><span>1</span></label>
+                                    <label class="stat-circle"><input type="radio" name="skill" value="2"><span>2</span></label>
+                                    <label class="stat-circle"><input type="radio" name="skill" value="3" checked><span>3</span></label>
+                                    <label class="stat-circle"><input type="radio" name="skill" value="4"><span>4</span></label>
+                                    <label class="stat-circle"><input type="radio" name="skill" value="5"><span>5</span></label>
+                                </div>
+                                <div class="stat-display"> <span id="skill-value">3</span></div>
+                            </div>
+
+                            <label>스킬 타입:</label>
+                            <div class="skill-type-selector">
+                                <label class="skill-type-option">
+                                    <input type="checkbox" name="skillType" value="공격형">
+                                    <span>⚔️ 공격형</span>
+                                </label>
+                                <label class="skill-type-option">
+                                    <input type="checkbox" name="skillType" value="방어형">
+                                    <span>🛡️ 방어형</span>
+                                </label>
+                                <label class="skill-type-option">
+                                    <input type="checkbox" name="skillType" value="지원형">
+                                    <span>🤝 지원형</span>
+                                </label>
+                                <label class="skill-type-option">
+                                    <input type="checkbox" name="skillType" value="치료형">
+                                    <span>💚 치료형</span>
+                                </label>
+                            </div>
+
+                            <label for="skill-description">스킬 설명:</label>
+                            <textarea id="skill-description" rows="4" placeholder="스킬에 대한 설명을 입력하세요..." maxlength="200"></textarea>
+
+                            <label>상태:</label>
+                            <div class="status-selector">
+                                <label class="status-option">
+                                    <input type="radio" name="status" value="active" checked>
+                                    <span>✅ 활동 중</span>
+                                </label>
+                                <label class="status-option">
+                                    <input type="radio" name="status" value="dead">
+                                    <span>💀 사망</span>
+                                </label>
+                                <label class="status-option">
+                                    <input type="radio" name="status" value="missing">
+                                    <span>❓ 실종</span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="form-actions">
+                            <button id="save-custom-char" class="btn btn-primary">저장</button>
+                            <button id="cancel-custom-char" class="btn btn-secondary">취소</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 복사 미리보기 모달 -->
+            <div id="copy-preview-modal" class="modal" style="display:none;">
+                <div class="modal-content" style="max-width:700px;">
+                    <div class="modal-header">
+                        <h2>📋 복사된 데이터 미리보기</h2>
+                        <button id="copy-preview-close" class="modal-close">&times;</button>
+                    </div>
+                    <div class="modal-body">
+                        <div style="margin-bottom:16px;">
+                            <div style="font-weight:600; margin-bottom:8px; color:#4a5568;">복사된 내용:</div>
+                            <textarea id="copy-preview-content" readonly style="width:100%; height:300px; font-family:monospace; font-size:12px; padding:12px; border:1px solid #cbd5e0; border-radius:8px; background:#f7fafc;"></textarea>
+                        </div>
+                        <div style="display:flex; gap:8px; justify-content:flex-end;">
+                            <button id="copy-preview-recopy" class="btn btn-primary">📋 다시 복사</button>
+                            <button id="copy-preview-download" class="btn btn-secondary">💾 파일로 저장</button>
+                            <button id="copy-preview-ok" class="btn btn-secondary">확인</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 텍스트 붙여넣기 모달 -->
+            <div id="paste-json-modal" class="modal" style="display:none;">
+                <div class="modal-content" style="max-width:700px;">
+                    <div class="modal-header">
+                        <h2>📝 JSON 데이터 붙여넣기</h2>
+                        <button id="paste-modal-close" class="modal-close">&times;</button>
+                    </div>
+                    <div class="modal-body">
+                        <div style="margin-bottom:16px;">
+                            <div style="font-weight:600; margin-bottom:8px; color:#4a5568;">
+                                복사한 JSON 데이터를 여기에 붙여넣으세요 (Ctrl+V):
+                            </div>
+                            <div style="font-size:13px; color:#718096; margin-bottom:8px; padding:8px; background:#edf2f7; border-radius:4px;">
+                                💡 <strong>사용법:</strong> 다른 사람이 공유한 JSON 텍스트를 복사 → 아래 입력창에 붙여넣기 → [적용하기] 클릭
+                            </div>
+                            <textarea id="paste-json-content" placeholder="{ &quot;teams&quot;: [...], ... } 형식의 JSON 데이터를 붙여넣으세요" style="width:100%; height:300px; font-family:monospace; font-size:12px; padding:12px; border:1px solid #cbd5e0; border-radius:8px; resize:vertical;"></textarea>
+                        </div>
+                        <div style="display:flex; gap:8px; justify-content:space-between; align-items:center;">
+                            <div style="font-size:12px; color:#718096;">
+                                <span id="paste-json-status"></span>
+                            </div>
+                            <div style="display:flex; gap:8px;">
+                                <button id="paste-json-clear" class="btn btn-secondary">🗑️ 지우기</button>
+                                <button id="paste-json-apply" class="btn btn-primary">✅ 적용하기</button>
+                                <button id="paste-json-cancel" class="btn btn-secondary">취소</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 캐릭터 목록 페이지 -->
+            <section id="character-list-screen" class="screen">
+                <div class="main-layout">
+                    <div class="left-panel">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                            <h2 style="margin: 0;">📋 캐릭터 목록</h2>
+                            <button id="back-to-selection" class="btn-management">🏠 돌아가기</button>
+                        </div>
+
+                        <div class="filter-panel">
+                            <input type="text" id="list-search" class="search-input" placeholder="🔍 캐릭터 검색..." style="flex: 1;">
+                            <select id="skill-type-filter" class="filter-select">
+                                <option value="">모든 스킬 타입</option>
+                                <option value="공격형">⚔️ 공격형</option>
+                                <option value="방어형">🛡️ 방어형</option>
+                                <option value="지원형">🤝 지원형</option>
+                                <option value="치료형">💚 치료형</option>
+                            </select>
+                            <select id="team-filter" class="filter-select">
+                                <option value="">모든 팀</option>
+                                <option value="0">👤 히어로</option>
+                                <option value="1">👤 정부</option>
+                                <option value="2">👤 빌런</option>
+                            </select>
+                        </div>
+
+                        <div id="character-list-content" class="character-list-table"></div>
+                    </div>
+
+                    <!-- 오른쪽: 시간 & 컨트롤 -->
+                    <div class="right-panel">
+                        <div class="time-display">
+                            <div class="time-label">현재 시간</div>
+                            <div id="current-time-list" class="time-value">00:00:00</div>
+                            <div id="current-date-list" class="date-value">2025년 12월 26일</div>
+                        </div>
+
+                        <div class="battle-mode">
+                            <div class="mode-label">
+                                <span class="mode-icon">⚔️</span> 팀전
+                            </div>
+                            <div class="mode-toggle">
+                                <button id="mode-team" class="mode-btn active">⚔️ 팀전</button>
+                                <button id="mode-1v1" class="mode-btn">▶ 전투 시작</button>
+                            </div>
+                        </div>
+
+                        <div class="character-management">
+                            <h3 class="management-title">캐릭터 관리</h3>
+                            <div class="management-status">
+                                <span class="status-icon">✅</span> 캐릭터는 자동으로 저장됩니다
+                            </div>
+                            <div class="management-buttons">
+                                <button id="save-characters" class="btn-management">
+                                    <span>💾</span> 저장
+                                </button>
+                                <button id="copy-characters" class="btn-management">
+                                    <span>📋</span> 복사
+                                </button>
+                                <button id="load-characters" class="btn-management">
+                                    <span>📥</span> 불러오기
+                                </button>
+                                <button id="paste-json" class="btn-management">
+                                    <span>📝</span> 붙여넣기
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 전투 기록 페이지 -->
+            <section id="battle-history-screen" class="screen">
+                <div class="main-layout">
+                    <div class="left-panel">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                            <h2 style="margin: 0;">📜 전투 기록</h2>
+                            <button id="back-to-selection2" class="btn-management">🏠 돌아가기</button>
+                        </div>
+
+                        <div id="battle-history-content" class="battle-history-list"></div>
+                    </div>
+
+                    <!-- 오른쪽: 시간 & 컨트롤 -->
+                    <div class="right-panel">
+                        <div class="time-display">
+                            <div class="time-label">현재 시간</div>
+                            <div id="current-time-history" class="time-value">00:00:00</div>
+                            <div id="current-date-history" class="date-value">2025년 12월 26일</div>
+                        </div>
+
+                        <div class="battle-mode">
+                            <div class="mode-label">
+                                <span class="mode-icon">⚔️</span> 팀전
+                            </div>
+                            <div class="mode-toggle">
+                                <button id="mode-team-h" class="mode-btn active">⚔️ 팀전</button>
+                                <button id="mode-1v1-h" class="mode-btn">▶ 전투 시작</button>
+                            </div>
+                        </div>
+
+                        <div class="character-management">
+                            <h3 class="management-title">캐릭터 관리</h3>
+                            <div class="management-status">
+                                <span class="status-icon">✅</span> 캐릭터는 자동으로 저장됩니다
+                            </div>
+                            <div class="management-buttons">
+                                <button id="save-characters-h" class="btn-management">
+                                    <span>💾</span> 저장
+                                </button>
+                                <button id="copy-characters-h" class="btn-management">
+                                    <span>📋</span> 복사
+                                </button>
+                                <button id="load-characters-h" class="btn-management">
+                                    <span>📥</span> 불러오기
+                                </button>
+                                <button id="paste-json-h" class="btn-management">
+                                    <span>📝</span> 붙여넣기
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 3단계: 전투 화면 -->
+            <section id="combat-screen" class="screen">
+                <div class="combat-shell">
+                    <div class="combat-header-row">
+                        <div class="badge-row">
+                            <span class="badge badge-mode" id="battle-mode-badge">팀전</span>
+                            <span class="badge badge-turn"><span id="turn-count">1</span>턴 · <span id="current-turn-text">현재 차례: -</span></span>
+                        </div>
+                        <button id="back-home" class="btn btn-secondary">HOME</button>
+                    </div>
+
+                    <div class="combat-columns">
+                        <div class="combat-main">
+                            <div class="team-cards-row">
+                                <div class="team-card">
+                                    <div class="team-card-title">🦸 히어로</div>
+                                    <div id="team1-characters-combat" class="combat-characters"></div>
+                                </div>
+                                <div class="team-card">
+                                    <div class="team-card-title">🏛️ 정부</div>
+                                    <div id="team2-characters-combat" class="combat-characters"></div>
+                                </div>
+                                <div class="team-card">
+                                    <div class="team-card-title">😈 빌런</div>
+                                    <div id="team3-characters-combat" class="combat-characters"></div>
+                                </div>
+                            </div>
+
+                            <div class="action-bar">
+                                <div class="action-buttons">
+                                    <button id="action-attack" class="btn btn-action">공격</button>
+                                    <button id="action-defend" class="btn btn-action">방어</button>
+                                    <button id="action-ultimate" class="btn btn-action">스킬</button>
+                                    <button id="forfeit-button" class="btn btn-secondary">시간 종료</button>
+                                </div>
+                            </div>
+
+                            <div id="target-selection" class="target-panel hidden">
+                                <p>공격할 대상을 선택하세요:</p>
+                                <div id="target-buttons" class="target-buttons"></div>
+                            </div>
+
+                            <div class="log-panel">
+                                <div class="log-header">전투 로그</div>
+                                <div id="combat-log" class="log-content"></div>
+                            </div>
+                        </div>
+
+                        <div class="combat-side">
+                            <div class="realtime-panel">
+                                <div class="realtime-title">실시간</div>
+                                <div class="realtime-clock">
+                                    <div id="combat-current-time" class="clock-time">00:00:00</div>
+                                    <div id="combat-current-date" class="clock-date">2025년 12월 26일</div>
+                                </div>
+                                <div id="skill-status" class="realtime-body">
+                                    <div class="skill-block">
+                                        <div class="skill-block-title">슬롯 1</div>
+                                        <div class="skill-block-body placeholder">(비어있음)</div>
+                                    </div>
+                                    <div class="skill-block">
+                                        <div class="skill-block-title">슬롯 2</div>
+                                        <div class="skill-block-body placeholder">(비어있음)</div>
+                                    </div>
+                                    <div class="skill-block">
+                                        <div class="skill-block-title">슬롯 3</div>
+                                        <div class="skill-block-body placeholder">(비어있음)</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="combat-end" class="combat-end hidden">
+                        <div class="end-message">
+                            <h3 id="end-title"></h3>
+                            <p id="end-message"></p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- JSON 파일 업로드용 숨겨진 input -->
+        <input type="file" id="file-input" accept=".json" style="display:none;">
+
+        <footer>
+            <p>&copy; 2025 Combat Calculator | 턴제 전투 계산 시스템</p>
+        </footer>
+    </div>
+
+    <!-- 외부 스크립트 로드 -->
+    <script src="js/character.js"></script>
+    <script src="js/combat.js"></script>
+    
+    <!-- 모듈 로드 -->
+    <script src="js/modules/dataManager.js"></script>
+    <script src="js/modules/modalManager.js"></script>
+    <script src="js/modules/characterManager.js"></script>
+    <script src="js/modules/pageManager.js"></script>
+    <script src="js/modules/battleSystem.js"></script>
+        <script src="js/modules/battleActions.js"></script>
+    
+    <!-- 메인 앱 로드 -->
+    <script src="js/app.js"></script>
+</body>
+</html>

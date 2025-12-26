@@ -1,0 +1,897 @@
+/* ============================================
+    다크 테마 (모든 요소에 대한 어두운 오버라이드)
+    ============================================ */
+
+/* 전역 다크 테마 */
+body.dark-theme {
+    background: #0c1626;
+    color: #e2e8f0;
+}
+
+/* 컨테이너 및 주요 섹션 */
+body.dark-theme .container {
+    background: #0c1626;
+}
+
+body.dark-theme main {
+    background: #0c1626;
+}
+
+body.dark-theme .main-layout,
+body.dark-theme .teams-grid {
+    background: #0c1626;
+}
+
+body.dark-theme .team-box {
+    background: #1a2a3a;
+    border-color: #2d3e4f;
+    color: #e2e8f0;
+}
+
+body.dark-theme .team-box:hover {
+    border-color: #667eea;
+    background: #1f2f3f;
+}
+
+body.dark-theme .team-title {
+    color: #e2e8f0;
+    font-weight: 700;
+}
+
+body.dark-theme .team-box-content {
+    background: #1a2a3a;
+}
+
+body.dark-theme .team-box h3 {
+    color: #e2e8f0;
+}
+
+body.dark-theme .team-header {
+    color: #a0aec0;
+}
+
+/* 캐릭터 아이템 */
+body.dark-theme .character-item {
+    background: #1f2f3f;
+    border-color: #2d3e4f;
+    color: #e2e8f0;
+}
+
+body.dark-theme .character-item:hover {
+    border-color: #667eea;
+    background: #232d3a;
+}
+
+body.dark-theme .character-item.selected {
+    background: #2a3a4a;
+    border-color: #667eea;
+    box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.3);
+}
+
+body.dark-theme .character-name {
+    color: #e2e8f0;
+}
+
+body.dark-theme .character-status {
+    color: #b8c9d9;
+}
+
+body.dark-theme .character-item input[type="checkbox"] {
+    accent-color: #667eea;
+}
+
+/* 오른쪽 패널 */
+body.dark-theme .right-panel {
+    background: #1a2a3a;
+    border-color: #2d3e4f;
+    color: #e2e8f0;
+}
+
+body.dark-theme .time-display {
+    background: #232d3a;
+    border-color: #2d3e4f;
+    color: #e2e8f0;
+}
+
+body.dark-theme .time-value {
+    color: #667eea;
+}
+
+body.dark-theme .mode-section {
+    background: #232d3a;
+    border-color: #2d3e4f;
+    color: #e2e8f0;
+}
+
+body.dark-theme .mode-buttons button {
+    background: #1f2f3f;
+    border-color: #2d3e4f;
+    color: #e2e8f0;
+}
+
+body.dark-theme .mode-buttons button:hover {
+    background: #2a3a4a;
+    border-color: #667eea;
+}
+
+body.dark-theme .mode-buttons button.active {
+    background: #667eea;
+    color: white;
+    border-color: #667eea;
+}
+
+/* 전투 모드 스타일 */
+body.dark-theme .battle-mode {
+    background: #1f2f3f !important;
+    border-color: #2d3e4f !important;
+}
+
+body.dark-theme .mode-label {
+    color: #e2e8f0 !important;
+}
+
+body.dark-theme .mode-toggle {
+    color: #e2e8f0;
+}
+
+body.dark-theme .mode-btn {
+    background: #232d3a !important;
+    border-color: #2d3e4f !important;
+    color: #e2e8f0 !important;
+}
+
+body.dark-theme .mode-btn:hover {
+    background: #2a3a4a !important;
+    border-color: #667eea !important;
+}
+
+body.dark-theme .mode-btn.active {
+    background: #667eea !important;
+    border-color: #667eea !important;
+    color: white !important;
+}
+
+body.dark-theme .mode-btn:last-child {
+    background: #c53030 !important;
+    border-color: #c53030 !important;
+    color: white !important;
+}
+
+body.dark-theme .mode-btn:last-child:hover {
+    background: #a41e1e !important;
+    border-color: #a41e1e !important;
+}
+
+/* 캐릭터 관리 스타일 */
+body.dark-theme .character-management {
+    background: #1f2f3f !important;
+    border-color: #2d3e4f !important;
+}
+
+body.dark-theme .management-title {
+    color: #e2e8f0 !important;
+}
+
+body.dark-theme .management-status {
+    background: #1f3a28 !important;
+    border-color: #2d5a38 !important;
+    color: #86efac !important;
+}
+
+/* 관리 패널 */
+body.dark-theme .manage-section {
+    background: #232d3a;
+    border-color: #2d3e4f;
+    color: #e2e8f0;
+}
+
+body.dark-theme .btn-management {
+    background: #1f2f3f;
+    border-color: #2d3e4f;
+    color: #e2e8f0;
+}
+
+body.dark-theme .btn-management:hover {
+    background: #2a3a4a;
+    border-color: #667eea;
+    color: #667eea;
+}
+
+body.dark-theme .add-character-btn {
+    background: #1f2f3f;
+    border-color: #2d3e4f;
+    color: #e2e8f0;
+}
+
+body.dark-theme .add-character-btn:hover {
+    background: #2a3a4a;
+    border-color: #667eea;
+}
+
+/* 탐색 탭 */
+body.dark-theme .nav-tabs {
+    background: #1a2a3a;
+    border-color: #2d3e4f;
+}
+
+body.dark-theme .nav-tab-btn {
+    background: #1f2f3f;
+    border-color: #2d3e4f;
+    color: #b8c9d9;
+}
+
+body.dark-theme .nav-tab-btn:hover {
+    background: #2a3a4a;
+}
+
+body.dark-theme .nav-tab-btn.active {
+    background: #667eea;
+    color: white;
+    border-color: #667eea;
+}
+
+/* 콘텐츠 섹션 */
+body.dark-theme .content-section {
+    background: #0c1626;
+}
+
+/* 스탯 선택기 */
+body.dark-theme .stat-display {
+    background: #1f2f3f;
+    color: #667eea;
+}
+
+body.dark-theme .stat-selector {
+    color: #e2e8f0;
+}
+
+body.dark-theme .stat-circle span {
+    background: #1f2f3f;
+    border-color: #3d4f5f;
+    color: #b8c9d9;
+}
+
+body.dark-theme .stat-circle input:checked + span {
+    background: linear-gradient(#667eea, #764ba2, #fbb6ce);
+    border-color: #667eea;
+    color: #ffffff;
+}
+
+/* 스킬 타입 선택기 */
+body.dark-theme .skill-type-selector {
+    color: #e2e8f0;
+}
+
+body.dark-theme .skill-type-option {
+    background: #1f2f3f;
+    border-color: #2d3e4f;
+    color: #e2e8f0;
+}
+
+body.dark-theme .skill-type-option:hover {
+    border-color: #667eea;
+    background: #232d3a;
+}
+
+body.dark-theme .skill-type-option input[type="checkbox"] {
+    accent-color: #667eea;
+}
+
+/* 상태 선택기 */
+body.dark-theme .status-selector {
+    color: #e2e8f0;
+}
+
+body.dark-theme .status-option {
+    background: #1f2f3f;
+    border-color: #2d3e4f;
+    color: #e2e8f0;
+}
+
+body.dark-theme .status-option:hover {
+    border-color: #667eea;
+}
+
+body.dark-theme .status-option:has(input:checked) {
+    border-color: #667eea;
+    background: #232d3a;
+}
+
+/* 텍스트영역 */
+body.dark-theme textarea {
+    background: #1f2f3f;
+    border-color: #2d3e4f;
+    color: #e2e8f0;
+}
+
+body.dark-theme textarea:focus {
+    border-color: #667eea;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.2);
+}
+
+body.dark-theme .left-panel h2 {
+    color: #667eea;
+}
+
+body.dark-theme .search-input {
+    background: #1f2f3f;
+    border-color: #2d3e4f;
+    color: #e2e8f0;
+}
+
+body.dark-theme .search-input:focus {
+    border-color: #667eea;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.2);
+}
+
+body.dark-theme .search-input::placeholder {
+    color: #718096;
+}
+
+body.dark-theme .character-list::-webkit-scrollbar-track {
+    background: #1a2a3a;
+}
+
+body.dark-theme .character-list::-webkit-scrollbar-thumb {
+    background: #2d3e4f;
+}
+
+body.dark-theme .filter-select {
+    background: #1f2f3f;
+    border-color: #2d3e4f;
+    color: #e2e8f0;
+}
+
+body.dark-theme .filter-select:focus {
+    border-color: #667eea;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.2);
+}
+
+/* 캐릭터 목록 테이블 */
+body.dark-theme .character-list-table {
+    background: #1a2a3a;
+    border-color: #2d3e4f;
+}
+
+body.dark-theme .char-table-row {
+    background: #1f2f3f;
+    border-color: #2d3e4f;
+    color: #e2e8f0;
+}
+
+body.dark-theme .char-table-row:hover {
+    border-color: #667eea;
+}
+
+body.dark-theme .char-table-row.header {
+    background: #667eea;
+    color: white;
+}
+
+body.dark-theme .char-table-cell {
+    color: #e2e8f0;
+}
+
+body.dark-theme .skill-tag {
+    background: #232d3a;
+    color: #667eea;
+    border-color: #2d3e4f;
+}
+
+body.dark-theme .char-status {
+    font-weight: 600;
+}
+
+body.dark-theme .char-status.active {
+    background: #1f3a28;
+    color: #86efac;
+}
+
+body.dark-theme .char-status.dead {
+    background: #3a1f1f;
+    color: #fca5a5;
+}
+
+body.dark-theme .char-status.missing {
+    background: #3a2a1f;
+    color: #fb923c;
+}
+
+/* 전투 기록 */
+body.dark-theme .battle-history-list {
+    color: #e2e8f0;
+}
+
+body.dark-theme .battle-record {
+    background: #1a2a3a;
+    border-color: #2d3e4f;
+}
+
+body.dark-theme .battle-record:hover {
+    border-color: #667eea;
+}
+
+body.dark-theme .battle-record-header {
+    border-color: #2d3e4f;
+    color: #e2e8f0;
+}
+
+body.dark-theme .battle-record-title {
+    color: #667eea;
+}
+
+body.dark-theme .battle-record-date {
+    color: #a0aec0;
+}
+
+body.dark-theme .battle-team-section {
+    background: #232d3a;
+    border-color: #2d3e4f;
+    color: #e2e8f0;
+}
+
+body.dark-theme .battle-team-title {
+    color: #e2e8f0;
+}
+
+body.dark-theme .battle-team-chars {
+    color: #a0aec0;
+}
+
+body.dark-theme .battle-winner {
+    background: #1f3a28;
+    border-color: #2d5a38;
+}
+
+body.dark-theme .battle-winner .battle-team-title {
+    color: #86efac;
+}
+
+/* 버튼 */
+body.dark-theme .btn-primary {
+    background: #667eea;
+    color: white;
+}
+
+body.dark-theme .btn-primary:hover {
+    background: #5568d3;
+}
+
+body.dark-theme .btn-secondary {
+    background: #2d3e4f;
+    color: #e2e8f0;
+    border-color: #3d4f5f;
+}
+
+body.dark-theme .btn-secondary:hover {
+    background: #3d4f5f;
+    border-color: #667eea;
+}
+
+body.dark-theme .btn-danger {
+    background: #e53e3e;
+    color: white;
+}
+
+body.dark-theme .btn-danger:hover {
+    background: #c53030;
+}
+
+/* 모달 */
+body.dark-theme .modal-content {
+    background: #1a2a3a;
+    color: #e2e8f0;
+}
+
+body.dark-theme .modal-header {
+    background: #1a2a3a;
+    border-color: #2d3e4f;
+    color: #e2e8f0;
+}
+
+body.dark-theme .modal-header h2 {
+    color: #667eea;
+}
+
+body.dark-theme .modal-close {
+    color: #a0aec0;
+}
+
+body.dark-theme .modal-close:hover {
+    color: #fca5a5;
+}
+
+body.dark-theme .form-group {
+    color: #e2e8f0;
+}
+
+body.dark-theme .form-group label {
+    color: #e2e8f0;
+}
+
+body.dark-theme .form-group input[type="text"],
+body.dark-theme .form-group input[type="number"] {
+    background: #232d3a;
+    border-color: #2d3e4f;
+    color: #e2e8f0;
+}
+
+body.dark-theme .form-group input:focus {
+    border-color: #667eea;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.2);
+}
+
+/* 전투 화면 */
+body.dark-theme .combat-shell {
+    background: #0c1626;
+}
+
+body.dark-theme .battle-badge {
+    background: #1f2f3f;
+    border-color: #2d3e4f;
+    color: #e2e8f0;
+}
+
+body.dark-theme .battle-badge:hover {
+    border-color: #667eea;
+}
+
+body.dark-theme .battle-badge .label {
+    color: #a0aec0;
+}
+
+body.dark-theme .battle-badge .value {
+    color: #667eea;
+}
+
+body.dark-theme .team-card {
+    background: #1a2a3a;
+    border-color: #2d3e4f;
+    color: #e2e8f0;
+}
+
+body.dark-theme .team-card.team-a {
+    border-left-color: #667eea;
+}
+
+body.dark-theme .team-card.team-a:hover {
+    border-color: #667eea;
+}
+
+body.dark-theme .team-card.team-b {
+    border-left-color: #e53e3e;
+}
+
+body.dark-theme .team-card.team-b:hover {
+    border-color: #e53e3e;
+}
+
+body.dark-theme .team-label {
+    color: inherit;
+}
+
+body.dark-theme .team-card.team-a .team-label {
+    color: #667eea;
+}
+
+body.dark-theme .team-card.team-b .team-label {
+    color: #fca5a5;
+}
+
+body.dark-theme .combat-char-card {
+    background: #232d3a;
+    border-color: #2d3e4f;
+    color: #e2e8f0;
+}
+
+body.dark-theme .combat-char-card:hover {
+    border-color: #667eea;
+    background: #2a3a4a;
+}
+
+body.dark-theme .char-name-stat {
+    color: #e2e8f0;
+}
+
+body.dark-theme .char-level {
+    background: #667eea;
+}
+
+body.dark-theme .char-tag {
+    background: #232d3a;
+    color: #667eea;
+    border-color: #2d3e4f;
+}
+
+body.dark-theme .hp-bar-container {
+    background: #1f2f3f;
+    border-color: #2d3e4f;
+}
+
+body.dark-theme .hp-bar {
+    background: #1f2f3f;
+    border-color: #2d3e4f;
+}
+
+body.dark-theme .hp-text {
+    color: #b8c9d9;
+}
+
+body.dark-theme .stat-item {
+    background: #1f2f3f;
+    border-color: #2d3e4f;
+    color: #b8c9d9;
+}
+
+body.dark-theme .stat-item strong {
+    color: #667eea;
+}
+
+/* 액션 바 */
+body.dark-theme .action-bar {
+    background: #1a2a3a;
+    border-color: #2d3e4f;
+}
+
+body.dark-theme .btn-action {
+    background: #1f2f3f;
+    border-color: #2d3e4f;
+    color: #e2e8f0;
+}
+
+body.dark-theme .btn-action.attack {
+    background: #667eea;
+    color: white;
+    border-color: #667eea;
+}
+
+body.dark-theme .btn-action.attack:hover {
+    background: #5568d3;
+}
+
+body.dark-theme .btn-action.defend {
+    background: #b8860b;
+    color: white;
+    border-color: #b8860b;
+}
+
+body.dark-theme .btn-action.defend:hover {
+    background: #9d700e;
+}
+
+body.dark-theme .btn-action.skill {
+    background: #9d7eb8;
+    color: white;
+    border-color: #9d7eb8;
+}
+
+body.dark-theme .btn-action.skill:hover {
+    background: #8a6a9e;
+}
+
+body.dark-theme .btn-action.end-turn {
+    background: #e53e3e;
+    color: white;
+    border-color: #e53e3e;
+}
+
+body.dark-theme .btn-action.end-turn:hover {
+    background: #c53030;
+}
+
+/* 로그 패널 */
+body.dark-theme .log-panel {
+    background: #0c1626;
+    border-color: #2d3e4f;
+    color: #e2e8f0;
+}
+
+body.dark-theme .log-entry {
+    color: #e2e8f0;
+}
+
+body.dark-theme .log-timestamp {
+    color: #718096;
+}
+
+/* 실시간 패널 */
+body.dark-theme .realtime-panel {
+    background: #1a2a3a;
+    border-color: #2d3e4f;
+    color: #e2e8f0;
+}
+
+body.dark-theme .realtime-title {
+    color: #e2e8f0;
+}
+
+body.dark-theme .realtime-clock {
+    background: #232d3a;
+    border-color: #2d3e4f;
+    color: #e2e8f0;
+}
+
+body.dark-theme .clock-time {
+    color: #667eea;
+}
+
+body.dark-theme .clock-date {
+    color: #a0aec0;
+}
+
+/* 스킬 블록 */
+body.dark-theme .skill-block {
+    background: #232d3a;
+    border-color: #2d3e4f;
+    color: #e2e8f0;
+}
+
+body.dark-theme .skill-block-title {
+    color: #e2e8f0;
+    border-color: #2d3e4f;
+}
+
+body.dark-theme .skill-block-body {
+    color: #e2e8f0;
+}
+
+body.dark-theme .skill-block-body.placeholder {
+    color: #a0aec0;
+}
+
+body.dark-theme .skill-status {
+    color: #e2e8f0;
+}
+
+body.dark-theme .skill-icon {
+    background: #667eea;
+}
+
+body.dark-theme .skill-name {
+    color: #e2e8f0;
+}
+
+body.dark-theme .skill-value {
+    color: #667eea;
+    background: #232d3a;
+    border-color: #2d3e4f;
+}
+
+/* 타겟 패널 */
+body.dark-theme .target-panel {
+    background: #232d3a;
+    border-color: #2d3e4f;
+    color: #e2e8f0;
+}
+
+body.dark-theme .target-title {
+    color: #e2e8f0;
+    border-color: #2d3e4f;
+}
+
+body.dark-theme .target-option {
+    background: #1f2f3f;
+    border-color: #2d3e4f;
+    color: #e2e8f0;
+}
+
+body.dark-theme .target-option:hover {
+    border-color: #667eea;
+    background: #232d3a;
+}
+
+body.dark-theme .target-option.selected {
+    background: #667eea;
+    color: white;
+    border-color: #667eea;
+}
+
+/* 헤더 */
+body.dark-theme .app-header {
+    background: #1a2a3a;
+    border-color: #2d3e4f;
+}
+
+body.dark-theme .app-header h1 {
+    color: #ffffff;
+    font-weight: 700;
+}
+
+body.dark-theme .app-header .subtitle {
+    color: #a0aec0;
+}
+
+body.dark-theme .nav-btn {
+    background: #232d3a;
+    border-color: #2d3e4f;
+    color: #e2e8f0;
+}
+
+body.dark-theme .nav-btn:hover {
+    background: #2a3a4a;
+    border-color: #667eea;
+}
+
+body.dark-theme .nav-btn.active {
+    background: #667eea;
+    color: white;
+    border-color: #667eea;
+}
+
+body.dark-theme .theme-toggle-btn {
+    background: #232d3a;
+    border-color: #2d3e4f;
+    color: #e2e8f0;
+}
+
+body.dark-theme .theme-toggle-btn:hover {
+    background: #2a3a4a;
+    border-color: #667eea;
+}
+
+body.dark-theme .btn-icon {
+    background: #232d3a;
+    border-color: #2d3e4f;
+    color: #e2e8f0;
+}
+
+body.dark-theme .btn-icon:hover {
+    background: #2a3a4a;
+}
+
+/* 선택된 캐릭터 및 추가 버튼 */
+body.dark-theme .btn-add-character {
+    background: #1f2f3f;
+    border-color: #2d3e4f;
+    color: #a0aec0;
+}
+
+body.dark-theme .btn-add-character:hover {
+    border-color: #667eea;
+    color: #667eea;
+    background: #232d3a;
+}
+
+body.dark-theme .btn-remove {
+    color: #fca5a5;
+}
+
+body.dark-theme .btn-remove:hover {
+    color: #fc8181;
+}
+
+body.dark-theme .selected-characters-section {
+    background: #1a2a3a;
+    border-color: #2d3e4f;
+}
+
+body.dark-theme .selected-title {
+    color: #e2e8f0;
+}
+
+body.dark-theme .selected-team {
+    background: #1f2f3f;
+    border-color: #2d3e4f;
+}
+
+body.dark-theme .selected-team:nth-child(1) {
+    border-color: #4c51bf;
+}
+
+body.dark-theme .selected-team:nth-child(2) {
+    border-color: #48bb78;
+}
+
+body.dark-theme .selected-team:nth-child(3) {
+    border-color: #ed64a6;
+}
+
+body.dark-theme .team-label {
+    color: #e2e8f0;
+}
+
+body.dark-theme .selected-character {
+    background: #232d3a;
+    color: #e2e8f0;
+    border-color: #2d3e4f;
+}

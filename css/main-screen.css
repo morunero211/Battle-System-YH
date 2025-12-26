@@ -1,0 +1,445 @@
+/* ============================================
+    메인 화면 스타일 (캐릭터 선택/관리)
+    ============================================ */
+
+/* 메인 레이아웃 */
+.main-layout {
+    display: grid;
+    grid-template-columns: minmax(760px, 1fr) 300px;
+    gap: 24px;
+    align-items: start;
+}
+
+.left-panel h2 {
+    color: #667eea;
+    font-size: 1.5em;
+    font-weight: 600;
+    margin-bottom: 20px;
+}
+
+/* (메인) 팀 분류 */
+.teams-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 16px;
+    margin-bottom: 28px;
+}
+
+.team-box {
+    background: #f8f9fc;
+    border: 2px solid #e3e6f0;
+    border-radius: 16px;
+    padding: 20px;
+    transition: all 0.3s ease;
+    width: 100%;
+}
+
+.team-box:hover {
+    border-color: #667eea;
+    box-shadow: 0 4px 16px rgba(102, 126, 234, 0.15);
+}
+
+.team-title {
+    color: #4a5568;
+    font-size: 1.05em;
+    font-weight: 600;
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.team-icon {
+    font-size: 1.2em;
+}
+
+/* 검색 입력 */
+.search-input {
+    width: 100%;
+    padding: 10px 14px;
+    margin-bottom: 12px;
+    background: white;
+    border: 2px solid #e3e6f0;
+    border-radius: 10px;
+    font-size: 0.9em;
+    color: #2c3e50;
+    transition: all 0.2s ease;
+}
+
+.search-input:focus {
+    outline: none;
+    border-color: #667eea;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.search-input::placeholder {
+    color: #a0aec0;
+}
+
+/* (메인) 캐릭터 리스트 박스 */
+.character-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 12px;
+    max-height: 280px;
+    overflow-y: auto;
+    padding-right: 4px;
+}
+
+.character-list::-webkit-scrollbar {
+    width: 6px;
+}
+
+.character-list::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 10px;
+}
+
+.character-list::-webkit-scrollbar-thumb {
+    background: #cbd5e0;
+    border-radius: 10px;
+}
+
+.character-list::-webkit-scrollbar-thumb:hover {
+    background: #a0aec0;
+}
+
+/* (메인) 캐릭터 개개인 박스 */
+.character-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    background: white;
+    border: 1.5px solid #e3e6f0;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.character-item:hover {
+    border-color: #667eea;
+    transform: translateX(2px);
+}
+
+.character-item.selected {
+    background: #eef2ff;
+    border-color: #667eea;
+}
+
+.character-item input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    cursor: pointer;
+    accent-color: #667eea;
+}
+
+.character-info {
+    flex: 1;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.character-name {
+    font-weight: 500;
+    color: #2c3e50;
+    font-size: 0.95em;
+}
+
+.character-hp {
+    font-size: 0.85em;
+    color: #718096;
+}
+
+.btn-remove {
+    background: transparent;
+    border: none;
+    color: #e53e3e;
+    font-size: 1.2em;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+    padding: 0 4px;
+}
+
+.character-item:hover .btn-remove {
+    opacity: 1;
+}
+
+.btn-remove:hover {
+    color: #c53030;
+}
+
+/* 추가 버튼 */
+.btn-add-character {
+    width: 100%;
+    padding: 10px;
+    background: white;
+    border: 2px dashed #cbd5e0;
+    border-radius: 10px;
+    color: #718096;
+    font-size: 0.95em;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.btn-add-character:hover {
+    border-color: #667eea;
+    color: #667eea;
+    background: #f7fafc;
+}
+
+/* 선택된 캐릭터 섹션 */
+.selected-characters-section {
+    background: #f8f9fc;
+    border: 2px solid #e3e6f0;
+    border-radius: 16px;
+    padding: 20px;
+    margin-top: 20px;
+}
+
+.selected-title {
+    color: #4a5568;
+    font-size: 1.1em;
+    font-weight: 600;
+    margin-bottom: 16px;
+}
+
+.selected-characters-list {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+}
+
+.selected-team {
+    background: white;
+    border: 2px solid #e3e6f0;
+    border-radius: 12px;
+    padding: 16px;
+    min-height: 120px;
+}
+
+.selected-team:nth-child(1) {
+    border-color: #90cdf4;
+}
+
+.selected-team:nth-child(2) {
+    border-color: #9ae6b4;
+}
+
+.selected-team:nth-child(3) {
+    border-color: #fbb6ce;
+}
+
+.team-label {
+    font-weight: 600;
+    color: #4a5568;
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.95em;
+}
+
+.selected-character {
+    background: #eef2ff;
+    padding: 8px 12px;
+    border-radius: 8px;
+    margin-bottom: 6px;
+    font-size: 0.9em;
+    color: #4a5568;
+    border: 1px solid #cbd5e0;
+}
+
+/* 오른쪽 패널 */
+.right-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    align-self: start;
+    width: 100%;
+    max-width: 300px;
+}
+
+.time-display {
+    background: #f8f9fc;
+    border: 2px solid #e3e6f0;
+    border-radius: 16px;
+    padding: 24px;
+    text-align: center;
+}
+
+.time-label {
+    color: #718096;
+    font-size: 0.9em;
+    font-weight: 500;
+    margin-bottom: 8px;
+}
+
+.time-value {
+    color: #2c3e50;
+    font-size: 2em;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.5px;
+}
+
+.date-value {
+    color: #718096;
+    font-size: 0.9em;
+    margin-top: 6px;
+}
+
+/* 전투 모드 */
+.battle-mode {
+    background: #f8f9fc;
+    border: 2px solid #e3e6f0;
+    border-radius: 16px;
+    padding: 20px;
+}
+
+.mode-label {
+    color: #4a5568;
+    font-size: 1em;
+    font-weight: 600;
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.mode-icon {
+    font-size: 1.2em;
+}
+
+.mode-toggle {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.mode-btn {
+    padding: 14px 20px;
+    border: 2px solid #e3e6f0;
+    border-radius: 12px;
+    background: white;
+    color: #4a5568;
+    font-size: 0.95em;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+
+.mode-btn:hover {
+    border-color: #667eea;
+    background: #eef2ff;
+}
+
+.mode-btn.active {
+    background: #667eea;
+    border-color: #667eea;
+    color: white;
+}
+
+.mode-btn:last-child {
+    background: #e53e3e;
+    border-color: #e53e3e;
+    color: white;
+}
+
+.mode-btn:last-child:hover {
+    background: #c53030;
+    border-color: #c53030;
+}
+
+/* 캐릭터 관리 */
+.character-management {
+    background: #f8f9fc;
+    border: 2px solid #e3e6f0;
+    border-radius: 16px;
+    padding: 20px;
+}
+
+.management-title {
+    color: #4a5568;
+    font-size: 1em;
+    font-weight: 600;
+    margin-bottom: 12px;
+}
+
+.management-status {
+    background: #c6f6d5;
+    border: 2px solid #9ae6b4;
+    border-radius: 10px;
+    padding: 12px;
+    margin-bottom: 12px;
+    font-size: 0.85em;
+    color: #276749;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.status-icon {
+    font-size: 1.1em;
+}
+
+.management-buttons {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+}
+
+/* 버튼 텍스트 줄바꿈 및 작은 화면 대응 */
+@media (max-width: 768px) {
+    .management-buttons {
+        grid-template-columns: 1fr;
+    }
+    
+    .btn-management {
+        padding: 10px 8px;
+        font-size: 0.85em;
+        white-space: normal;
+        word-break: break-word;
+    }
+}
+
+/* 반응형 */
+@media (max-width: 1200px) {
+    .main-layout {
+        grid-template-columns: 1fr;
+    }
+
+    .teams-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .selected-characters-list {
+        grid-template-columns: 1fr;
+    }
+
+    .right-panel {
+        flex-direction: row;
+        flex-wrap: wrap;
+    }
+
+    .time-display,
+    .battle-mode,
+    .character-management {
+        flex: 1;
+        min-width: 250px;
+    }
+}
+
+@media (max-width: 768px) {
+    main {
+        padding: 20px;
+    }
+}
