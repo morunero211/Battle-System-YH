@@ -19,7 +19,6 @@ class BattleApp {
         this.currentEditTeam = null;
         this.currentEditCharId = null; // 수정 중인 캐릭터 ID
         this.battleHistory = []; // 전투 기록
-        this.skipRemoteSave = false; // Firestore 기록 생략 여부
         
         // 파일 자동 저장 관련
         this.autoSaveFileHandle = null; // 자동 저장 파일 핸들
@@ -27,8 +26,6 @@ class BattleApp {
         this.autoSaveEnabled = false; // 자동 저장 활성화 여부
         this.lastSaveTime = null; // 마지막 저장 시간
         this.nextSaveTime = null; // 다음 저장 시간
-        this.remoteSyncInterval = null; // Firestore 주기적 동기화 타이머
-        this.currentUserId = null; // 로그인 사용자 ID
         
         // DOM 요소
         this.initElements();
@@ -162,15 +159,10 @@ class BattleApp {
         this.loadSampleCharacters();
         this.dataManager.loadFromLocalStorage(); // 저장된 데이터 자동 불러오기
         this.renderAllTeams();
-        // Firestore 원격 데이터가 있으면 가져와서 최신 상태로 덮어씀
-        this.dataManager.loadFromFirestore();
         this.updateClock();
         setInterval(() => this.updateClock(), 1000);
-        this.startRemoteSyncPolling();
         this.initEventListeners();
         this.initStatSelectors();
-
-        // 개발 모드 로직 제거됨
     }
 
     /**
@@ -324,9 +316,16 @@ class BattleApp {
         });
         
         // 파일 자동 저장
-        // 파일 자동 저장 UI 제거됨
-
-        // 개발 모드 UI 제거됨
+        console.log('[DEBUG] toggleAutosave 버튼 요소:', this.elements.toggleAutosave);
+        if (this.elements.toggleAutosave) {
+            this.elements.toggleAutosave.addEventListener('click', () => {
+                console.log('[DEBUG] 활성화 버튼 클릭됨!');
+                this.toggleAutoSave();
+            });
+            console.log('[DEBUG] 이벤트 리스너 연결 완료');
+        } else {
+            console.error('[ERROR] toggleAutosave 버튼을 찾을 수 없습니다!');
+        }
 
         // 드래그 앤 드롭으로 JSON 불러오기
         document.addEventListener('dragover', (e) => {
@@ -372,103 +371,6 @@ class BattleApp {
             } catch (err) {
                 alert('JSON 파싱에 실패했습니다: ' + err.message);
             }
-        });
-    }
-
-    /**
-     * 토스트 표시 (현재 테마에 맞춘 알림)
-     */
-    showToast(message, type = 'info', title) {
-        const container = document.getElementById('toast-container');
-        if (!container) return;
-        const toast = document.createElement('div');
-        toast.className = `toast ${type}`;
-        toast.innerHTML = `
-            <div class="toast-body">
-                ${title ? `<div class="toast-title">${title}</div>` : ''}
-                <div class="toast-message">${message}</div>
-            </div>
-        `;
-        container.appendChild(toast);
-        setTimeout(() => {
-            toast.style.animation = 'toast-fade-out 200ms ease-out forwards';
-            setTimeout(() => toast.remove(), 220);
-        }, 3200);
-    }
-
-    /**
-     * 공용 컨펌 모달 (Promise)
-     */
-    showConfirm({ title = '확인', message = '계속 진행할까요?', okText = '확인', cancelText = '취소' } = {}) {
-        return new Promise((resolve) => {
-            const modal = document.getElementById('confirm-modal');
-            const t = document.getElementById('confirm-title');
-            const m = document.getElementById('confirm-message');
-            const ok = document.getElementById('confirm-ok');
-            const cancel = document.getElementById('confirm-cancel');
-            const closeBtn = document.getElementById('confirm-close');
-            if (!modal || !t || !m || !ok || !cancel) {
-                resolve(confirm(message));
-                return;
-            }
-            t.textContent = title;
-            m.textContent = message;
-            ok.textContent = okText;
-            cancel.textContent = cancelText;
-            modal.style.display = 'block';
-
-            const cleanup = () => {
-                modal.style.display = 'none';
-                ok.removeEventListener('click', onOk);
-                cancel.removeEventListener('click', onCancel);
-                closeBtn?.removeEventListener('click', onCancel);
-                modal.removeEventListener('click', onBackdrop);
-            };
-            const onOk = () => { cleanup(); resolve(true); };
-            const onCancel = () => { cleanup(); resolve(false); };
-            const onBackdrop = (e) => { if (e.target === modal) onCancel(); };
-            ok.addEventListener('click', onOk);
-            cancel.addEventListener('click', onCancel);
-            closeBtn?.addEventListener('click', onCancel);
-            modal.addEventListener('click', onBackdrop);
-        });
-    }
-
-    /**
-     * 공용 알림 모달 (OK만, 가운데) - Validation 용
-     */
-    showAlert({ title = '알림', message = '', okText = '확인' } = {}) {
-        return new Promise((resolve) => {
-            const modal = document.getElementById('confirm-modal');
-            const t = document.getElementById('confirm-title');
-            const m = document.getElementById('confirm-message');
-            const ok = document.getElementById('confirm-ok');
-            const cancel = document.getElementById('confirm-cancel');
-            const closeBtn = document.getElementById('confirm-close');
-            if (!modal || !t || !m || !ok || !cancel) {
-                alert(message);
-                resolve(true);
-                return;
-            }
-            // 알림 모드: 취소 버튼 숨김
-            cancel.style.display = 'none';
-            t.textContent = title;
-            m.textContent = message;
-            ok.textContent = okText;
-            modal.style.display = 'block';
-
-            const cleanup = () => {
-                modal.style.display = 'none';
-                ok.removeEventListener('click', onOk);
-                closeBtn?.removeEventListener('click', onOk);
-                modal.removeEventListener('click', onBackdrop);
-                cancel.style.display = '';
-            };
-            const onOk = () => { cleanup(); resolve(true); };
-            const onBackdrop = (e) => { if (e.target === modal) onOk(); };
-            ok.addEventListener('click', onOk);
-            closeBtn?.addEventListener('click', onOk);
-            modal.addEventListener('click', onBackdrop);
         });
     }
 
@@ -546,7 +448,7 @@ class BattleApp {
             removeBtn.textContent = '×';
             removeBtn.addEventListener('click', (e) => {
                 e.stopPropagation();
-                this.requestRemoveCharacter(teamIndex, char.id);
+                this.removeCharacter(teamIndex, char.id);
             });
 
             info.appendChild(name);
@@ -638,30 +540,20 @@ class BattleApp {
      * 캐릭터 제거
      */
     removeCharacter(teamIndex, charId) {
-        // 실제 삭제만 수행 (확인은 호출 측에서 처리)
-        this.teams[teamIndex].characters = this.teams[teamIndex].characters.filter(c => c.id !== charId);
-        const teamKey = ['hero', 'gov', 'villain'][teamIndex];
-        this.selectedCharacters[teamKey] = this.selectedCharacters[teamKey].filter(id => id !== charId);
-        this.saveToLocalStorage();
-        const activeScreen = document.querySelector('.screen.screen-active')?.id;
-        if (activeScreen === 'character-list-screen') {
-            this.renderCharacterList();
-        } else {
-            this.renderAllTeams();
-        }
-    }
-
-    async requestRemoveCharacter(teamIndex, charId) {
-        const char = this.teams[teamIndex].characters.find(c => c.id === charId);
-        const ok = await this.showConfirm({
-            title: '캐릭터 삭제',
-            message: `정말로 '${char?.name || '캐릭터'}'를 삭제하시겠습니까?`,
-            okText: '삭제',
-            cancelText: '취소'
-        });
-        if (ok) {
-            this.removeCharacter(teamIndex, charId);
-            this.showToast('캐릭터가 삭제되었습니다.', 'success');
+        if (confirm('이 캐릭터를 삭제하시겠습니까?')) {
+            this.teams[teamIndex].characters = this.teams[teamIndex].characters.filter(c => c.id !== charId);
+            
+            const teamKey = ['hero', 'gov', 'villain'][teamIndex];
+            this.selectedCharacters[teamKey] = this.selectedCharacters[teamKey].filter(id => id !== charId);
+            
+            // 자동 저장 후 현재 화면 새로고침
+            this.saveToLocalStorage();
+            const activeScreen = document.querySelector('.screen.screen-active')?.id;
+            if (activeScreen === 'character-list-screen') {
+                this.renderCharacterList();
+            } else {
+                this.renderAllTeams();
+            }
         }
     }
 
@@ -695,7 +587,6 @@ class BattleApp {
         if (this.elements.modalTitle) this.elements.modalTitle.textContent = '캐릭터 생성';
         if (this.elements.modalDelete) this.elements.modalDelete.classList.add('hidden');
         if (this.elements.modal) this.elements.modal.style.display = 'block';
-        this.enforceSingleSkillType();
     }
 
     /**
@@ -743,7 +634,6 @@ class BattleApp {
             this.elements.modal.style.display = 'block';
             console.log('모달 display:', this.elements.modal.style.display);
         }
-        this.enforceSingleSkillType();
     }
 
     /**
@@ -777,32 +667,12 @@ class BattleApp {
     }
 
     /**
-     * 스킬 타입 한 개만 선택되도록 강제 + 즉시 팝업 안내
-     */
-    enforceSingleSkillType() {
-        const boxes = Array.from(document.querySelectorAll('input[name="skillType"]'));
-        if (boxes.length === 0) return;
-        const handler = async (e) => {
-            const checked = boxes.filter(cb => cb.checked);
-            if (checked.length > 1) {
-                // 방금 체크한 항목을 되돌림
-                e.target.checked = false;
-                await this.showAlert({ title: '제한', message: '스킬 타입은 한 개만 선택할 수 있습니다.' });
-            }
-        };
-        boxes.forEach(cb => {
-            cb.removeEventListener('change', handler);
-            cb.addEventListener('change', handler);
-        });
-    }
-
-    /**
      * 커스텀 캐릭터 저장
      */
     saveCustomCharacter() {
         const name = this.elements.charName?.value.trim();
         if (!name) {
-            this.showToast('캐릭터 이름을 입력해주세요!', 'danger');
+            alert('캐릭터 이름을 입력해주세요!');
             return;
         }
 
@@ -819,11 +689,6 @@ class BattleApp {
 
         const skillTypes = Array.from(document.querySelectorAll('input[name="skillType"]:checked'))
             .map(cb => cb.value);
-
-        if (skillTypes.length > 1) {
-            this.showAlert({ title: '제한', message: '스킬 타입은 한 개만 선택할 수 있습니다.' });
-            return;
-        }
 
         const skillDescription = this.elements.skillDescription?.value.trim() || '';
         const status = document.querySelector('input[name="status"]:checked')?.value || 'active';
@@ -864,26 +729,17 @@ class BattleApp {
         }
 
         this.closeModal();
-        this.showToast(this.currentEditCharId ? '캐릭터가 수정되었습니다!' : '캐릭터가 생성되었습니다!', 'success');
+        alert(this.currentEditCharId ? '캐릭터가 수정되었습니다!' : '캐릭터가 생성되었습니다!');
     }
 
     /**
      * 캐릭터 삭제
      */
     deleteCharacter() {
-        if (!this.currentEditCharId) return;
-        this.showConfirm({
-            title: '캐릭터 삭제',
-            message: '정말로 이 캐릭터를 삭제하시겠습니까?',
-            okText: '삭제',
-            cancelText: '취소'
-        }).then((ok) => {
-            if (ok) {
-                this.removeCharacter(this.currentEditTeam, this.currentEditCharId);
-                this.closeModal();
-                this.showToast('캐릭터가 삭제되었습니다.', 'success');
-            }
-        });
+        if (this.currentEditCharId && confirm('정말로 이 캐릭터를 삭제하시겠습니까?')) {
+            this.removeCharacter(this.currentEditTeam, this.currentEditCharId);
+            this.closeModal();
+        }
     }
 
     /**
@@ -1140,177 +996,13 @@ class BattleApp {
         } catch (error) {
             console.error('로컬 스토리지 저장 실패:', error);
         }
-
-        // Firestore 동기화 (비동기, 실패해도 앱 동작에는 영향 없음)
-        if (this.dataManager && typeof this.dataManager.saveToFirestore === 'function' && !this.skipRemoteSave) {
-            this.dataManager.saveToFirestore().catch((err) => {
-                console.error('원격 저장 실패:', err);
-            });
-        }
     }
 
     /**
-     * Firestore에서 주기적으로 최신 데이터를 받아오는 간단한 폴링.
-     * (충돌 처리 없이 last-write-wins 형태, 필요 시 병합 로직 추가 가능)
+     * 로컬 스토리지에서 불러오기
      */
-    startRemoteSyncPolling() {
-        if (this.remoteSyncInterval) return; // 중복 방지
-        this.remoteSyncInterval = setInterval(() => {
-            if (this.dataManager && typeof this.dataManager.loadFromFirestore === 'function') {
-                if (!this.dataManager.userId) return; // 로그인 전에는 건너뜀
-                this.dataManager.loadFromFirestore();
-            }
-        }, 30000); // 30초 간격
-    }
-    // 개발 모드 관련 로직 제거됨
-
-    /**
-// ---- 인증/앱 진입 가드 ----
-function setupAuthUI() {
-    const modal = document.getElementById('auth-modal');
-    const openBtn = document.getElementById('auth-open');
-    const closeBtn = document.getElementById('auth-close');
-    const loginBtn = document.getElementById('auth-login');
-    const signupBtn = document.getElementById('auth-signup');
-    const googleBtn = document.getElementById('auth-google');
-    const emailInput = document.getElementById('auth-email');
-    const passwordInput = document.getElementById('auth-password');
-    const errorBox = document.getElementById('auth-error');
-    const banner = document.getElementById('auth-banner');
-
-    const showError = (msg) => {
-        if (errorBox) errorBox.textContent = msg || '';
-    };
-
-    const openModal = () => {
-        if (modal) modal.style.display = 'flex';
-        showError('');
-    };
-
-    const closeModal = () => {
-        if (modal) modal.style.display = 'none';
-        showError('');
-    };
-
-    openBtn?.addEventListener('click', openModal);
-    closeBtn?.addEventListener('click', closeModal);
-
-    const getAuth = () => {
-        if (window.firebase && firebase.auth) return firebase.auth();
-        console.error('Firebase Auth 가 로드되지 않았습니다.');
-        showError('Firebase가 초기화되지 않았습니다.');
-        return null;
-    };
-
-    loginBtn?.addEventListener('click', async () => {
-        const auth = getAuth();
-        if (!auth) return;
-        const email = emailInput?.value.trim();
-        const password = passwordInput?.value;
-        if (!email || !password) {
-            showError('이메일과 비밀번호를 입력하세요.');
-            return;
-        }
+    loadFromLocalStorage() {
         try {
-            await auth.signInWithEmailAndPassword(email, password);
-            closeModal();
-        } catch (err) {
-            showError(err.message || '로그인 실패');
-        }
-    });
-
-    signupBtn?.addEventListener('click', async () => {
-        const auth = getAuth();
-        if (!auth) return;
-        const email = emailInput?.value.trim();
-        const password = passwordInput?.value;
-        if (!email || !password) {
-            showError('이메일과 비밀번호를 입력하세요.');
-            return;
-        }
-        try {
-            await auth.createUserWithEmailAndPassword(email, password);
-            closeModal();
-        } catch (err) {
-            showError(err.message || '회원가입 실패');
-        }
-    });
-
-    googleBtn?.addEventListener('click', async () => {
-        const auth = getAuth();
-        if (!auth) return;
-        const provider = new firebase.auth.GoogleAuthProvider();
-        try {
-            await auth.signInWithPopup(provider);
-            closeModal();
-        } catch (err) {
-            showError(err.message || 'Google 로그인 실패');
-        }
-    });
-
-    // 모달 배경 클릭 시 닫기
-    modal?.addEventListener('click', (e) => {
-        if (e.target === modal) closeModal();
-    });
-
-    // 배너 노출/숨김 제어를 위해 반환
-    return {
-        showBanner: () => { if (banner) banner.style.display = 'flex'; },
-        hideBanner: () => { if (banner) banner.style.display = 'none'; },
-        openModal,
-        closeModal,
-        showError
-    };
-}
-
-function initAuthGuard(providedUi) {
-    const ui = providedUi || setupAuthUI();
-
-    if (!window.firebase || !firebase.auth) {
-        console.error('Firebase Auth가 로드되지 않았습니다.');
-        ui?.openModal?.();
-        ui?.showError?.('Firebase 설정이 필요합니다. index.html의 firebaseConfig를 채워주세요.');
-        return;
-    }
-
-    firebase.auth().onAuthStateChanged((user) => {
-        if (user) {
-            ui?.hideBanner?.();
-            ui?.closeModal?.();
-
-            // 앱 인스턴스가 없으면 생성하고 사용자 설정
-            if (!window.app) {
-                window.app = new BattleApp();
-            }
-
-            if (window.app.dataManager?.setUser) {
-                window.app.dataManager.setUser(user.uid);
-                // 로그인한 사용자 키로 다시 로드/렌더
-                window.app.dataManager.loadFromLocalStorage();
-                if (typeof window.app.renderAllTeams === 'function') {
-                    window.app.renderAllTeams();
-                }
-                window.app.dataManager.loadFromFirestore();
-            }
-        } else {
-            // 로그인 전: 모달을 표시하고 배너는 숨김
-            ui?.hideBanner?.();
-            ui?.openModal?.();
-            // 앱이 이미 생성되어 있으면 메모리 상태 초기화를 위해 새로고침
-            if (window.app) {
-                window.location.reload();
-            }
-        }
-    });
-}
-
-// 초기화: 인증 가드부터 설정
-document.addEventListener('DOMContentLoaded', () => {
-    const ui = setupAuthUI();
-    // 초기 진입 시 바로 로그인 모달을 띄워 배경 흐림 처리
-    ui?.openModal?.();
-    initAuthGuard(ui);
-});
             const data = localStorage.getItem('battleProgramData');
             if (data) {
                 const parsed = JSON.parse(data);

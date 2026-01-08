@@ -397,6 +397,79 @@
     gap: 10px;
 }
 
+/* 파일 자동 저장 상태 */
+.autosave-status {
+    margin-top: 16px;
+    padding: 16px;
+    background: white;
+    border: 2px solid #e3e6f0;
+    border-radius: 12px;
+    text-align: center;
+}
+
+.autosave-title {
+    font-weight: 600;
+    color: #4a5568;
+    font-size: 0.95em;
+    margin-bottom: 12px;
+}
+
+.autosave-state {
+    font-size: 0.9em;
+    padding: 6px 12px;
+    border-radius: 6px;
+    margin-bottom: 8px;
+    font-weight: 600;
+}
+
+.autosave-state.active {
+    background: #c6f6d5;
+    color: #276749;
+}
+
+.autosave-state.inactive {
+    background: #fed7d7;
+    color: #9b2c2c;
+}
+
+.autosave-time {
+    font-size: 0.85em;
+    color: #718096;
+    margin-bottom: 4px;
+}
+
+.autosave-countdown {
+    font-size: 0.85em;
+    color: #4a5568;
+    margin-bottom: 12px;
+}
+
+.btn-autosave {
+    width: 100%;
+    padding: 8px 16px;
+    background: #667eea;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: 0.9em;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.btn-autosave:hover {
+    background: #5568d3;
+    transform: translateY(-1px);
+}
+
+.btn-autosave.active {
+    background: #e53e3e;
+}
+
+.btn-autosave.active:hover {
+    background: #c53030;
+}
+
 /* 버튼 텍스트 줄바꿈 및 작은 화면 대응 */
 @media (max-width: 768px) {
     .management-buttons {

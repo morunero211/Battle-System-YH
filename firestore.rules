@@ -1,0 +1,44 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // 사용자별 전투 데이터
+    // users/{userId}/battle/{document}
+    match /users/{userId}/battle/{document=**} {
+      // 로그인한 사용자는 자신의 데이터만 읽고 쓸 수 있음
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // 전역 전투 데이터 (테스트용, 나중에 제거 가능)
+    match /battleApp/{document=**} {
+      // 모든 사용자가 읽을 수 있음
+      allow read: if true;
+      
+      // 로그인한 사용자만 쓸 수 있음
+      allow write: if request.auth != null;
+    }
+    
+    // 공개 전투 기록 (랭킹, 리더보드 등)
+    match /publicBattles/{battleId} {
+      // 모든 사용자가 읽을 수 있음
+      allow read: if true;
+      
+      // 로그인한 사용자만 자신의 전투 기록을 작성할 수 있음
+      allow create: if request.auth != null 
+                    && request.resource.data.userId == request.auth.uid;
+      
+      // 자신의 전투 기록만 수정/삭제 가능
+      allow update, delete: if request.auth != null 
+                            && resource.data.userId == request.auth.uid;
+    }
+    
+    // 사용자 프로필 (선택)
+    match /userProfiles/{userId} {
+      // 모든 사용자가 프로필을 볼 수 있음
+      allow read: if true;
+      
+      // 자신의 프로필만 수정 가능
+      allow write: if request.auth != null && request.auth.uid == userId;
+    }
+  }
+}

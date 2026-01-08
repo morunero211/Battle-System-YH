@@ -1,0 +1,168 @@
+{
+  "teams": [
+    {
+      "name": "히어로",
+      "characters": [
+        {
+          "name": "김철수",
+          "hp": 100,
+          "attack": 4,
+          "defense": 3,
+          "agility": 3,
+          "skill": 4,
+          "skillTypes": [
+            "공격형"
+          ],
+          "skillDescription": "강력한 일격",
+          "status": "active",
+          "id": "h1"
+        },
+        {
+          "name": "이영희",
+          "hp": 85,
+          "attack": 5,
+          "defense": 2,
+          "agility": 4,
+          "skill": 5,
+          "skillTypes": [
+            "공격형",
+            "지원형"
+          ],
+          "skillDescription": "빠른 공격과 지원",
+          "status": "active",
+          "id": "h2"
+        }
+      ]
+    },
+    {
+      "name": "정부",
+      "characters": [
+        {
+          "name": "최강욱",
+          "hp": 78,
+          "attack": 4,
+          "defense": 4,
+          "agility": 2,
+          "skill": 3,
+          "skillTypes": [
+            "방어형"
+          ],
+          "skillDescription": "철벽 방어",
+          "status": "active",
+          "id": "g1"
+        }
+      ]
+    },
+    {
+      "name": "빌런",
+      "characters": [
+        {
+          "name": "유재석",
+          "hp": 0,
+          "attack": 4,
+          "defense": 2,
+          "agility": 5,
+          "skill": 4,
+          "skillTypes": [
+            "공격형"
+          ],
+          "skillDescription": "빠른 속도로 적을 제압",
+          "status": "active",
+          "id": "v1"
+        }
+      ]
+    }
+  ],
+  "selectedCharacters": {
+    "hero": [],
+    "gov": [],
+    "villain": []
+  },
+  "battleHistory": [
+    {
+      "id": "battle_1766770095677",
+      "date": "2025-12-27 02:28:15",
+      "mode": "team",
+      "teams": {
+        "hero": [
+          {
+            "name": "김철수",
+            "hp": 100,
+            "attack": 4,
+            "defense": 3,
+            "agility": 3,
+            "skill": 4,
+            "skillTypes": [
+              "공격형"
+            ],
+            "skillDescription": "강력한 일격",
+            "status": "active",
+            "id": "h1"
+          }
+        ],
+        "gov": [
+          {
+            "name": "최강욱",
+            "hp": 78,
+            "attack": 4,
+            "defense": 4,
+            "agility": 2,
+            "skill": 3,
+            "skillTypes": [
+              "방어형"
+            ],
+            "skillDescription": "철벽 방어",
+            "status": "active",
+            "id": "g1"
+          }
+        ],
+        "villain": [
+          {
+            "name": "유재석",
+            "hp": 0,
+            "attack": 4,
+            "defense": 2,
+            "agility": 5,
+            "skill": 4,
+            "skillTypes": [
+              "공격형"
+            ],
+            "skillDescription": "빠른 속도로 적을 제압",
+            "status": "active",
+            "id": "v1"
+          }
+        ]
+      },
+      "winner": "미정",
+      "initialHp": {
+        "h1": 100,
+        "g1": 100,
+        "v1": 88
+      },
+      "initialStats": {
+        "h1": {
+          "attack": 4,
+          "defense": 3,
+          "agility": 3,
+          "skill": 4,
+          "status": "active"
+        },
+        "g1": {
+          "attack": 4,
+          "defense": 4,
+          "agility": 2,
+          "skill": 3,
+          "status": "active"
+        },
+        "v1": {
+          "attack": 4,
+          "defense": 2,
+          "agility": 5,
+          "skill": 4,
+          "status": "active"
+        }
+      }
+    }
+  ],
+  "savedAt": "2025-12-26T17:28:28.340Z"
+}

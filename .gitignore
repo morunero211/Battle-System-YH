@@ -1,0 +1,28 @@
+# Node modules
+node_modules/
+
+# Firebase
+.firebase/
+firebase-debug.log
+firebaserc.backup
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Backup files
+*.backup
+*.bak
+
+# Local environment
+.env.local

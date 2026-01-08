@@ -1,70 +1,83 @@
 {
-  "characters": [
+  "teams": [
     {
-      "name": "검사",
-      "hp": 100,
-      "attack": 60,
-      "defense": 30,
-      "evadeRate": 20,
-      "criticalRate": 10
+      "name": "히어로",
+      "characters": [
+        {
+          "name": "김철수",
+          "hp": 100,
+          "attack": 4,
+          "defense": 3,
+          "agility": 3,
+          "skill": 4,
+          "skillTypes": [
+            "공격형"
+          ],
+          "skillDescription": "강력한 일격",
+          "status": "active",
+          "id": "h1"
+        },
+        {
+          "name": "이영희",
+          "hp": 85,
+          "attack": 5,
+          "defense": 2,
+          "agility": 4,
+          "skill": 5,
+          "skillTypes": [
+            "공격형",
+            "지원형"
+          ],
+          "skillDescription": "빠른 공격과 지원",
+          "status": "active",
+          "id": "h2"
+        }
+      ]
     },
     {
-      "name": "마법사",
-      "hp": 80,
-      "attack": 70,
-      "defense": 10,
-      "evadeRate": 15,
-      "criticalRate": 20
+      "name": "정부",
+      "characters": [
+        {
+          "name": "최강욱",
+          "hp": 100,
+          "attack": 4,
+          "defense": 4,
+          "agility": 2,
+          "skill": 3,
+          "skillTypes": [
+            "방어형"
+          ],
+          "skillDescription": "철벽 방어",
+          "status": "active",
+          "id": "g1"
+        }
+      ]
     },
     {
-      "name": "전사",
-      "hp": 120,
-      "attack": 50,
-      "defense": 45,
-      "evadeRate": 10,
-      "criticalRate": 5
-    },
-    {
-      "name": "궁수",
-      "hp": 85,
-      "attack": 65,
-      "defense": 15,
-      "evadeRate": 30,
-      "criticalRate": 25
-    },
-    {
-      "name": "성직자",
-      "hp": 90,
-      "attack": 40,
-      "defense": 25,
-      "evadeRate": 10,
-      "criticalRate": 5
-    },
-    {
-      "name": "도적",
-      "hp": 75,
-      "attack": 70,
-      "defense": 10,
-      "evadeRate": 40,
-      "criticalRate": 35
-    },
-    {
-      "name": "팔라딘",
-      "hp": 110,
-      "attack": 55,
-      "defense": 50,
-      "evadeRate": 5,
-      "criticalRate": 8
-    },
-    {
-      "name": "소서러",
-      "hp": 70,
-      "attack": 80,
-      "defense": 5,
-      "evadeRate": 20,
-      "criticalRate": 30
+      "name": "빌런",
+      "characters": [
+        {
+          "name": "유재석",
+          "hp": 88,
+          "attack": 4,
+          "defense": 2,
+          "agility": 5,
+          "skill": 4,
+          "skillTypes": [
+            "공격형"
+          ],
+          "skillDescription": "빠른 속도로 적을 제압",
+          "status": "active",
+          "id": "v1"
+        }
+      ]
     }
   ],
-  "version": "1.0",
-  "savedAt": "2025-12-18"
+  "selectedCharacters": {
+    "hero": [],
+    "gov": [],
+    "villain": []
+  },
+  "battleHistory": [],
+  "savedAt": "2025-12-26T17:18:59.552Z"
 }
