@@ -1,5 +1,4 @@
 const express = require('express');
-const { PrismaClient } = require('@prisma/client');
 const battleEngine = require('../services/battleEngine');
 const {
   zBattleCreate,
@@ -11,7 +10,30 @@ const {
 const { z } = require('zod');
 
 const router = express.Router();
-const prisma = new PrismaClient();
+
+let prisma = null;
+function getPrisma() {
+    if (prisma) return prisma;
+    try {
+        const { PrismaClient } = require('@prisma/client');
+        prisma = new PrismaClient();
+        return prisma;
+    } catch (e) {
+        return null;
+    }
+}
+
+function requireDb(res) {
+    const prismaClient = getPrisma();
+    if (!prismaClient) {
+        res.status(500).json({
+            error: 'DATABASE_NOT_CONFIGURED',
+            message: 'DATABASE_URL이 설정되지 않아 DB 기능을 사용할 수 없습니다.'
+        });
+        return null;
+    }
+    return prismaClient;
+}
 
 function clampStat(stat) {
     const n = Number(stat);
@@ -143,6 +165,9 @@ router.post('/simulate', async (req, res) => {
  */
 router.post('/', async (req, res) => {
     try {
+        const prismaClient = requireDb(res);
+        if (!prismaClient) return;
+
         // 입력 검증
         const validated = zBattleCreate.parse(req.body);
         const { characterIds, teams, ruleSetId } = validated;
@@ -155,7 +180,7 @@ router.post('/', async (req, res) => {
         }
 
         // RuleSet 존재 여부 확인
-        const ruleSet = await prisma.ruleSet.findUnique({
+        const ruleSet = await prismaClient.ruleSet.findUnique({
             where: { id: ruleSetId }
         });
 
@@ -164,7 +189,7 @@ router.post('/', async (req, res) => {
         }
 
         // 캐릭터 정보 조회
-        const characters = await prisma.character.findMany({
+        const characters = await prismaClient.character.findMany({
             where: { id: { in: characterIds } }
         });
 
@@ -173,7 +198,7 @@ router.post('/', async (req, res) => {
         }
 
         // 전투 생성
-        const battle = await prisma.battle.create({
+        const battle = await prismaClient.battle.create({
             data: {
                 status: 'IN_PROGRESS',
                 phase: 'TURN_ACTION',
@@ -209,7 +234,7 @@ router.post('/', async (req, res) => {
         // 참가자의 initiativeOrder 업데이트
         await Promise.all(
             initiativeOrder.map(({ participantId, order }) =>
-                prisma.battleParticipant.update({
+                prismaClient.battleParticipant.update({
                     where: { id: participantId },
                     data: { initiativeOrder: order }
                 })
@@ -218,12 +243,12 @@ router.post('/', async (req, res) => {
 
         // 첫 턴 주인 설정 (가장 먼저 행동)
         const firstTurnOwner = initiativeOrder[0].participantId;
-        await prisma.battle.update({
+        await prismaClient.battle.update({
             where: { id: battle.id },
             data: { turnOwnerParticipantId: firstTurnOwner }
         });
 
-        const updatedBattle = await prisma.battle.findUnique({
+        const updatedBattle = await prismaClient.battle.findUnique({
             where: { id: battle.id },
             include: {
                 participants: {
@@ -252,9 +277,12 @@ router.post('/', async (req, res) => {
  */
 router.get('/:id', async (req, res) => {
     try {
+        const prismaClient = requireDb(res);
+        if (!prismaClient) return;
+
         const { id } = req.params;
 
-        const battle = await prisma.battle.findUnique({
+        const battle = await prismaClient.battle.findUnique({
             where: { id },
             include: {
                 participants: {
@@ -297,6 +325,9 @@ router.get('/:id', async (req, res) => {
  */
 router.post('/:id/actions', async (req, res) => {
     try {
+        const prismaClient = requireDb(res);
+        if (!prismaClient) return;
+
         const { id: battleId } = req.params;
 
         // 입력 검증
@@ -304,7 +335,7 @@ router.post('/:id/actions', async (req, res) => {
         const { action, participantId } = validated;
 
         // 전투 조회
-        const battle = await prisma.battle.findUnique({
+        const battle = await prismaClient.battle.findUnique({
             where: { id: battleId },
             include: {
                 participants: {

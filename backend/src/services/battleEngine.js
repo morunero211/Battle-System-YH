@@ -1,5 +1,15 @@
-const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
+let prisma = null;
+
+function getPrisma() {
+  if (prisma) return prisma;
+  try {
+    const { PrismaClient } = require('@prisma/client');
+    prisma = new PrismaClient();
+    return prisma;
+  } catch (e) {
+    return null;
+  }
+}
 
 /**
  * 전투 판정 엔진
@@ -91,7 +101,10 @@ const DEFAULT_RULESET = {
 
 async function getActiveRuleSetOrDefault() {
   try {
-    const ruleSet = await prisma.ruleSet.findFirst({
+    const prismaClient = getPrisma();
+    if (!prismaClient) return DEFAULT_RULESET;
+
+    const ruleSet = await prismaClient.ruleSet.findFirst({
       where: { isActive: true },
       orderBy: { updatedAt: 'desc' }
     });
