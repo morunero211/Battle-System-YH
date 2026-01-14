@@ -4,7 +4,8 @@
 
 // 현재 환경 판단
 const isDevelopment = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-const isProduction = window.location.hostname === 'qps0211.github.io';
+const isVercel = window.location.hostname.includes('vercel.app');
+const isGithubPages = window.location.hostname === 'qps0211.github.io';
 
 // 백엔드 API URL 결정
 let API_BASE_URL;
@@ -13,11 +14,14 @@ if (isDevelopment) {
   // 개발 환경: 로컬 백엔드
   API_BASE_URL = 'http://localhost:3000/api';
   console.log('🔧 개발 환경 - 로컬 백엔드 연결:', API_BASE_URL);
-} else if (isProduction) {
-  // 프로덕션 환경: Cloud Run 백엔드
-  // 배포 후에는 Cloud Run URL로 자동 변경됨
+} else if (isVercel) {
+  // 프로덕션 환경: Vercel 백엔드
+  API_BASE_URL = 'https://battle-system-yh.vercel.app/api';
+  console.log('🚀 프로덕션 환경 (Vercel) - 백엔드:', API_BASE_URL);
+} else if (isGithubPages) {
+  // GitHub Pages 환경 (백엔드 따로)
   API_BASE_URL = 'https://battle-system-backend-xxxx.run.app/api';
-  console.log('🚀 프로덕션 환경 - Cloud Run 백엔드:', API_BASE_URL);
+  console.log('🚀 프로덕션 환경 (GitHub Pages) - Cloud Run 백엔드:', API_BASE_URL);
 } else {
   // 기타 환경
   API_BASE_URL = 'http://localhost:3000/api';
