@@ -32,7 +32,12 @@ if (isDevelopment) {
 window.CONFIG = {
   API_BASE_URL,
   isDevelopment,
-  isProduction
+  isVercel,
+  isGithubPages
 };
 
-console.log('API 설정 완료:', window.CONFIG);
+console.log('🔗 API 설정 완료:');
+console.log('   API_BASE_URL:', window.CONFIG.API_BASE_URL);
+console.log('   hostname:', window.location.hostname);
+console.log('   isDevelopment:', window.CONFIG.isDevelopment);
+console.log('   isVercel:', window.CONFIG.isVercel);
