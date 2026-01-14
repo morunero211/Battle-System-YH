@@ -1,24 +1,24 @@
 {
   "version": 2,
-  "buildCommand": "echo 'Building...'",
+  "buildCommand": "npm install --prefix ./backend",
   "outputDirectory": "./",
   "public": true,
-  "functions": {
-    "backend/src/server.js": {
-      "runtime": "nodejs18.x"
-    }
-  },
-  "routes": [
+  "cleanUrls": true,
+  "headers": [
     {
-      "src": "/api/(.*)",
-      "dest": "/backend/src/server.js"
-    },
-    {
-      "src": "/(.*)",
-      "dest": "/$1"
+      "source": "/api/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-cache, no-store, must-revalidate"
+        }
+      ]
     }
   ],
-  "env": {
-    "NODE_ENV": "production"
-  }
+  "redirects": [
+    {
+      "source": "/index.html",
+      "destination": "/"
+    }
+  ]
 }
