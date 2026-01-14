@@ -1,0 +1,507 @@
+/**
+ * 전투룸 스타일시트
+ */
+
+.battle-room {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  gap: 20px;
+  padding: 20px;
+  background: linear-gradient(135deg, #1a202c 0%, #2d3748 100%);
+  border-radius: 12px;
+  color: #e2e8f0;
+}
+
+/* ===== 전투 헤더 ===== */
+.battle-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: rgba(0, 0, 0, 0.5);
+  padding: 20px;
+  border-radius: 8px;
+  border-left: 4px solid #f56565;
+}
+
+.battle-info h2 {
+  margin: 0 0 8px 0;
+  font-size: 24px;
+  color: #fff;
+}
+
+.battle-details {
+  margin: 0;
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.badge {
+  display: inline-block;
+  padding: 6px 12px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.badge-turn {
+  background: rgba(72, 187, 120, 0.2);
+  border-color: #48bb78;
+  color: #68f0a8;
+}
+
+.badge-phase {
+  background: rgba(237, 137, 54, 0.2);
+  border-color: #ed8936;
+  color: #fbd38d;
+}
+
+.badge-status {
+  background: rgba(66, 153, 225, 0.2);
+  border-color: #4299e1;
+  color: #90cdf4;
+}
+
+.battle-actions {
+  display: flex;
+  gap: 10px;
+}
+
+/* ===== 전투 영역 ===== */
+.battle-arena {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  flex: 1;
+  min-height: 400px;
+}
+
+.team-column {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+  padding: 15px;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 8px;
+  border: 2px solid rgba(255, 255, 255, 0.1);
+}
+
+.team-left {
+  border-left: 4px solid #f56565;
+}
+
+.team-right {
+  border-right: 4px solid #4299e1;
+}
+
+.team-header {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  color: #fff;
+  text-align: center;
+  padding-bottom: 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.participants-container {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  overflow-y: auto;
+  max-height: 400px;
+}
+
+/* ===== 참가자 카드 ===== */
+.participant-card {
+  background: linear-gradient(135deg, rgba(45, 55, 72, 0.8), rgba(26, 32, 44, 0.8));
+  border: 2px solid rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+  padding: 12px;
+  transition: all 0.3s ease;
+}
+
+.participant-card.active-turn {
+  background: linear-gradient(135deg, rgba(72, 187, 120, 0.3), rgba(48, 125, 91, 0.3));
+  border-color: #48bb78;
+  box-shadow: 0 0 20px rgba(72, 187, 120, 0.3);
+}
+
+.participant-card.dead {
+  opacity: 0.6;
+  background: linear-gradient(135deg, rgba(80, 80, 80, 0.6), rgba(60, 60, 60, 0.6));
+}
+
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.participant-name {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: #e2e8f0;
+}
+
+.turn-indicator {
+  display: inline-block;
+  padding: 4px 8px;
+  background: #48bb78;
+  color: #000;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+/* HP 바 */
+.card-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.stat-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.stat-label {
+  font-weight: 600;
+  min-width: 30px;
+  color: #cbd5e0;
+}
+
+.hp-bar {
+  flex: 1;
+  height: 18px;
+  background: rgba(0, 0, 0, 0.5);
+  border-radius: 4px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.hp-fill {
+  height: 100%;
+  transition: width 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding-right: 3px;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.stat-value {
+  min-width: 50px;
+  text-align: right;
+  color: #a0aec0;
+  font-size: 11px;
+}
+
+/* 스탯 그리드 */
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+}
+
+.stat-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 8px;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.stat-icon {
+  font-size: 14px;
+  margin-bottom: 2px;
+}
+
+/* 상태 배지 */
+.status-badge {
+  display: inline-block;
+  margin-top: 8px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  text-align: center;
+  width: 100%;
+}
+
+.dead-badge {
+  background: rgba(245, 101, 101, 0.3);
+  color: #fc8181;
+}
+
+/* ===== 액션 패널 ===== */
+.battle-action-panel {
+  background: rgba(0, 0, 0, 0.5);
+  padding: 16px;
+  border-radius: 8px;
+  border-top: 2px solid #4299e1;
+}
+
+.panel-title {
+  margin: 0 0 12px 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: #90cdf4;
+  text-align: center;
+}
+
+.action-buttons {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.action-buttons .btn {
+  flex: 0 1 auto;
+  min-width: 120px;
+}
+
+.btn-attack {
+  background: linear-gradient(135deg, #f56565, #e53e3e);
+  border: none;
+  color: white;
+}
+
+.btn-attack:hover {
+  background: linear-gradient(135deg, #fc8181, #f56565);
+}
+
+.btn-skill {
+  background: linear-gradient(135deg, #9f7aea, #7c3aed);
+  border: none;
+  color: white;
+}
+
+.btn-skill:hover {
+  background: linear-gradient(135deg, #b794f6, #9f7aea);
+}
+
+.btn-item {
+  background: linear-gradient(135deg, #ecc94b, #d69e2e);
+  border: none;
+  color: white;
+}
+
+.btn-item:hover {
+  background: linear-gradient(135deg, #f6e05e, #ecc94b);
+}
+
+.btn-dodge {
+  background: linear-gradient(135deg, #4299e1, #3182ce);
+  border: none;
+  color: white;
+}
+
+.btn-dodge:hover {
+  background: linear-gradient(135deg, #63b3ed, #4299e1);
+}
+
+.btn-counter {
+  background: linear-gradient(135deg, #f56565, #e53e3e);
+  border: none;
+  color: white;
+}
+
+.btn-counter:hover {
+  background: linear-gradient(135deg, #fc8181, #f56565);
+}
+
+.btn-defense {
+  background: linear-gradient(135deg, #48bb78, #38a169);
+  border: none;
+  color: white;
+}
+
+.btn-defense:hover {
+  background: linear-gradient(135deg, #68d391, #48bb78);
+}
+
+.btn-pass {
+  background: linear-gradient(135deg, #718096, #4a5568);
+  border: none;
+  color: white;
+}
+
+.btn-pass:hover {
+  background: linear-gradient(135deg, #a0aec0, #718096);
+}
+
+.btn-danger {
+  background: linear-gradient(135deg, #fc8181, #f56565);
+}
+
+.btn-danger:hover {
+  background: linear-gradient(135deg, #f687b3, #fc8181);
+}
+
+/* ===== 전투 로그 ===== */
+.battle-log-section {
+  background: rgba(0, 0, 0, 0.5);
+  padding: 16px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.battle-log-section h3 {
+  margin: 0 0 12px 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: #e2e8f0;
+}
+
+.battle-log {
+  max-height: 150px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 6px;
+  font-size: 12px;
+}
+
+.log-entry {
+  padding: 8px;
+  border-left: 3px solid rgba(255, 255, 255, 0.1);
+  border-radius: 3px;
+  background: rgba(0, 0, 0, 0.3);
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.log-action {
+  border-left-color: #4299e1;
+}
+
+.log-response {
+  border-left-color: #48bb78;
+}
+
+.log-end {
+  border-left-color: #f6ad55;
+}
+
+.log-result {
+  border-left-color: #f56565;
+}
+
+.log-turn {
+  font-weight: 700;
+  color: #a0aec0;
+  min-width: 45px;
+}
+
+.log-text {
+  color: #cbd5e0;
+  flex: 1;
+}
+
+/* ===== 결과 화면 ===== */
+.battle-results {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 30px;
+  padding: 40px 20px;
+  background: linear-gradient(135deg, #1a202c 0%, #2d3748 100%);
+  border-radius: 12px;
+  min-height: 400px;
+  text-align: center;
+}
+
+.battle-results h1 {
+  font-size: 48px;
+  margin: 0;
+  background: linear-gradient(135deg, #fbd38d, #f6ad55);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.scores {
+  display: flex;
+  gap: 40px;
+  justify-content: center;
+}
+
+.score-item {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  font-size: 16px;
+}
+
+.score-value {
+  font-size: 28px;
+  font-weight: 700;
+  color: #48bb78;
+}
+
+/* ===== 반응형 ===== */
+@media (max-width: 1024px) {
+  .battle-arena {
+    grid-template-columns: 1fr;
+  }
+
+  .action-buttons {
+    flex-direction: column;
+  }
+
+  .action-buttons .btn {
+    width: 100%;
+  }
+
+  .scores {
+    flex-direction: column;
+    gap: 20px;
+  }
+}
+
+/* ===== 스크롤바 커스텀 ===== */
+.battle-log::-webkit-scrollbar,
+.participants-container::-webkit-scrollbar {
+  width: 6px;
+}
+
+.battle-log::-webkit-scrollbar-track,
+.participants-container::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 3px;
+}
+
+.battle-log::-webkit-scrollbar-thumb,
+.participants-container::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 3px;
+}
+
+.battle-log::-webkit-scrollbar-thumb:hover,
+.participants-container::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.3);
+}

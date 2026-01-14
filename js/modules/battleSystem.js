@@ -183,8 +183,11 @@ class BattleSystem {
      */
     async executeAttack(attacker, defender, targetTeam) {
         try {
+            // 백엔드 API URL 설정
+            const apiUrl = window.CONFIG?.API_BASE_URL || 'http://localhost:3000/api';
+            
             // 백엔드 API 호출
-            const response = await fetch('http://localhost:3000/api/battles/simulate', {
+            const response = await fetch(`${apiUrl}/battles/simulate`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'

@@ -290,7 +290,18 @@ class BattleApp {
         this.elements.navSelection?.addEventListener('click', () => this.showPage('character-selection'));
         this.elements.navList?.addEventListener('click', () => this.showCharacterListPage());
         this.elements.navHistory?.addEventListener('click', () => this.showBattleHistoryPage());
-        this.elements.navCombat?.addEventListener('click', () => this.showPage('combat-screen'));
+        this.elements.navCombat?.addEventListener('click', () => this.showBattleCreationPage());
+
+        // 새 전투 생성 버튼 (⚔️ 팀전) - 캐릭터 선택 페이지 유지
+        document.getElementById('new-battle-btn')?.addEventListener('click', () => {
+            // 이미 캐릭터 선택 화면이므로 아무것도 하지 않음
+            console.log('팀전 모드');
+        });
+
+        // 전투 시작 버튼 (▶ 전투 시작) - 선택된 캐릭터로 바로 전투 시작
+        document.getElementById('start-battle-btn')?.addEventListener('click', () => {
+            this.startBattleWithSelectedCharacters();
+        });
 
         // 테마 토글
         this.elements.themeToggle?.addEventListener('click', (e) => {
@@ -898,6 +909,21 @@ class BattleApp {
             this.elements.mode1v1?.classList.remove('active');
             if (this.elements.mode1v1) this.elements.mode1v1.textContent = '▶ 전투 시작';
         }
+    }
+
+    /**
+     * 선택된 캐릭터로 전투 시작
+     */
+    startBattleWithSelectedCharacters() {
+        const total = Object.values(this.selectedCharacters).reduce((sum, arr) => sum + arr.length, 0);
+        
+        if (total < 2) {
+            alert('⚠️ 최소 2명 이상의 캐릭터를 선택해주세요!\n\n💡 Main 화면의 캐릭터 목록을 클릭하여 전투에 참여할 캐릭터를 선택하세요.');
+            return;
+        }
+
+        // 선택된 캐릭터로 전투 시작
+        this.startBattle();
     }
 
     /**
@@ -1720,10 +1746,39 @@ document.addEventListener('DOMContentLoaded', () => {
                     <div class="char-table-cell status-cell"><span class="char-status ${statusClass}">${statusText}</span></div>
                 `;
                 
-                // 클릭 이벤트 바인드
+                // 선택된 캐릭터면 배경색 표시
+                const teamKey = ['hero', 'gov', 'villain'][teamIndex];
+                if (this.selectedCharacters[teamKey].includes(char.id)) {
+                    row.style.background = 'rgba(66, 153, 225, 0.15)';
+                    row.style.borderLeft = '4px solid #4299e1';
+                }
+                
+                // 클릭 이벤트 바인드 - 캐릭터를 전투에 참여시킬지 여부 선택
                 const clickHandler = () => {
                     console.log('Row clicked! teamIndex:', teamIndex, 'charId:', char.id);
-                    this.openEditCharacterModal(teamIndex, char.id);
+                    
+                    // 활동 중인 캐릭터만 선택 가능
+                    if (char.status !== 'active') {
+                        alert('⚠️ 활동 중인 캐릭터만 선택할 수 있습니다!');
+                        return;
+                    }
+                    
+                    // 캐릭터 선택/해제
+                    const teamKey = ['hero', 'gov', 'villain'][teamIndex];
+                    const isCurrentlySelected = this.selectedCharacters[teamKey].includes(char.id);
+                    
+                    if (isCurrentlySelected) {
+                        // 선택 해제
+                        this.toggleCharacterSelection(teamIndex, char.id, false);
+                        row.style.background = '';
+                    } else {
+                        // 선택
+                        this.toggleCharacterSelection(teamIndex, char.id, true);
+                        row.style.background = 'rgba(66, 153, 225, 0.1)';
+                    }
+                    
+                    this.updateSelectedCount();
+                    this.renderCharacterList();
                 };
                 row.addEventListener('click', clickHandler);
                 
@@ -1784,6 +1839,15 @@ document.addEventListener('DOMContentLoaded', () => {
             console.log('행 표시:', char.name, '표시여부:', show);
             row.style.display = show ? 'grid' : 'none';
         });
+    }
+
+    /**
+     * 전투 생성 페이지 표시
+     */
+    showBattleCreationPage() {
+        this.showPage('battle-screen');
+        // 선택된 캐릭터 데이터 전달
+        battleManager.renderCreateBattleForm('battle-room-container', this.selectedCharacters);
     }
 
     /**
