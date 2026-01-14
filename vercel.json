@@ -1,24 +1,5 @@
 {
   "version": 2,
-  "buildCommand": "npm install --prefix ./backend",
-  "outputDirectory": "./",
   "public": true,
-  "cleanUrls": true,
-  "headers": [
-    {
-      "source": "/api/(.*)",
-      "headers": [
-        {
-          "key": "Cache-Control",
-          "value": "no-cache, no-store, must-revalidate"
-        }
-      ]
-    }
-  ],
-  "redirects": [
-    {
-      "source": "/index.html",
-      "destination": "/"
-    }
-  ]
+  "cleanUrls": true
 }
