@@ -27,20 +27,16 @@ app.use((req, res, next) => {
     next();
 });
 
-// Routes
-const battleRoutes = require('../backend/src/routes/battles');
-const dataRoutes = require('../backend/src/routes/data');
-
-app.use('/api/battles', battleRoutes);
-app.use('/api/data', dataRoutes);
-
-// 편의상 루트 경로에도 라우트 연결
-app.use('/api/characters', dataRoutes);
-app.use('/api/skills', dataRoutes);
-app.use('/api/items', dataRoutes);
-app.use('/api/rulesets', dataRoutes);
-
 // Health check
+app.get('/health', (req, res) => {
+    res.json({
+        status: 'ok',
+        message: '양호후환 전투 시스템 API 서버 (Vercel Serverless)',
+        firebase: 'Testing Mode',
+        timestamp: new Date().toISOString()
+    });
+});
+
 app.get('/api/health', (req, res) => {
     res.json({
         status: 'ok',
