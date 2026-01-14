@@ -556,22 +556,6 @@ class BattleRoom {
       alert('타임아웃 요청 실패: ' + error.message);
     }
   }
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ endReason: 'TIMEOUT' })
-    });
-
-    if (!response.ok) {
-      alert('타임아웃 요청 실패');
-      return;
-    }
-
-    const result = await response.json();
-    console.log('✅ 타임아웃 승리:', result);
-    alert('타임아웃으로 전투가 종료되었습니다!');
-    
-    this.stopPolling();
-    this.showResults(result.result);
-  }
 
   /**
    * 전투 나가기
