@@ -5,7 +5,7 @@
   "main": "api/index.js",
   "scripts": {
     "dev": "vercel dev",
-    "build": "echo 'Static build complete'",
+    "build": "echo 'Build complete'",
     "start": "vercel dev"
   },
   "keywords": [
