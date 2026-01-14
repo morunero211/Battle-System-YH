@@ -1,0 +1,236 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// ENUMS
+// ============================================
+
+enum Faction {
+  HERO
+  GOVERNMENT
+  VILLAIN
+}
+
+enum SkillCategory {
+  ATTACK
+  DEFENSE
+  HEAL
+  SUPPORT
+}
+
+enum BattleStatus {
+  IN_PROGRESS
+  FINISHED
+}
+
+enum BattlePhase {
+  TURN_ACTION
+  AWAITING_REACTION
+  AWAITING_DEFENSE_SKILL
+  FINISHED
+}
+
+enum EndReason {
+  HP_ZERO
+  TIMEOUT
+}
+
+enum BattleLogType {
+  ACTION
+  RESPONSE
+  END
+  RESULT
+}
+
+// ============================================
+// CHARACTER & RESOURCES
+// ============================================
+
+model Character {
+  id        String   @id @default(cuid())
+  name      String
+  faction   Faction
+
+  // stats: 1~5
+  atk       Int
+  def       Int
+  agi       Int
+  skillStat Int
+
+  maxHp     Int
+  currentHp Int
+
+  characterSkills    CharacterSkill[]
+  characterItems     CharacterItem[]
+  battleParticipants BattleParticipant[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([faction])
+}
+
+model Skill {
+  id          String        @id @default(cuid())
+  name        String
+  category    SkillCategory
+
+  // e.g. "SINGLE_ENEMY", "ALL_ALLIES", "ALL_ENEMIES", "ALL_ALLIES_EXCEPT_SELF", "SELF"
+  targetScope String
+
+  // Effect DSL as JSON (implementation-defined)
+  // Example: { "type": "DAMAGE", "amount": 20 } or { "type": "HEAL", "amount": 15 }
+  effects     Json
+
+  characterSkills CharacterSkill[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model CharacterSkill {
+  id            String   @id @default(cuid())
+  characterId   String
+  skillId       String
+
+  maxUses       Int?
+  remainingUses Int
+
+  character     Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  skill         Skill     @relation(fields: [skillId], references: [id])
+
+  updatedAt DateTime @updatedAt
+
+  @@unique([characterId, skillId])
+  @@index([characterId])
+}
+
+model Item {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  // e.g. "HEAL_HP"
+  type        String
+
+  characterItems CharacterItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model CharacterItem {
+  id          String   @id @default(cuid())
+  characterId String
+  itemId      String
+  quantity    Int
+
+  character   Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  item        Item      @relation(fields: [itemId], references: [id])
+
+  updatedAt DateTime @updatedAt
+
+  @@unique([characterId, itemId])
+  @@index([characterId])
+}
+
+// ============================================
+// RULESET (운영자 관리)
+// ============================================
+
+model RuleSet {
+  id           String @id @default(cuid())
+  name         String
+  isActive     Boolean @default(false)
+
+  // JSON arrays: [{ min: 1, max: 1, value: 4 }, { min: 2, max: 2, value: 6 }, ...]
+  damageTable  Json
+  blockTable   Json
+  healTable    Json
+  supportTable Json
+
+  battles   Battle[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([isActive])
+}
+
+// ============================================
+// BATTLE SYSTEM
+// ============================================
+
+model Battle {
+  id        String       @id @default(cuid())
+  status    BattleStatus @default(IN_PROGRESS)
+  phase     BattlePhase  @default(TURN_ACTION)
+
+  turnNo    Int          @default(1)
+  ruleSetId String
+  ruleSet   RuleSet      @relation(fields: [ruleSetId], references: [id])
+
+  // whose turn (BattleParticipant.id)
+  turnOwnerParticipantId String?
+  
+  // battle end info
+  endReason EndReason?
+  endedAt   DateTime?
+
+  // summary + scores + hp deltas + winner
+  // Example: { "winner": 1, "teamScores": { "1": 0.8, "2": 0.3 }, ... }
+  resultSummary Json?
+
+  participants BattleParticipant[]
+  logs         BattleLog[]
+
+  createdAt DateTime @default(now())
+
+  @@index([status])
+}
+
+model BattleParticipant {
+  id          String @id @default(cuid())
+  battleId    String
+  characterId String
+
+  teamIndex   Int
+
+  startHp     Int
+  hp          Int
+  isAlive     Boolean @default(true)
+
+  // fixed order at battle start (1-indexed)
+  initiativeOrder Int
+
+  battle     Battle     @relation(fields: [battleId], references: [id], onDelete: Cascade)
+  character  Character  @relation(fields: [characterId], references: [id])
+
+  @@index([battleId, teamIndex])
+  @@index([battleId, initiativeOrder])
+}
+
+model BattleLog {
+  id        String       @id @default(cuid())
+  battleId  String
+  turnNo    Int
+  type      BattleLogType
+
+  // JSON payload with action/response details
+  // Example: { "action": "BASIC_ATTACK", "actor": "bp_1", "target": "bp_2", "damage": 10, ... }
+  payload   Json
+  
+  createdAt DateTime @default(now())
+
+  battle    Battle @relation(fields: [battleId], references: [id], onDelete: Cascade)
+
+  @@index([battleId, turnNo])
+}

@@ -1,0 +1,46 @@
+name: Deploy Backend to Cloud Run
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'backend/**'
+      - '.github/workflows/deploy.yml'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v1
+        with:
+          project_id: ${{ secrets.GCP_PROJECT_ID }}
+          service_account_key: ${{ secrets.GCP_SA_KEY }}
+          export_default_credentials: true
+      
+      - name: Build and push image to Cloud Run
+        run: |
+          gcloud run deploy battle-system-backend \
+            --source ./backend \
+            --platform managed \
+            --region us-east1 \
+            --allow-unauthenticated \
+            --memory 512Mi \
+            --timeout 300 \
+            --set-env-vars="NODE_ENV=production,CORS_ORIGIN=https://qps0211.github.io" \
+            --quiet
+      
+      - name: Get service URL
+        run: |
+          gcloud run services describe battle-system-backend \
+            --platform managed \
+            --region us-east1 \
+            --format='value(status.url)' > backend_url.txt
+      
+      - name: Display deployed URL
+        run: echo "Backend deployed to:" && cat backend_url.txt
