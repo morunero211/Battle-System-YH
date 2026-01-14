@@ -110,7 +110,7 @@ class BattleActions {
     /**
      * 액션 수행
      */
-    performAction(targetTeam, targetCharId) {
+    async performAction(targetTeam, targetCharId) {
         this.targetSelectionMode = false;
         const currentTeamTurn = this.app.battleSystem.currentTeamTurn;
         const teamNames = ['hero', 'gov', 'villain'];
@@ -136,7 +136,7 @@ class BattleActions {
         
         // 액션 실행
         if (this.currentAction === 'attack') {
-            this.app.battleSystem.executeAttack(attacker, target, targetTeam);
+            await this.app.battleSystem.executeAttack(attacker, target, targetTeam);
         } else if (this.currentAction === 'ultimate') {
             this.app.battleSystem.executeUltimate(attacker, target, targetTeam);
         }
@@ -157,7 +157,7 @@ class BattleActions {
     /**
      * 방어 액션
      */
-    handleDefend() {
+    async handleDefend() {
         const currentTeamTurn = this.app.battleSystem.currentTeamTurn;
         const teamNames = ['hero', 'gov', 'villain'];
         const currentTeamName = teamNames[currentTeamTurn];

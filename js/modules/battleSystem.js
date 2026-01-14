@@ -179,20 +179,73 @@ class BattleSystem {
     }
 
     /**
-     * 공격 실행
+     * 공격 실행 (백엔드 API 사용)
      */
-    executeAttack(attacker, defender, targetTeam) {
-        const baseDamage = attacker.attack * 10;
-        const defense = defender.defense * 5;
-        const randomFactor = Math.random() * 0.5 + 0.75; // 0.75 ~ 1.25
-        
-        const damage = Math.max(Math.floor((baseDamage - defense) * randomFactor), 1);
-        defender.hp = Math.max(defender.hp - damage, 0);
+    async executeAttack(attacker, defender, targetTeam) {
+        try {
+            // 백엔드 API 호출
+            const response = await fetch('http://localhost:3000/api/battles/simulate', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    attacker: {
+                        name: attacker.name,
+                        attack: attacker.attack,
+                        skill: attacker.skill,
+                        agility: attacker.agility
+                    },
+                    defender: {
+                        name: defender.name,
+                        hp: defender.hp,
+                        defense: defender.defense,
+                        agility: defender.agility
+                    }
+                })
+            });
 
-        this.addLog(`⚔️ ${attacker.name}이(가) ${defender.name}을(를) 공격! (${damage} 데미지)`);
-        
-        if (defender.hp <= 0) {
-            this.addLog(`💀 ${defender.name}이(가) 쓰러졌습니다!`);
+            if (!response.ok) {
+                throw new Error('백엔드 API 호출 실패');
+            }
+
+            const result = await response.json();
+
+            // 서버에서 받은 로그를 화면에 출력
+            result.log.forEach(logEntry => {
+                this.addLog(logEntry);
+            });
+
+            // 방어자 HP 업데이트
+            defender.hp = result.defenderHp;
+
+        } catch (error) {
+            console.error('전투 시뮬레이션 에러:', error);
+            
+            // 백엔드 연결 실패 시 폴백: 프론트엔드에서 직접 계산
+            this.addLog(`\n⚔️ ${attacker.name} → ${defender.name} 공격 시도!`);
+            this.addLog(`  ⚠️ 백엔드 연결 실패 - 로컬 계산 모드`);
+            
+            // 간단한 폴백 로직
+            const attackRoll = Math.floor(Math.random() * 100) + 1;
+            const attackPower = attacker.attack * 10 + attacker.skill * 5;
+            
+            if (attackRoll > attackPower) {
+                this.addLog(`  ❌ 공격 실패!`);
+                return;
+            }
+            
+            const dodgeRoll = Math.floor(Math.random() * 100) + 1;
+            const dodgeRate = defender.agility * 10;
+            
+            if (dodgeRoll <= dodgeRate) {
+                this.addLog(`  💨 ${defender.name} 회피 성공!`);
+                return;
+            }
+            
+            const damage = Math.max(attacker.attack * 10 - defender.defense * 5, 1);
+            defender.hp = Math.max(defender.hp - damage, 0);
+            this.addLog(`  💔 ${defender.name}에게 ${damage} 데미지! (HP: ${defender.hp})`);
         }
     }
 
@@ -207,19 +260,37 @@ class BattleSystem {
      * 궁극기 실행
      */
     executeUltimate(attacker, defender, targetTeam) {
+        this.addLog(`\n⭐ ${attacker.name} → ${defender.name} 궁극기 시전!`);
+        this.addLog(`  💫 궁극기는 100% 명중합니다!`);
+        
+        // 1. 크리티컬 판정 (궁극기도 크리티컬 가능)
+        const critRoll = Math.floor(Math.random() * 100) + 1;
+        const critRate = Math.min(attacker.skill * 5, 50);
+        const isCritical = critRoll <= critRate;
+        this.addLog(`  🎲 크리티컬 판정: ${critRoll} / ${critRate}`);
+        
+        // 2. 데미지 계산 (기본 2배 데미지)
         const baseDamage = (attacker.skill + attacker.attack) * 15;
         const defense = defender.defense * 3;
-        const damage = Math.max(Math.floor(baseDamage - defense), 1);
+        let damage = Math.max(Math.floor(baseDamage - defense), 1);
         
+        if (isCritical) {
+            damage = Math.floor(damage * 1.5);
+            this.addLog(`  💥 크리티컬 히트! 추가 1.5배 데미지!`);
+        }
+        
+        this.addLog(`  📊 데미지 계산: (스킬 ${attacker.skill} + 공격 ${attacker.attack}) × 15 - 방어력 ${defense} ${isCritical ? '× 1.5' : ''} = ${damage}`);
+        
+        // 3. 데미지 적용
         defender.hp = Math.max(defender.hp - damage, 0);
+        this.addLog(`  💔 ${defender.name} HP: ${defender.hp + damage} → ${defender.hp}`);
         
-        this.addLog(`⭐ ${attacker.name}이(가) 궁극기를 시전! (${damage} 데미지)`);
         if (attacker && attacker.id) {
             this.usedUltimate[attacker.id] = true;
         }
         
         if (defender.hp <= 0) {
-            this.addLog(`💀 ${defender.name}이(가) 쓰러졌습니다!`);
+            this.addLog(`  💀 ${defender.name}이(가) 쓰러졌습니다!`);
         }
     }
 
