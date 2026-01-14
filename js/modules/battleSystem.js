@@ -179,65 +179,46 @@ class BattleSystem {
     }
 
     /**
-     * 공격 실행 (백엔드 API 사용)
+     * 공격 실행 (클라이언트 사이드 계산)
      */
     async executeAttack(attacker, defender, targetTeam) {
         try {
-            // 백엔드 API URL 설정
-            const apiUrl = window.CONFIG?.API_BASE_URL || 'http://localhost:3000/api';
+            // 클라이언트에서 직접 계산 (API 없음)
+            this.addLog(`\n⚔️ ${attacker.name} → ${defender.name} 공격!`);
             
-            // 백엔드 API 호출
-            const response = await fetch(`${apiUrl}/battles/simulate`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    attacker: {
-                        name: attacker.name,
-                        attack: attacker.attack,
-                        skill: attacker.skill,
-                        agility: attacker.agility
-                    },
-                    defender: {
-                        name: defender.name,
-                        hp: defender.hp,
-                        defense: defender.defense,
-                        agility: defender.agility
-                    }
-                })
-            });
-
-            if (!response.ok) {
-                throw new Error('백엔드 API 호출 실패');
+            // 주사위 100 굴림
+            const attackRoll = Math.floor(Math.random() * 100) + 1;
+            const defendRoll = Math.floor(Math.random() * 100) + 1;
+            
+            // 공격 판정
+            const attackPower = attacker.attack * 10 + attacker.skill * 5;
+            const defensePower = defender.defense * 10 + defender.agility * 5;
+            
+            this.addLog(`  🎲 공격 주사위: ${attackRoll} (필요: ${attackPower})`);
+            this.addLog(`  🛡️ 방어 주사위: ${defendRoll} (능력: ${defensePower})`);
+            
+            if (attackRoll <= 30) {
+                // 30% 치명타
+                const criticalDamage = Math.floor((attacker.attack * 3 + attacker.skill) * 1.5);
+                defender.hp = Math.max(0, defender.hp - criticalDamage);
+                this.addLog(`  💥 치명타! ${criticalDamage} 데미지!`);
+            } else if (attackRoll > 50) {
+                // 50% 이상 미스
+                this.addLog(`  ❌ 공격 미스!`);
+            } else {
+                // 일반 공격
+                const damage = Math.floor(attacker.attack * 2 + attacker.skill - (defender.defense * 0.5));
+                defender.hp = Math.max(0, defender.hp - damage);
+                this.addLog(`  ✅ 명중! ${damage} 데미지!`);
             }
-
-            const result = await response.json();
-
-            // 서버에서 받은 로그를 화면에 출력
-            result.log.forEach(logEntry => {
-                this.addLog(logEntry);
-            });
-
-            // 방어자 HP 업데이트
-            defender.hp = result.defenderHp;
+            
+            this.addLog(`  💚 ${defender.name} HP: ${defender.hp}`);
 
         } catch (error) {
-            console.error('전투 시뮬레이션 에러:', error);
-            
-            // 백엔드 연결 실패 시 폴백: 프론트엔드에서 직접 계산
-            this.addLog(`\n⚔️ ${attacker.name} → ${defender.name} 공격 시도!`);
-            this.addLog(`  ⚠️ 백엔드 연결 실패 - 로컬 계산 모드`);
-            
-            // 간단한 폴백 로직
-            const attackRoll = Math.floor(Math.random() * 100) + 1;
-            const attackPower = attacker.attack * 10 + attacker.skill * 5;
-            
-            if (attackRoll > attackPower) {
-                this.addLog(`  ❌ 공격 실패!`);
-                return;
-            }
-            
+            console.error('전투 계산 에러:', error);
+            this.addLog(`❌ 전투 계산 중 오류: ${error.message}`);
+        }
+    }
             const dodgeRoll = Math.floor(Math.random() * 100) + 1;
             const dodgeRate = defender.agility * 10;
             
