@@ -5,10 +5,6 @@
 
 const express = require('express');
 const cors = require('cors');
-const path = require('path');
-
-// Firebase 초기화
-const { admin, db, firebaseInitialized } = require('../backend/src/config/firebase');
 
 // Express 앱 생성
 const app = express();
@@ -49,7 +45,7 @@ app.get('/api/health', (req, res) => {
     res.json({
         status: 'ok',
         message: '양호후환 전투 시스템 API 서버 (Vercel Serverless)',
-        firebase: firebaseInitialized ? '✅ 연동됨' : '⚠️ 미연동 (메모리 폴백)',
+        firebase: 'Testing Mode',
         timestamp: new Date().toISOString()
     });
 });
