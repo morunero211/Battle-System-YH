@@ -7,14 +7,15 @@
  * 3. 아래 firebaseConfig 객체를 복사한 설정으로 교체
  */
 
-// ⚠️ Firebase Console에서 복사한 설정으로 교체하세요!
+// ✅ Firebase 설정 완료!
 const firebaseConfig = {
-    apiKey: "YOUR_API_KEY",
-    authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
-    projectId: "YOUR_PROJECT_ID",
-    storageBucket: "YOUR_PROJECT_ID.appspot.com",
-    messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-    appId: "YOUR_APP_ID"
+    apiKey: "AIzaSyALGEYOXymzHtRra8MkKDnwl44uFAl1ggI",
+    authDomain: "battle-yangho.firebaseapp.com",
+    projectId: "battle-yangho",
+    storageBucket: "battle-yangho.firebasestorage.app",
+    messagingSenderId: "209546495984",
+    appId: "1:209546495984:web:d33984e8db5b791950ff35",
+    measurementId: "G-RWLV7KKPE2"
 };
 
 // Firebase 초기화

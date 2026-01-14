@@ -146,7 +146,7 @@ class DataManager {
     async saveToFirestore() {
         const db = this.getFirestore();
         if (!db) {
-            return; // 브라우저가 Firebase를 아직 못 불렀거나 설정 안 됨
+            return;
         }
 
         if (!this.userId) {

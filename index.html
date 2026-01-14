@@ -25,36 +25,49 @@
                     <button id="nav-history" class="nav-btn">기록</button>
                     <button id="nav-combat" class="nav-btn">전투</button>
                 </div>
+                <button id="user-info" class="btn-icon" style="font-size:14px; padding:8px 12px; min-width:auto;">👤 로그인</button>
                 <button id="theme-toggle" class="btn-icon" aria-label="테마 전환">🌙</button>
             </div>
         </header>
 
-        <!-- 로그인 모달 (UI만; 동작은 추후 JS 연동) -->
-        <div id="auth-modal" class="modal" style="display:none;">
-            <div class="modal-content" style="max-width:420px; padding:24px 24px 20px 24px; gap:16px; display:flex; flex-direction:column;">
-                <div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
-                    <h2 style="margin:0; font-size:20px;">🔐 로그인</h2>
-                    <button id="auth-close" class="modal-close" aria-label="닫기">&times;</button>
+        <!-- Firebase 로그인 모달 -->
+        <div id="auth-modal" class="modal" style="display:flex;">
+            <div class="modal-content" style="max-width:420px; padding:32px; gap:20px; display:flex; flex-direction:column;">
+                <div style="text-align:center;">
+                    <h1 style="margin:0 0 8px 0; font-size:28px;">⚔️ 양호후환 전투 시스템 ⚔️</h1>
+                    <p style="margin:0; color:#666; font-size:14px;">로그인하고 전투를 시작하세요!</p>
                 </div>
 
-                <div style="display:flex; flex-direction:column; gap:10px;">
+                <div style="display:flex; flex-direction:column; gap:12px;">
                     <label style="display:flex; flex-direction:column; gap:6px; font-weight:600;">
                         이메일
-                        <input id="auth-email" type="email" placeholder="you@example.com" style="padding:10px 12px; border:1px solid #cbd5e0; border-radius:8px;">
+                        <input id="auth-email" type="email" placeholder="your@email.com" 
+                               style="padding:12px 14px; border:2px solid #cbd5e0; border-radius:8px; font-size:15px;">
                     </label>
                     <label style="display:flex; flex-direction:column; gap:6px; font-weight:600;">
-                        비밀번호
-                        <input id="auth-password" type="password" placeholder="••••••••" style="padding:10px 12px; border:1px solid #cbd5e0; border-radius:8px;">
+                        비밀밀번호
+                        <input id="auth-password" type="password" placeholder="••••••••" 
+                               style="padding:12px 14px; border:2px solid #cbd5e0; border-radius:8px; font-size:15px;">
                     </label>
                 </div>
 
-                <div id="auth-error" style="min-height:18px; color:#e53e3e; font-size:12px;"></div>
+                <div id="auth-error" style="min-height:20px; color:#e53e3e; font-size:13px; text-align:center;"></div>
 
-                <div style="display:flex; flex-direction:column; gap:8px;">
-                    <button id="auth-login" class="btn btn-primary">로그인</button>
-                    <button id="auth-signup" class="btn btn-secondary">회원가입</button>
-                    <button id="auth-google" class="btn btn-secondary" style="background:#fff; color:#1a202c; border:1px solid #cbd5e0;">Google로 계속하기</button>
+                <div style="display:flex; flex-direction:column; gap:10px;">
+                    <button id="auth-login" class="btn btn-primary" style="padding:14px; font-size:16px; font-weight:600;">
+                        로그인 🔑
+                    </button>
+                    <button id="auth-signup" class="btn btn-secondary" style="padding:14px; font-size:16px;">
+                        회원가입 ✨
+                    </button>
+                    <button id="auth-google" class="btn btn-secondary" style="padding:14px; font-size:16px; background:#fff; color:#1a202c; border:2px solid #cbd5e0;">
+                        <span style="display:inline-block; margin-right:8px;">G</span> Google로 로그인
+                    </button>
                 </div>
+                
+                <p style="margin:0; color:#999; font-size:12px; text-align:center;">
+                    🔥 Firebase 인증으로 안전하게 로그인합니다
+                </p>
             </div>
         </div>
 

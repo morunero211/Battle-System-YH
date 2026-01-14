@@ -29,6 +29,7 @@ class BattleApp {
         this.nextSaveTime = null; // 다음 저장 시간
         this.remoteSyncInterval = null; // Firestore 주기적 동기화 타이머
         this.currentUserId = null; // 로그인 사용자 ID
+        this.currentUsername = null; // 현재 사용자 닉네임
         
         // DOM 요소
         this.initElements();
@@ -525,8 +526,8 @@ class BattleApp {
 
             const info = document.createElement('div');
             info.className = 'character-info';
-            info.addEventListener('click', () => {
-                if (e.target.tagName !== 'BUTTON') {
+            info.addEventListener('click', (infoEvent) => {
+                if (infoEvent.target.tagName !== 'BUTTON') {
                     this.openEditCharacterModal(teamIndex, char.id);
                 }
             });
@@ -1150,8 +1151,7 @@ class BattleApp {
     }
 
     /**
-     * Firestore에서 주기적으로 최신 데이터를 받아오는 간단한 폴링.
-     * (충돌 처리 없이 last-write-wins 형태, 필요 시 병합 로직 추가 가능)
+     * Firestore에서 주기적으로 최신 데이터를 받아오는 간단한 폴링
      */
     startRemoteSyncPolling() {
         if (this.remoteSyncInterval) return; // 중복 방지
@@ -1168,7 +1168,7 @@ class BattleApp {
 // ---- 인증/앱 진입 가드 ----
 function setupAuthUI() {
     const modal = document.getElementById('auth-modal');
-    const openBtn = document.getElementById('auth-open');
+    const openBtn = document.getElementById('login-btn'); // 헤더의 로그인 버튼
     const closeBtn = document.getElementById('auth-close');
     const loginBtn = document.getElementById('auth-login');
     const signupBtn = document.getElementById('auth-signup');
@@ -1274,9 +1274,23 @@ function initAuthGuard(providedUi) {
     }
 
     firebase.auth().onAuthStateChanged((user) => {
+        const loginBtn = document.getElementById('login-btn');
+        
         if (user) {
             ui?.hideBanner?.();
             ui?.closeModal?.();
+            
+            // 로그인 버튼을 로그아웃 버튼으로 변경
+            if (loginBtn) {
+                loginBtn.textContent = '🚪';
+                loginBtn.title = '로그아웃';
+                loginBtn.onclick = async () => {
+                    if (confirm('로그아웃 하시겠습니까?')) {
+                        await firebase.auth().signOut();
+                        alert('로그아웃되었습니다.');
+                    }
+                };
+            }
 
             // 앱 인스턴스가 없으면 생성하고 사용자 설정
             if (!window.app) {
@@ -1293,9 +1307,18 @@ function initAuthGuard(providedUi) {
                 window.app.dataManager.loadFromFirestore();
             }
         } else {
+            // 로그인 전: 로그인 버튼으로 설정
+            if (loginBtn) {
+                loginBtn.textContent = '👤';
+                loginBtn.title = '로그인';
+                loginBtn.onclick = () => ui?.openModal?.();
+            }
+            
             // 로그인 전: 모달을 표시하고 배너는 숨김
             ui?.hideBanner?.();
-            ui?.openModal?.();
+            // 로그인하지 않아도 앱 사용 가능하도록 모달 자동 열기 제거
+            // ui?.openModal?.();
+            
             // 앱이 이미 생성되어 있으면 메모리 상태 초기화를 위해 새로고침
             if (window.app) {
                 window.location.reload();
@@ -2103,7 +2126,197 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 }
 
-// 앱 초기화
+// 앱 초기화 (Firebase Auth 연동)
 document.addEventListener('DOMContentLoaded', () => {
-    window.app = new BattleApp();
+    setupAuthUI();
+    // Firebase Auth 상태 변경 시 앱 초기화는 firebase-config.js에서 처리됨
 });
+
+/**
+ * Firebase Auth UI 설정
+ */
+function setupAuthUI() {
+    const modal = document.getElementById('auth-modal');
+    const emailInput = document.getElementById('auth-email');
+    const passwordInput = document.getElementById('auth-password');
+    const loginBtn = document.getElementById('auth-login');
+    const signupBtn = document.getElementById('auth-signup');
+    const googleBtn = document.getElementById('auth-google');
+    const errorBox = document.getElementById('auth-error');
+    const userInfoBtn = document.getElementById('user-info');
+    
+    const showError = (msg) => {
+        if (errorBox) errorBox.textContent = msg || '';
+    };
+    
+    const closeModal = () => {
+        if (modal) modal.style.display = 'none';
+        showError('');
+    };
+    
+    const openModal = () => {
+        if (modal) modal.style.display = 'flex';
+        showError('');
+    };
+    
+    // Enter 키로 로그인
+    const handleEnter = (e) => {
+        if (e.key === 'Enter') {
+            loginBtn?.click();
+        }
+    };
+    emailInput?.addEventListener('keypress', handleEnter);
+    passwordInput?.addEventListener('keypress', handleEnter);
+    
+    // 로그인
+    loginBtn?.addEventListener('click', async () => {
+        const email = emailInput?.value.trim();
+        const password = passwordInput?.value;
+        
+        if (!email || !password) {
+            showError('⚠️ 이메일과 비밀번호를 입력하세요.');
+            return;
+        }
+        
+        try {
+            loginBtn.disabled = true;
+            loginBtn.textContent = '로그인 중...';
+            
+            await firebase.auth().signInWithEmailAndPassword(email, password);
+            closeModal();
+            
+            loginBtn.disabled = false;
+            loginBtn.textContent = '로그인 🔑';
+        } catch (error) {
+            loginBtn.disabled = false;
+            loginBtn.textContent = '로그인 🔑';
+            
+            if (error.code === 'auth/user-not-found') {
+                showError('❌ 존재하지 않는 계정입니다.');
+            } else if (error.code === 'auth/wrong-password') {
+                showError('❌ 비밀번호가 틀렸습니다.');
+            } else if (error.code === 'auth/invalid-email') {
+                showError('❌ 올바른 이메일 형식이 아닙니다.');
+            } else {
+                showError('❌ ' + error.message);
+            }
+        }
+    });
+    
+    // 회원가입
+    signupBtn?.addEventListener('click', async () => {
+        const email = emailInput?.value.trim();
+        const password = passwordInput?.value;
+        
+        if (!email || !password) {
+            showError('⚠️ 이메일과 비밀번호를 입력하세요.');
+            return;
+        }
+        
+        if (password.length < 6) {
+            showError('⚠️ 비밀번호는 6자 이상이어야 합니다.');
+            return;
+        }
+        
+        try {
+            signupBtn.disabled = true;
+            signupBtn.textContent = '가입 중...';
+            
+            await firebase.auth().createUserWithEmailAndPassword(email, password);
+            closeModal();
+            alert('🎉 회원가입 성공! 환영합니다!');
+            
+            signupBtn.disabled = false;
+            signupBtn.textContent = '회원가입 ✨';
+        } catch (error) {
+            signupBtn.disabled = false;
+            signupBtn.textContent = '회원가입 ✨';
+            
+            if (error.code === 'auth/email-already-in-use') {
+                showError('❌ 이미 사용 중인 이메일입니다.');
+            } else if (error.code === 'auth/invalid-email') {
+                showError('❌ 올바른 이메일 형식이 아닙니다.');
+            } else if (error.code === 'auth/weak-password') {
+                showError('❌ 비밀번호가 너무 약합니다.');
+            } else {
+                showError('❌ ' + error.message);
+            }
+        }
+    });
+    
+    // Google 로그인
+    googleBtn?.addEventListener('click', async () => {
+        try {
+            googleBtn.disabled = true;
+            googleBtn.textContent = 'Google 로그인 중...';
+            
+            const provider = new firebase.auth.GoogleAuthProvider();
+            await firebase.auth().signInWithPopup(provider);
+            closeModal();
+            
+            googleBtn.disabled = false;
+            googleBtn.innerHTML = '<span style="display:inline-block; margin-right:8px;">G</span> Google로 로그인';
+        } catch (error) {
+            googleBtn.disabled = false;
+            googleBtn.innerHTML = '<span style="display:inline-block; margin-right:8px;">G</span> Google로 로그인';
+            
+            if (error.code !== 'auth/popup-closed-by-user') {
+                showError('❌ ' + error.message);
+            }
+        }
+    });
+    
+    // Firebase Auth 상태 변경 리스너
+    firebase.auth().onAuthStateChanged((user) => {
+        if (user) {
+            // 로그인됨
+            closeModal();
+            
+            // 헤더 업데이트
+            if (userInfoBtn) {
+                const displayName = user.email?.split('@')[0] || 'User';
+                userInfoBtn.textContent = `👤 ${displayName}`;
+                userInfoBtn.onclick = async () => {
+                    if (confirm('로그아웃 하시겠습니까?')) {
+                        await firebase.auth().signOut();
+                        alert('로그아웃되었습니다.');
+                    }
+                };
+            }
+            
+            // 앱 초기화
+            if (!window.app) {
+                window.app = new BattleApp();
+            }
+            
+            if (window.app.dataManager) {
+                window.app.dataManager.setUser(user.uid);
+                window.app.dataManager.loadFromLocalStorage();
+                window.app.dataManager.loadFromFirestore();
+                
+                if (window.app.renderAllTeams) {
+                    window.app.renderAllTeams();
+                }
+            }
+            
+            console.log('✅ 로그인 성공:', user.email);
+        } else {
+            // 로그아웃됨
+            openModal();
+            
+            // 헤더 업데이트
+            if (userInfoBtn) {
+                userInfoBtn.textContent = '👤 로그인';
+                userInfoBtn.onclick = openModal;
+            }
+            
+            console.log('👋 로그아웃 상태');
+        }
+    });
+}
+
+// Firebase Auth 가드 비활성화 (위에서 직접 구현)
+/*
+const authUI = setupAuthUI();
+initAuthGuard(authUI);
+*/
