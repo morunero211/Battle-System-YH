@@ -2,6 +2,13 @@
   "version": 2,
   "public": true,
   "cleanUrls": true,
+  "buildCommand": "echo 'Build complete'",
+  "outputDirectory": ".",
+  "functions": {
+    "api/index.js": {
+      "runtime": "@vercel/node@3"
+    }
+  },
   "rewrites": [
     {
       "source": "/api/(.*)",
