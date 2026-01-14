@@ -219,19 +219,6 @@ class BattleSystem {
             this.addLog(`❌ 전투 계산 중 오류: ${error.message}`);
         }
     }
-            const dodgeRoll = Math.floor(Math.random() * 100) + 1;
-            const dodgeRate = defender.agility * 10;
-            
-            if (dodgeRoll <= dodgeRate) {
-                this.addLog(`  💨 ${defender.name} 회피 성공!`);
-                return;
-            }
-            
-            const damage = Math.max(attacker.attack * 10 - defender.defense * 5, 1);
-            defender.hp = Math.max(defender.hp - damage, 0);
-            this.addLog(`  💔 ${defender.name}에게 ${damage} 데미지! (HP: ${defender.hp})`);
-        }
-    }
 
     /**
      * 방어 실행
