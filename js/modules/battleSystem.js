@@ -581,71 +581,76 @@ class BattleSystem {
             }
 
             if (apiUrl) {
-                // 2-step begin: 공격 판정만 수행
-                const response = await fetch(`${apiUrl}/battles/simulate-begin`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        attacker: {
-                            name: attacker.name,
-                            attack: attacker.attack ?? attacker.atk,
-                            defense: attacker.defense ?? attacker.def,
-                            agility: attacker.agility ?? attacker.agi,
-                            skill: attacker.skill ?? attacker.skillStat
+                try {
+                    // 2-step begin: 공격 판정만 수행
+                    const response = await fetch(`${apiUrl}/battles/simulate-begin`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
                         },
-                        defender: {
-                            name: defender.name,
-                            hp: defender.hp,
-                            maxHp: defender.maxHp,
-                            attack: defender.attack ?? defender.atk,
-                            defense: defender.defense ?? defender.def,
-                            agility: defender.agility ?? defender.agi
+                        body: JSON.stringify({
+                            attacker: {
+                                name: attacker.name,
+                                attack: attacker.attack ?? attacker.atk,
+                                defense: attacker.defense ?? attacker.def,
+                                agility: attacker.agility ?? attacker.agi,
+                                skill: attacker.skill ?? attacker.skillStat
+                            },
+                            defender: {
+                                name: defender.name,
+                                hp: defender.hp,
+                                maxHp: defender.maxHp,
+                                attack: defender.attack ?? defender.atk,
+                                defense: defender.defense ?? defender.def,
+                                agility: defender.agility ?? defender.agi
+                            }
+                        })
+                    });
+
+                    if (response.ok) {
+                        const result = await response.json();
+                        if (Array.isArray(result.log)) {
+                            result.log.forEach((logEntry) => this.addLog(logEntry));
                         }
-                    })
-                });
 
-                if (response.ok) {
-                    const result = await response.json();
-                    if (Array.isArray(result.log)) {
-                        result.log.forEach((logEntry) => this.addLog(logEntry));
-                    }
+                        // 공격 실패 등으로 즉시 종료되는 케이스
+                        if (result.phase === 'RESOLVED') {
+                            if (typeof result.defenderHp === 'number') {
+                                defender.hp = result.defenderHp;
+                            }
+                            return { awaitingResponse: false };
+                        }
 
-                    // 공격 실패 등으로 즉시 종료되는 케이스
-                    if (result.phase === 'RESOLVED') {
+                        // 공격 성공: 방어자 응답 대기
+                        if (result.phase === 'AWAITING_DEFENDER_RESPONSE' && result.pendingId) {
+                            const expiresInMs = Number.isFinite(Number(result.expiresInMs))
+                                ? Math.max(1, Math.round(Number(result.expiresInMs)))
+                                : 30 * 60 * 1000;
+
+                            const attackGrade = result?.attackJudgment?.grade;
+
+                            this.pendingDefenseResponse = {
+                                pendingId: result.pendingId,
+                                attackerRef: attacker,
+                                defenderRef: defender,
+                                targetTeam,
+                                attackerTeam,
+                                expiresAt: Date.now() + expiresInMs,
+                                attackGrade
+                            };
+
+                            this.showDefenseResponsePanel(attacker.name, defender.name);
+                            return { awaitingResponse: true };
+                        }
+
                         if (typeof result.defenderHp === 'number') {
                             defender.hp = result.defenderHp;
                         }
                         return { awaitingResponse: false };
                     }
-
-                    // 공격 성공: 방어자 응답 대기
-                    if (result.phase === 'AWAITING_DEFENDER_RESPONSE' && result.pendingId) {
-                        const expiresInMs = Number.isFinite(Number(result.expiresInMs))
-                            ? Math.max(1, Math.round(Number(result.expiresInMs)))
-                            : 30 * 60 * 1000;
-
-                        const attackGrade = result?.attackJudgment?.grade;
-
-                        this.pendingDefenseResponse = {
-                            pendingId: result.pendingId,
-                            attackerRef: attacker,
-                            defenderRef: defender,
-                            targetTeam,
-                            attackerTeam,
-                            expiresAt: Date.now() + expiresInMs,
-                            attackGrade
-                        };
-
-                        this.showDefenseResponsePanel(attacker.name, defender.name);
-                        return { awaitingResponse: true };
-                    }
-
-                    if (typeof result.defenderHp === 'number') {
-                        defender.hp = result.defenderHp;
-                    }
-                    return { awaitingResponse: false };
+                } catch (error) {
+                    // 네트워크/CORS/라우팅 문제 등: 로컬 폴백으로 진행
+                    console.warn('전투 API 호출 실패 → 로컬 폴백 사용:', error);
                 }
             }
 

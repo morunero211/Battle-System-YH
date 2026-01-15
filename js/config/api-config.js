@@ -15,9 +15,11 @@ if (isDevelopment) {
   API_BASE_URL = 'http://localhost:3000/api';
   console.log('🔧 개발 환경 - 로컬 백엔드 연결:', API_BASE_URL);
 } else if (isVercel) {
-  // 프로덕션 환경: Vercel 백엔드
-  API_BASE_URL = 'https://battle-system-yh.vercel.app/api';
-  console.log('🚀 프로덕션 환경 (Vercel) - 백엔드:', API_BASE_URL);
+  // 프로덕션 환경: Vercel(프론트와 동일 오리진의 Serverless API)
+  // NOTE: 특정 도메인으로 고정하면 preview/prod 도메인 불일치로 404/NOT_FOUND가 발생할 수 있으므로
+  // 항상 현재 오리진을 기준으로 /api 를 사용합니다.
+  API_BASE_URL = `${window.location.origin}/api`;
+  console.log('🚀 프로덕션 환경 (Vercel) - 동일 오리진 API:', API_BASE_URL);
 } else if (isGithubPages) {
   // GitHub Pages 환경 (백엔드 따로)
   API_BASE_URL = 'https://battle-system-backend-xxxx.run.app/api';
