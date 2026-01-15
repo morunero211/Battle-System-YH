@@ -21,10 +21,40 @@ const { admin, db, firebaseInitialized } = require('./config/firebase');
 const app = express();
 
 // 미들웨어
-app.use(cors({
-    origin: process.env.CORS_ORIGIN || 'http://localhost:8000',
-    credentials: true
-}));
+const corsOriginsEnv = (process.env.CORS_ORIGINS || process.env.CORS_ORIGIN || '').trim();
+const explicitOrigins = corsOriginsEnv
+    ? corsOriginsEnv.split(',').map(s => s.trim()).filter(Boolean)
+    : [];
+
+const corsOptions = {
+    origin: (origin, callback) => {
+        // same-origin / server-to-server 요청(Origin 없음)은 허용
+        if (!origin) return callback(null, true);
+
+        // 명시적 allowlist가 있으면 그것만 허용
+        if (explicitOrigins.length > 0) {
+            return callback(null, explicitOrigins.includes(origin));
+        }
+
+        // 개발/배포 편의: Vercel 프리뷰 도메인과 로컬 개발 도메인은 허용
+        try {
+            const url = new URL(origin);
+            const host = url.hostname;
+            const isLocalhost = host === 'localhost' || host === '127.0.0.1';
+            const isVercelPreview = host.endsWith('.vercel.app');
+            return callback(null, isLocalhost || isVercelPreview);
+        } catch {
+            return callback(null, false);
+        }
+    },
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    optionsSuccessStatus: 200
+};
+
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -83,7 +113,7 @@ app.listen(PORT, () => {
     console.log(`🚀 서버 실행: http://localhost:${PORT}`);
     console.log(`📊 Health Check: http://localhost:${PORT}/api/health`);
     console.log(`🌍 환경: ${process.env.NODE_ENV || 'development'}`);
-    console.log(`🔗 CORS: ${process.env.CORS_ORIGIN || 'http://localhost:8000'}`);
+    console.log(`🔗 CORS: ${explicitOrigins.length > 0 ? explicitOrigins.join(', ') : 'localhost + *.vercel.app 허용'}`);
     console.log(`🔥 Firebase: ${db ? '연동됨 ✅' : '미연동 ⚠️'}`);
     console.log('='.repeat(50));
 });
