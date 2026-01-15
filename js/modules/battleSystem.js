@@ -187,7 +187,8 @@ class BattleSystem {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     pendingId: pending.pendingId,
-                    response: responseKind
+                    response: responseKind,
+                    pendingState: pending.pendingState
                 })
             });
 
@@ -636,7 +637,8 @@ class BattleSystem {
                                 targetTeam,
                                 attackerTeam,
                                 expiresAt: Date.now() + expiresInMs,
-                                attackGrade
+                                attackGrade,
+                                pendingState: result.pendingState
                             };
 
                             this.showDefenseResponsePanel(attacker.name, defender.name);

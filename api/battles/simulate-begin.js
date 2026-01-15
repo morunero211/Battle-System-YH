@@ -117,6 +117,15 @@ module.exports = async function handler(req, res) {
       attackJudgment
     });
 
+    const pendingState = {
+      attackerName,
+      defenderName,
+      attackerChar,
+      defenderChar,
+      defenderHp,
+      attackJudgment
+    };
+
     log.push('  ✅ 공격 성공! 방어자 반응을 선택하세요: DODGE / COUNTER / PASS');
 
     res.status(200).json({
@@ -126,6 +135,7 @@ module.exports = async function handler(req, res) {
       defenderName,
       attackJudgment,
       expiresInMs: PENDING_TTL_MS,
+      pendingState,
       log,
       defenderHp
     });

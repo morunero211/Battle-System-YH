@@ -67,15 +67,21 @@ module.exports = async function handler(req, res) {
     const pendingId = typeof body.pendingId === 'string' ? body.pendingId : '';
     const response = normalizeResponse(body.response);
 
-    if (!pendingId) {
-      res.status(400).json({
-        error: 'INVALID_REQUEST',
-        message: 'pendingId가 필요합니다.'
-      });
-      return;
+    let pending = null;
+    if (pendingId) {
+      pending = pendingReactions.get(pendingId) || null;
+      if (pending) pendingReactions.delete(pendingId);
     }
 
-    const pending = pendingReactions.get(pendingId);
+    // Serverless 특성상 begin/react가 다른 인스턴스에서 실행될 수 있어 in-memory pending이 없을 수 있음.
+    // 이 경우 클라이언트가 전달한 pendingState로 처리합니다.
+    if (!pending) {
+      const pendingState = body.pendingState;
+      if (pendingState && typeof pendingState === 'object') {
+        pending = pendingState;
+      }
+    }
+
     if (!pending) {
       res.status(404).json({
         error: 'PENDING_NOT_FOUND',
@@ -84,9 +90,15 @@ module.exports = async function handler(req, res) {
       return;
     }
 
-    pendingReactions.delete(pendingId);
-
     const { attackerName, defenderName, attackerChar, defenderChar, defenderHp, attackJudgment } = pending;
+
+    if (!attackerChar || !defenderChar || !attackJudgment || !Number.isFinite(Number(defenderHp))) {
+      res.status(400).json({
+        error: 'INVALID_PENDING_STATE',
+        message: 'pendingState가 누락되었거나 올바르지 않습니다.'
+      });
+      return;
+    }
 
     const ruleSet = await battleEngine.getActiveRuleSetOrDefault();
     const battle = { ruleSet };
