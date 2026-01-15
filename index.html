@@ -6,13 +6,14 @@
     <title>양호후환 전투 시스템</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;600;700;800;900&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Gaegu:wght@700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="css/base.css">
-    <link rel="stylesheet" href="css/shared.css">
+    <link rel="stylesheet" href="css/base.css?v=20260115i">
+    <link rel="stylesheet" href="css/shared.css?v=20260115i">
     <link rel="stylesheet" href="css/main-screen.css?v=20260115">
-    <link rel="stylesheet" href="css/combat-screen.css?v=20260115">
+    <link rel="stylesheet" href="css/combat-screen.css?v=20260115d">
     <link rel="stylesheet" href="css/battle-room.css?v=20260115">
-    <link rel="stylesheet" href="css/dark-theme.css?v=20260115">
+    <link rel="stylesheet" href="css/dark-theme.css?v=20260115d">
 </head>
 <body>
     <div class="container">
@@ -263,21 +264,68 @@
                             <label>스킬 타입:</label>
                             <div class="skill-type-selector">
                                 <label class="skill-type-option">
-                                    <input type="checkbox" name="skillType" value="공격형">
+                                    <input type="radio" name="skillType" value="공격형" checked>
                                     <span>⚔️ 공격형</span>
                                 </label>
                                 <label class="skill-type-option">
-                                    <input type="checkbox" name="skillType" value="방어형">
+                                    <input type="radio" name="skillType" value="방어형">
                                     <span>🛡️ 방어형</span>
                                 </label>
                                 <label class="skill-type-option">
-                                    <input type="checkbox" name="skillType" value="지원형">
+                                    <input type="radio" name="skillType" value="지원형">
                                     <span>🤝 지원형</span>
                                 </label>
                                 <label class="skill-type-option">
-                                    <input type="checkbox" name="skillType" value="치료형">
+                                    <input type="radio" name="skillType" value="치료형">
                                     <span>💚 치료형</span>
                                 </label>
+                            </div>
+
+                            <label>스킬 대상:</label>
+                            <div class="skill-target-selector">
+                                <label class="skill-target-option">
+                                    <input type="radio" name="skillTargetMode" value="single" checked>
+                                    <span>🎯 단일</span>
+                                </label>
+                                <label class="skill-target-option">
+                                    <input type="radio" name="skillTargetMode" value="multi">
+                                    <span>🧩 다수</span>
+                                </label>
+                            </div>
+
+                            <label class="skill-include-self">
+                                <input type="checkbox" name="skillIncludeSelf" value="true" disabled>
+                                <span>✅ 본인 포함</span>
+                            </label>
+
+                            <div class="skill-config-note">※ 스킬 수치/효과 적용은 추후 업데이트됩니다(현재는 UI 설정만).</div>
+
+                            <label>스킬 사용 횟수:</label>
+                            <div class="skill-uses-grid">
+                                <div class="skill-uses-field">
+                                    <div class="skill-uses-label">총 사용 가능 횟수</div>
+                                    <input id="skill-uses-max" type="number" min="0" max="99" step="1" value="1" />
+                                </div>
+                                <div class="skill-uses-field">
+                                    <div class="skill-uses-label">사용한 횟수</div>
+                                    <div id="skill-uses-used" class="skill-uses-readonly">0</div>
+                                </div>
+                                <div class="skill-uses-field">
+                                    <div class="skill-uses-label">남은 횟수</div>
+                                    <div id="skill-uses-remaining" class="skill-uses-readonly">1</div>
+                                </div>
+                            </div>
+
+                            <div id="skill-uses-status" class="skill-uses-status"></div>
+
+                            <div class="skill-uses-note">
+                                ※ 총 사용 가능 횟수가 0이면 전투에서 스킬을 사용할 수 없습니다. “잠금 해제”는 해제와 동시에 추가 기회(남은 횟수)를 물어봅니다.
+                            </div>
+
+                            <div class="skill-uses-actions">
+                                <button id="skill-uses-reset" type="button" class="btn btn-secondary">사용 기록 초기화</button>
+                                <button id="skill-uses-unlock" type="button" class="btn btn-secondary">잠금 해제(+기회 추가)</button>
+                                <button id="skill-uses-lock" type="button" class="btn btn-danger">잠금</button>
                             </div>
 
                             <label for="skill-description">스킬 설명:</label>
@@ -320,6 +368,24 @@
                         <div class="form-actions confirm-actions">
                             <button id="confirm-ok" class="btn btn-danger">확인</button>
                             <button id="confirm-cancel" class="btn btn-secondary">취소</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 숫자 입력 모달 (브라우저 prompt 대체) -->
+            <div id="number-prompt-modal" class="modal centered" style="display:none;">
+                <div class="modal-content" style="max-width:420px;">
+                    <div class="modal-header">
+                        <h2 id="number-prompt-title">입력</h2>
+                        <button id="number-prompt-close" class="modal-close" aria-label="닫기">&times;</button>
+                    </div>
+                    <div class="modal-body">
+                        <p id="number-prompt-message" class="number-prompt-message"></p>
+                        <input id="number-prompt-input" class="number-prompt-input" type="number" min="0" max="99" step="1" value="1" />
+                        <div class="number-prompt-actions">
+                            <button id="number-prompt-cancel" class="btn btn-secondary">취소</button>
+                            <button id="number-prompt-ok" class="btn btn-primary">적용</button>
                         </div>
                     </div>
                 </div>
@@ -641,6 +707,25 @@
             </div>
         </div>
 
+        <!-- 스킬 대상 선택 모달(스킬 버튼 클릭 시) -->
+        <div id="skill-target-modal" class="modal centered skill-target-modal" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="skill-target-title">
+            <div class="modal-content" style="max-width:640px;">
+                <div class="modal-header">
+                    <h2 id="skill-target-title">🎯 스킬 대상 선택</h2>
+                    <button id="skill-target-close" class="modal-close" aria-label="닫기">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <div id="skill-target-subtitle" class="skill-target-subtitle">대상을 선택하세요.</div>
+                    <div id="skill-target-list" class="skill-target-list"></div>
+                    <div class="skill-target-actions">
+                        <button id="skill-target-confirm" class="btn btn-primary">확인</button>
+                        <button id="skill-target-cancel" class="btn btn-secondary">취소</button>
+                    </div>
+                    <div id="skill-target-note" class="skill-target-note"></div>
+                </div>
+            </div>
+        </div>
+
         <!-- 전투 결과 모달(시간 종료 등) -->
         <div id="battle-result-modal" class="modal centered" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="battle-result-title">
             <div class="modal-content" style="max-width:560px;">
@@ -678,19 +763,19 @@
     <script src="js/firebase-config.js"></script>
 
     <!-- 외부 스크립트 로드 -->
-    <script src="js/character.js"></script>
+    <script src="js/character.js?v=20260115c"></script>
     
     <!-- 모듈 로드 -->
-    <script src="js/modules/dataManager.js"></script>
-    <script src="js/modules/modalManager.js"></script>
-    <script src="js/modules/characterManager.js"></script>
-    <script src="js/modules/pageManager.js"></script>
-    <script src="js/modules/battleSystem.js"></script>
-    <script src="js/modules/battleActions.js"></script>
-    <script src="js/modules/battleManager.js"></script>
-    <script src="js/modules/battleRoom.js"></script>
+    <script src="js/modules/dataManager.js?v=20260115e"></script>
+    <script src="js/modules/modalManager.js?v=20260115c"></script>
+    <script src="js/modules/characterManager.js?v=20260115c"></script>
+    <script src="js/modules/pageManager.js?v=20260115c"></script>
+    <script src="js/modules/battleSystem.js?v=20260115e"></script>
+    <script src="js/modules/battleActions.js?v=20260115h"></script>
+    <script src="js/modules/battleManager.js?v=20260115c"></script>
+    <script src="js/modules/battleRoom.js?v=20260115c"></script>
     
     <!-- 메인 앱 로드 -->
-    <script src="js/app.js"></script>
+    <script src="js/app.js?v=20260115h"></script>
 </body>
 </html>

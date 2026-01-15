@@ -266,7 +266,10 @@ class BattleSystem {
      */
     createCharacterDisplay(char, team) {
         const maxHp = char.maxHp || 100;
-        const hpPercent = Math.max(0, Math.min(100, Math.round((char.hp / maxHp) * 100)));
+        const totalHp = Math.max(0, Math.round(Number(char.hp) || 0));
+        const baseHp = Math.min(maxHp, totalHp);
+        const shieldHp = Math.max(0, totalHp - maxHp);
+        const hpPercent = Math.max(0, Math.min(100, Math.round((baseHp / maxHp) * 100)));
         const tags = (char.skillTypes || []).map(type => {
             if (type === '공격형') return '<span class="tag tag-attack">공격형</span>';
             if (type === '방어형') return '<span class="tag tag-defense">방어형</span>';
@@ -275,6 +278,8 @@ class BattleSystem {
             return `<span class="tag">${type}</span>`;
         }).join('');
 
+        const shieldText = shieldHp > 0 ? ` <span style="color:#2b6cb0; font-weight:800;">(🛡️ +${shieldHp})</span>` : '';
+
         return `
             <div class="combat-char-card" data-char-id="${char.id}" data-team="${team}">
                 <div class="char-top">
@@ -282,7 +287,7 @@ class BattleSystem {
                     <div class="char-tags">${tags || '<span class="tag tag-empty">-</span>'}</div>
                 </div>
                 <div class="hp-row">
-                    <div class="hp-label">HP ${char.hp}/${maxHp}</div>
+                    <div class="hp-label">HP ${baseHp}/${maxHp}${shieldText}</div>
                     <div class="hp-bar"><span style="width: ${hpPercent}%;"></span></div>
                 </div>
                 <div class="stat-row">
@@ -293,6 +298,86 @@ class BattleSystem {
                 </div>
             </div>
         `;
+    }
+
+    // ===== 스킬(프론트) 공용 헬퍼 =====
+    clampStat1to5(value) {
+        return Math.max(1, Math.min(5, Math.round(Number(value) || 1)));
+    }
+
+    getMaxHp(char) {
+        return Number.isFinite(Number(char?.maxHp)) ? Math.max(1, Math.round(Number(char.maxHp))) : 100;
+    }
+
+    getTotalHp(char) {
+        return Math.max(0, Math.round(Number(char?.hp) || 0));
+    }
+
+    getShieldHp(char) {
+        const maxHp = this.getMaxHp(char);
+        const totalHp = this.getTotalHp(char);
+        return Math.max(0, totalHp - maxHp);
+    }
+
+    getBaseHp(char) {
+        const maxHp = this.getMaxHp(char);
+        const totalHp = this.getTotalHp(char);
+        return Math.min(maxHp, totalHp);
+    }
+
+    applyDamageWithShield(defender, damage) {
+        const dmg = Math.max(0, Math.floor(Number(damage) || 0));
+        if (dmg === 0) return { shieldAbsorbed: 0, hpDamage: 0, totalDamage: 0 };
+
+        const maxHp = this.getMaxHp(defender);
+        const beforeTotal = this.getTotalHp(defender);
+        const beforeShield = Math.max(0, beforeTotal - maxHp);
+        const beforeBase = Math.min(maxHp, beforeTotal);
+
+        const shieldAbsorbed = Math.min(beforeShield, dmg);
+        const remaining = dmg - shieldAbsorbed;
+        const hpDamage = Math.min(beforeBase, remaining);
+
+        const afterBase = Math.max(0, beforeBase - hpDamage);
+        const afterShield = Math.max(0, beforeShield - shieldAbsorbed);
+        defender.hp = afterBase + afterShield;
+
+        return { shieldAbsorbed, hpDamage, totalDamage: shieldAbsorbed + hpDamage };
+    }
+
+    applyHealToBaseHp(target, amount) {
+        const heal = Math.max(0, Math.floor(Number(amount) || 0));
+        if (heal === 0) return 0;
+
+        const maxHp = this.getMaxHp(target);
+        const beforeTotal = this.getTotalHp(target);
+        const shield = Math.max(0, beforeTotal - maxHp);
+        const base = Math.min(maxHp, beforeTotal);
+
+        const afterBase = Math.min(maxHp, base + heal);
+        target.hp = afterBase + shield;
+        return afterBase - base;
+    }
+
+    addShieldHp(target, amount) {
+        const add = Math.max(0, Math.floor(Number(amount) || 0));
+        if (add === 0) return 0;
+        const before = this.getTotalHp(target);
+        target.hp = before + add;
+        return add;
+    }
+
+    getHealAmountBySkillStat(skillStat) {
+        const stat = this.clampStat1to5(skillStat);
+        const table = { 1: 5, 2: 7, 3: 9, 4: 12, 5: 15 };
+        return table[stat] ?? table[1];
+    }
+
+    getShieldAmountBySkillStat(skillStat) {
+        // NOTE: 방어형(쉴드) 수치는 밸런스 조정 포인트. 필요 시 이 테이블만 변경.
+        const stat = this.clampStat1to5(skillStat);
+        const table = { 1: 6, 2: 8, 3: 10, 4: 13, 5: 16 };
+        return table[stat] ?? table[1];
     }
 
     /**
@@ -584,10 +669,17 @@ class BattleSystem {
             const defensePercent = this.getDefenseReductionPercent(defStat);
             const finalDamage = this.applyDefenseReduction(rawDamage, defensePercent);
 
-            defender.hp = Math.max(0, Math.round(Number(defender.hp) || 0) - finalDamage);
+            const beforeTotal = this.getTotalHp(defender);
+            const beforeShield = this.getShieldHp(defender);
+            const applied = this.applyDamageWithShield(defender, finalDamage);
+            const afterTotal = this.getTotalHp(defender);
+
             this.addLog(`  🛡️ 방어력: ${defensePercent}% (원데미지 ${rawDamage} → 실제 ${finalDamage})`);
             this.addLog(`  💥 데미지: ${finalDamage}`);
-            this.addLog(`  💚 ${defender.name} HP: ${defender.hp}`);
+            if (beforeShield > 0 || applied.shieldAbsorbed > 0) {
+                this.addLog(`  🧱 쉴드: ${beforeShield} → ${this.getShieldHp(defender)} (흡수 ${applied.shieldAbsorbed})`);
+            }
+            this.addLog(`  💚 ${defender.name} HP: ${Math.min(this.getMaxHp(defender), beforeTotal)}/${this.getMaxHp(defender)} → ${Math.min(this.getMaxHp(defender), afterTotal)}/${this.getMaxHp(defender)}`);
             return { awaitingResponse: false };
         } catch (error) {
             console.error('전투 계산 에러:', error);
@@ -632,10 +724,15 @@ class BattleSystem {
         this.addLog(`  🛡️ 방어력: ${defensePercent}% (원데미지 ${rolled.raw} → 실제 ${damage})`);
         this.addLog(`  💥 데미지: ${damage}`);
         
-        // 3. 데미지 적용
-        const beforeHp = Math.round(Number(defender.hp) || 0);
-        defender.hp = Math.max(beforeHp - Math.round(Number(damage) || 0), 0);
-        this.addLog(`  💔 ${defender.name} HP: ${beforeHp} → ${defender.hp}`);
+        // 3. 데미지 적용(쉴드 우선 소모)
+        const beforeTotal = this.getTotalHp(defender);
+        const beforeShield = this.getShieldHp(defender);
+        const applied = this.applyDamageWithShield(defender, damage);
+        const afterTotal = this.getTotalHp(defender);
+        if (beforeShield > 0 || applied.shieldAbsorbed > 0) {
+            this.addLog(`  🧱 쉴드: ${beforeShield} → ${this.getShieldHp(defender)} (흡수 ${applied.shieldAbsorbed})`);
+        }
+        this.addLog(`  💔 ${defender.name} HP: ${Math.min(this.getMaxHp(defender), beforeTotal)}/${this.getMaxHp(defender)} → ${Math.min(this.getMaxHp(defender), afterTotal)}/${this.getMaxHp(defender)}`);
         
         if (attacker && attacker.id) {
             this.usedUltimate[attacker.id] = true;
@@ -643,6 +740,139 @@ class BattleSystem {
         
         if (defender.hp <= 0) {
             this.addLog(`  💀 ${defender.name}이(가) 쓰러졌습니다!`);
+        }
+    }
+
+    /**
+     * 궁극기(공격형) 다수 대상 실행
+     * - 단일 데미지 E를 굴린 뒤, 대상 수 n으로 1/n 분배(내림)하여 각 대상에게 적용
+     */
+    executeUltimateMulti(attacker, defenders) {
+        const targets = Array.isArray(defenders) ? defenders.filter(Boolean) : [];
+        const n = targets.length;
+        if (n === 0) {
+            this.addLog('❌ 궁극기(다수): 대상이 없습니다.');
+            return;
+        }
+
+        this.addLog(`\n⭐ ${attacker.name} 궁극기(다수) 시전! (대상 ${n}명)`);
+
+        const isAttackSkill = Array.isArray(attacker.skillTypes)
+            ? attacker.skillTypes.includes('공격형')
+            : true;
+
+        if (!isAttackSkill) {
+            this.addLog('  ℹ️ 공격형 스킬이 아니라 데미지를 주지 않습니다.');
+            return;
+        }
+
+        this.addLog('  💫 궁극기는 100% 명중합니다!');
+
+        const skillStat = attacker.skill ?? attacker.skillStat ?? 1;
+        const rolled = this.rollAttackSkillRawDamage(skillStat);
+
+        const perTargetRaw = Math.floor((Number(rolled.raw) || 0) / n);
+        this.addLog(`  🎲 스킬 데미지: ${rolled.min} + (1~${rolled.extraMax})[${rolled.bonus}] = ${rolled.raw} (최대 ${rolled.max})`);
+        this.addLog(`  👥 다수 분배: floor(${rolled.raw} / ${n}) = ${perTargetRaw} (각 대상 원데미지)`);
+
+        targets.forEach((defender) => {
+            const defStat = Math.max(1, Math.min(5, Math.round(Number(defender.defense ?? defender.def ?? 1))));
+            const defensePercent = this.getDefenseReductionPercent(defStat);
+            const damage = this.applyDefenseReduction(perTargetRaw, defensePercent);
+
+            if (perTargetRaw <= 0) {
+                this.addLog(`  ⚠️ ${defender.name}: 분배 원데미지가 0이라 피해가 없습니다.`);
+                return;
+            }
+
+            this.addLog(`  🎯 대상: ${defender.name}`);
+            this.addLog(`    🛡️ 방어력: ${defensePercent}% (원데미지 ${perTargetRaw} → 실제 ${damage})`);
+
+            const beforeTotal = this.getTotalHp(defender);
+            const beforeShield = this.getShieldHp(defender);
+            const applied = this.applyDamageWithShield(defender, damage);
+            const afterTotal = this.getTotalHp(defender);
+
+            this.addLog(`    💥 데미지: ${damage}`);
+            if (beforeShield > 0 || applied.shieldAbsorbed > 0) {
+                this.addLog(`    🧱 쉴드: ${beforeShield} → ${this.getShieldHp(defender)} (흡수 ${applied.shieldAbsorbed})`);
+            }
+            this.addLog(`    💔 ${defender.name} HP: ${Math.min(this.getMaxHp(defender), beforeTotal)}/${this.getMaxHp(defender)} → ${Math.min(this.getMaxHp(defender), afterTotal)}/${this.getMaxHp(defender)}`);
+
+            if (defender.hp <= 0) {
+                this.addLog(`    💀 ${defender.name}이(가) 쓰러졌습니다!`);
+            }
+        });
+
+        if (attacker && attacker.id) {
+            this.usedUltimate[attacker.id] = true;
+        }
+    }
+
+    /**
+     * 방어형 스킬(쉴드) 적용
+     * - 단일 기준 쉴드량 S를 만든 뒤, 대상 수 n으로 1/n 분배(내림)하여 각 대상에게 쉴드 부여
+     * - 쉴드는 HP 위에 얹히는 추가 HP(= maxHp를 초과하는 부분)로 취급하며, 피해를 먼저 흡수함
+     */
+    executeDefenseSkillMulti(attacker, targets) {
+        const list = Array.isArray(targets) ? targets.filter(Boolean) : [];
+        const n = list.length;
+        if (n === 0) {
+            this.addLog('❌ 방어형 스킬: 대상이 없습니다.');
+            return;
+        }
+
+        this.addLog(`\n🛡️ ${attacker.name} 방어형 스킬(쉴드) 사용! (대상 ${n}명)`);
+
+        const skillStat = attacker.skill ?? attacker.skillStat ?? 1;
+        const shieldBase = this.getShieldAmountBySkillStat(skillStat);
+        const perTarget = Math.floor(shieldBase / n);
+
+        this.addLog(`  🧱 쉴드량(단일): ${shieldBase}`);
+        this.addLog(`  👥 다수 분배: floor(${shieldBase} / ${n}) = ${perTarget} (각 대상)`);
+
+        list.forEach((t) => {
+            const beforeShield = this.getShieldHp(t);
+            const added = this.addShieldHp(t, perTarget);
+            this.addLog(`  🎯 대상: ${t.name} (쉴드 +${added}, ${beforeShield} → ${this.getShieldHp(t)})`);
+        });
+
+        if (attacker && attacker.id) {
+            this.usedUltimate[attacker.id] = true;
+        }
+    }
+
+    /**
+     * 치료형 스킬 적용
+     * - 단일 기준 회복량 H를 만든 뒤, 대상 수 n으로 1/n 분배(내림)하여 각 대상의 "기본 HP"만 회복
+     * - 기본 HP는 maxHp를 넘지 않음(쉴드에는 영향을 주지 않음)
+     */
+    executeHealSkillMulti(attacker, targets) {
+        const list = Array.isArray(targets) ? targets.filter(Boolean) : [];
+        const n = list.length;
+        if (n === 0) {
+            this.addLog('❌ 치료형 스킬: 대상이 없습니다.');
+            return;
+        }
+
+        this.addLog(`\n💚 ${attacker.name} 치료형 스킬 사용! (대상 ${n}명)`);
+
+        const skillStat = attacker.skill ?? attacker.skillStat ?? 1;
+        const healBase = this.getHealAmountBySkillStat(skillStat);
+        const perTarget = Math.floor(healBase / n);
+
+        this.addLog(`  💊 회복량(단일): ${healBase}`);
+        this.addLog(`  👥 다수 분배: floor(${healBase} / ${n}) = ${perTarget} (각 대상)`);
+
+        list.forEach((t) => {
+            const beforeBase = this.getBaseHp(t);
+            const healed = this.applyHealToBaseHp(t, perTarget);
+            const afterBase = this.getBaseHp(t);
+            this.addLog(`  🎯 대상: ${t.name} (회복 +${healed}, HP ${beforeBase} → ${afterBase})`);
+        });
+
+        if (attacker && attacker.id) {
+            this.usedUltimate[attacker.id] = true;
         }
     }
 

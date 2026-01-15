@@ -57,11 +57,26 @@ class ModalManager {
             if (valueSpan) valueSpan.textContent = char[stat] || 3;
         });
 
-        // 스킬 타입 설정
-        const skillTypeCheckboxes = document.querySelectorAll('input[name="skillType"]');
-        skillTypeCheckboxes.forEach(checkbox => {
-            checkbox.checked = char.skillTypes && char.skillTypes.includes(checkbox.value);
+        // 스킬 타입(단일) 설정
+        const skillTypeInputs = document.querySelectorAll('input[name="skillType"]');
+        skillTypeInputs.forEach(input => {
+            input.checked = !!(char.skillTypes && char.skillTypes.includes(input.value));
         });
+        if (!document.querySelector('input[name="skillType"]:checked')) {
+            const fallback = document.querySelector('input[name="skillType"][value="공격형"]');
+            if (fallback) fallback.checked = true;
+        }
+
+        // 스킬 대상 설정(추가 UI)
+        const mode = char.skillTarget?.mode || 'single';
+        const modeRadio = document.querySelector(`input[name="skillTargetMode"][value="${mode}"]`);
+        if (modeRadio) modeRadio.checked = true;
+        const includeSelf = document.querySelector('input[name="skillIncludeSelf"]');
+        if (includeSelf) {
+            const enabled = mode === 'multi';
+            includeSelf.disabled = !enabled;
+            includeSelf.checked = enabled ? !!char.skillTarget?.includeSelf : false;
+        }
 
         // 상태 설정
         const statusRadio = document.querySelector(`input[name="status"][value="${char.status || 'active'}"]`);
@@ -101,7 +116,16 @@ class ModalManager {
             if (valueSpan) valueSpan.textContent = '3';
         });
 
-        document.querySelectorAll('input[name="skillType"]').forEach(cb => cb.checked = false);
+        const defaultSkillType = document.querySelector('input[name="skillType"][value="공격형"]');
+        if (defaultSkillType) defaultSkillType.checked = true;
+
+        const defaultTarget = document.querySelector('input[name="skillTargetMode"][value="single"]');
+        if (defaultTarget) defaultTarget.checked = true;
+        const includeSelf = document.querySelector('input[name="skillIncludeSelf"]');
+        if (includeSelf) {
+            includeSelf.checked = false;
+            includeSelf.disabled = true;
+        }
         
         const activeRadio = document.querySelector('input[name="status"][value="active"]');
         if (activeRadio) activeRadio.checked = true;
@@ -128,8 +152,11 @@ class ModalManager {
         const agility = parseInt(document.querySelector('input[name="agility"]:checked')?.value || 3);
         const skill = parseInt(document.querySelector('input[name="skill"]:checked')?.value || 3);
 
-        const skillTypes = Array.from(document.querySelectorAll('input[name="skillType"]:checked'))
-            .map(cb => cb.value);
+        const selectedSkillType = document.querySelector('input[name="skillType"]:checked')?.value || '공격형';
+        const skillTypes = [selectedSkillType];
+
+        const skillTargetMode = document.querySelector('input[name="skillTargetMode"]:checked')?.value || 'single';
+        const skillIncludeSelf = !!document.querySelector('input[name="skillIncludeSelf"]')?.checked;
 
         const skillDescription = this.app.elements.skillDescription?.value.trim() || '';
         const status = document.querySelector('input[name="status"]:checked')?.value || 'active';
@@ -146,6 +173,10 @@ class ModalManager {
                 char.skill = skill;
                 char.skillTypes = skillTypes;
                 char.skillDescription = skillDescription;
+                char.skillTarget = {
+                    mode: skillTargetMode,
+                    includeSelf: skillTargetMode === 'multi' ? skillIncludeSelf : false
+                };
                 char.status = status;
             }
         } else {
@@ -160,6 +191,10 @@ class ModalManager {
                 skill,
                 skillTypes,
                 skillDescription,
+                skillTarget: {
+                    mode: skillTargetMode,
+                    includeSelf: skillTargetMode === 'multi' ? skillIncludeSelf : false
+                },
                 status
             };
             this.app.teams[this.currentEditTeam].characters.push(newChar);

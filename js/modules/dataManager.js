@@ -7,6 +7,7 @@ class DataManager {
     constructor(app) {
         this.app = app;
         this.localStorageKey = 'battleProgramData';
+        this.schemaVersion = 2;
         this.collection = 'battleApp';
         this.documentId = 'default';
         this.userId = null;
@@ -32,6 +33,8 @@ class DataManager {
     saveToLocalStorage() {
         try {
             const data = {
+                schemaVersion: this.schemaVersion,
+                savedAt: new Date().toISOString(),
                 teams: this.app.teams,
                 selectedCharacters: this.app.selectedCharacters,
                 battleHistory: this.app.battleHistory
@@ -54,10 +57,28 @@ class DataManager {
                 this.app.teams = parsed.teams || this.app.teams;
                 this.app.selectedCharacters = parsed.selectedCharacters || this.app.selectedCharacters;
                 this.app.battleHistory = parsed.battleHistory || this.app.battleHistory;
+                // 스키마/누락 필드 보정
+                if (typeof this.app.normalizePersistedData === 'function') {
+                    this.app.normalizePersistedData({ save: true });
+                }
                 console.log('LocalStorage에서 로드됨');
             }
         } catch (error) {
             console.error('LocalStorage 로드 실패:', error);
+        }
+    }
+
+    /**
+     * 디버그용: 현재 사용자 키로 저장된 로컬 데이터가 있는지 빠르게 확인
+     */
+    hasLocalCache() {
+        try {
+            const raw = localStorage.getItem(this.localStorageKey);
+            if (!raw) return false;
+            const parsed = JSON.parse(raw);
+            return !!(parsed && Array.isArray(parsed.teams));
+        } catch {
+            return false;
         }
     }
 
@@ -124,6 +145,11 @@ class DataManager {
             }
             if (Array.isArray(data.battleHistory)) {
                 this.app.battleHistory = data.battleHistory;
+            }
+
+            // 스키마/누락 필드 보정
+            if (typeof this.app.normalizePersistedData === 'function') {
+                this.app.normalizePersistedData({ save: false });
             }
 
             // 로컬 캐시도 최신으로 동기화

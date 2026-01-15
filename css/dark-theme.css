@@ -277,6 +277,90 @@ body.dark-theme .skill-type-option input[type="checkbox"] {
     accent-color: #667eea;
 }
 
+body.dark-theme .skill-type-option:has(input:checked) {
+    border-color: #667eea;
+    background: #232d3a;
+}
+
+body.dark-theme .skill-type-option:has(input:checked) span {
+    color: #90cdf4;
+}
+
+/* 스킬 대상 선택기 */
+body.dark-theme .skill-target-selector {
+    color: #e2e8f0;
+}
+
+body.dark-theme .skill-target-option {
+    background: #1f2f3f;
+    border-color: #2d3e4f;
+    color: #e2e8f0;
+}
+
+body.dark-theme .skill-target-option:hover {
+    border-color: #667eea;
+    background: #232d3a;
+}
+
+body.dark-theme .skill-target-option:has(input:checked) {
+    border-color: #667eea;
+    background: #232d3a;
+}
+
+body.dark-theme .skill-target-option:has(input:checked) span {
+    color: #90cdf4;
+}
+
+body.dark-theme .skill-include-self {
+    background: #1f2f3f;
+    border-color: #2d3e4f;
+    color: #e2e8f0;
+}
+
+body.dark-theme .skill-config-note {
+    color: #a0aec0;
+}
+
+/* 스킬 대상 선택 모달 */
+body.dark-theme .skill-target-subtitle {
+    color: #b8c9d9;
+}
+
+body.dark-theme .skill-target-group {
+    background: #1f2f3f;
+    border-color: #2d3e4f;
+}
+
+body.dark-theme .skill-target-group-title {
+    color: #e2e8f0;
+}
+
+body.dark-theme .skill-target-btn {
+    background: #0f1a24;
+    border-color: #2d3e4f;
+}
+
+body.dark-theme .skill-target-btn:hover {
+    border-color: #667eea;
+}
+
+body.dark-theme .skill-target-btn.is-selected {
+    background: #232d3a;
+    border-color: #667eea;
+}
+
+body.dark-theme .skill-target-btn-name {
+    color: #e2e8f0;
+}
+
+body.dark-theme .skill-target-btn-hp {
+    color: #a0aec0;
+}
+
+body.dark-theme .skill-target-note {
+    color: #a0aec0;
+}
+
 /* 상태 선택기 */
 body.dark-theme .status-selector {
     color: #e2e8f0;

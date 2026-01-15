@@ -26,6 +26,9 @@ class CharacterManager {
         const container = document.getElementById(containerId);
         if (!container) return;
 
+        const activeScreen = document.querySelector('.screen.screen-active')?.id;
+        const isSelectionScreen = activeScreen === 'character-selection';
+
         container.innerHTML = '';
 
         const team = this.app.teams[teamIndex];
@@ -52,7 +55,8 @@ class CharacterManager {
             const info = document.createElement('div');
             info.className = 'character-info';
             info.addEventListener('click', () => {
-                if (event.target.tagName !== 'BUTTON') {
+                // 캐릭터 선택(메인) 화면에서는 수정 금지
+                if (!isSelectionScreen && event?.target?.tagName !== 'BUTTON') {
                     this.app.modalManager.openEditCharacterModal(teamIndex, char.id);
                 }
             });
@@ -72,7 +76,10 @@ class CharacterManager {
             removeBtn.textContent = '×';
             removeBtn.addEventListener('click', (e) => {
                 e.stopPropagation();
-                this.app.removeCharacter(teamIndex, char.id);
+                // 캐릭터 선택(메인) 화면에서는 삭제 금지
+                if (!isSelectionScreen) {
+                    this.app.removeCharacter(teamIndex, char.id);
+                }
             });
 
             info.appendChild(name);
@@ -80,7 +87,9 @@ class CharacterManager {
 
             item.appendChild(checkbox);
             item.appendChild(info);
-            item.appendChild(removeBtn);
+            if (!isSelectionScreen) {
+                item.appendChild(removeBtn);
+            }
 
             if (checkbox.checked) {
                 item.classList.add('selected');

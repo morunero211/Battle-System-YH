@@ -162,6 +162,7 @@ class BattleApp {
 
         this.loadSampleCharacters();
         this.dataManager.loadFromLocalStorage(); // 저장된 데이터 자동 불러오기
+        this.normalizePersistedData({ save: true });
         this.renderAllTeams();
         // Firestore 원격 데이터가 있으면 가져와서 최신 상태로 덮어씀
         this.dataManager.loadFromFirestore();
@@ -170,8 +171,173 @@ class BattleApp {
         this.startRemoteSyncPolling();
         this.initEventListeners();
         this.initStatSelectors();
+        this.initSkillConfigUI();
+        this.initSkillUsesUI();
 
         // 개발 모드 로직 제거됨
+    }
+
+    /**
+     * 저장/로드 데이터 스키마 정규화(마이그레이션)
+     * - 누락된 필드/타입을 보정해서 UI/전투 로직이 항상 같은 구조를 보도록 함
+     */
+    normalizePersistedData({ save = false } = {}) {
+        // teams 정규화
+        if (!Array.isArray(this.teams)) {
+            this.teams = [
+                { name: '히어로', characters: [] },
+                { name: '정부', characters: [] },
+                { name: '빌런', characters: [] }
+            ];
+        }
+
+        this.teams.forEach((team, teamIndex) => {
+            if (!team || typeof team !== 'object') {
+                this.teams[teamIndex] = { name: ['히어로', '정부', '빌런'][teamIndex] || '팀', characters: [] };
+                return;
+            }
+            if (!Array.isArray(team.characters)) team.characters = [];
+
+            team.characters.forEach((c) => {
+                if (!c || typeof c !== 'object') return;
+
+                // id
+                if (!c.id) c.id = `custom_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+                c.id = String(c.id);
+
+                // 기본 스탯/상태
+                const clamp1to5 = (v, fallback = 3) => Math.max(1, Math.min(5, Math.round(Number(v) || fallback)));
+                c.attack = clamp1to5(c.attack ?? c.atk, 3);
+                c.defense = clamp1to5(c.defense ?? c.def, 3);
+                c.agility = clamp1to5(c.agility ?? c.agi, 3);
+                c.skill = clamp1to5(c.skill ?? c.skillStat, 3);
+
+                if (!c.status) c.status = 'active';
+
+                // HP / maxHp: 기존 데이터는 hp만 있는 경우가 많아서 maxHp를 채움
+                const hp = Number.isFinite(Number(c.hp)) ? Math.max(0, Math.round(Number(c.hp))) : 100;
+                const maxHp = Number.isFinite(Number(c.maxHp)) ? Math.max(1, Math.round(Number(c.maxHp))) : hp || 100;
+                c.maxHp = maxHp;
+                // 전투 중 쉴드가 붙어서 hp가 maxHp를 초과할 수 있음 -> 그대로 유지
+                c.hp = hp;
+
+                // 스킬 타입(단일) 호환: 항상 배열
+                if (Array.isArray(c.skillTypes) && c.skillTypes.length > 0) {
+                    // ok
+                } else {
+                    c.skillTypes = ['공격형'];
+                }
+
+                // 스킬 타겟 설정
+                const mode = c.skillTarget?.mode === 'multi' ? 'multi' : 'single';
+                const includeSelf = mode === 'multi' ? !!c.skillTarget?.includeSelf : false;
+                c.skillTarget = { mode, includeSelf };
+
+                // 스킬 사용 횟수/잠금 (희귀 스킬)
+                // - 기존 데이터 호환을 위해 기본 max=1
+                const skillUsesMax = Math.max(0, Math.min(99, Math.floor(Number(c.skillUsesMax ?? 1) || 0)));
+                const skillUsesUsed = Math.max(0, Math.floor(Number(c.skillUsesUsed) || 0));
+                const skillUsesLocked = !!c.skillUsesLocked;
+                const exhausted = skillUsesMax === 0 ? true : (skillUsesUsed >= skillUsesMax);
+                c.skillUsesMax = skillUsesMax;
+                c.skillUsesUsed = skillUsesUsed;
+                c.skillUsesLocked = skillUsesLocked || exhausted;
+            });
+        });
+
+        // selectedCharacters 정규화 + 존재하지 않는 id 제거
+        const teamKeys = ['hero', 'gov', 'villain'];
+        if (!this.selectedCharacters || typeof this.selectedCharacters !== 'object') {
+            this.selectedCharacters = { hero: [], gov: [], villain: [] };
+        }
+        teamKeys.forEach((k, idx) => {
+            const list = Array.isArray(this.selectedCharacters[k]) ? this.selectedCharacters[k].map(String) : [];
+            const existingIds = new Set((this.teams[idx]?.characters || []).map(c => String(c.id)));
+            this.selectedCharacters[k] = list.filter((id) => existingIds.has(String(id)));
+        });
+
+        // 필요하면 즉시 저장(스키마 업그레이드)
+        if (save) {
+            try {
+                // 무한루프 방지: 여기서 app.saveToLocalStorage()를 다시 부르지 않음
+                if (this.dataManager?.saveToLocalStorage) {
+                    this.dataManager.saveToLocalStorage();
+                } else {
+                    const key = this.dataManager?.localStorageKey || 'battleProgramData';
+                    const data = {
+                        schemaVersion: this.dataManager?.schemaVersion || 2,
+                        savedAt: new Date().toISOString(),
+                        teams: this.teams,
+                        selectedCharacters: this.selectedCharacters,
+                        battleHistory: this.battleHistory
+                    };
+                    localStorage.setItem(key, JSON.stringify(data));
+                }
+            } catch (e) {
+                console.error('정규화 후 저장 실패:', e);
+            }
+        }
+    }
+
+    /**
+     * 스킬 세부 설정 UI (단일/다수 + 본인 포함)
+     * - 현재는 UI/저장까지만 사용 (실제 효과 적용은 추후)
+     */
+    initSkillConfigUI() {
+        const includeSelf = document.querySelector('input[name="skillIncludeSelf"]');
+        const modeRadios = Array.from(document.querySelectorAll('input[name="skillTargetMode"]'));
+        if (!includeSelf || modeRadios.length === 0) return;
+
+        const apply = () => {
+            const mode = document.querySelector('input[name="skillTargetMode"]:checked')?.value || 'single';
+            const enabled = mode === 'multi';
+            includeSelf.disabled = !enabled;
+            if (!enabled) includeSelf.checked = false;
+        };
+
+        modeRadios.forEach(r => r.addEventListener('change', apply));
+        apply();
+    }
+
+    initSkillUsesUI() {
+        const maxInput = document.getElementById('skill-uses-max');
+        if (!maxInput) return;
+
+        const update = () => {
+            const usedEl = document.getElementById('skill-uses-used');
+            const remainingEl = document.getElementById('skill-uses-remaining');
+            const statusEl = document.getElementById('skill-uses-status');
+
+            const max = Math.max(0, Math.min(99, Math.floor(Number(maxInput.value) || 0)));
+            maxInput.value = String(max);
+
+            const char = this.currentEditCharId
+                ? this.teams?.[this.currentEditTeam]?.characters?.find(c => c.id === this.currentEditCharId)
+                : null;
+            const used = char ? Math.max(0, Math.floor(Number(char.skillUsesUsed) || 0)) : 0;
+            const locked = char ? !!char.skillUsesLocked : false;
+
+            const exhausted = max === 0 ? true : (used >= max);
+            const remaining = max === 0 ? 0 : Math.max(0, max - used);
+
+            if (usedEl) usedEl.textContent = String(used);
+            if (remainingEl) remainingEl.textContent = String(remaining);
+
+            if (statusEl) {
+                const effectiveLocked = locked || exhausted;
+                statusEl.classList.toggle('is-locked', effectiveLocked);
+                statusEl.textContent = effectiveLocked ? '🔒 잠김: 스킬 사용이 제한됩니다.' : '✅ 사용 가능';
+            }
+
+            const hasChar = !!char;
+            ['skill-uses-reset', 'skill-uses-unlock', 'skill-uses-lock'].forEach((id) => {
+                const btn = document.getElementById(id);
+                if (btn) btn.disabled = !hasChar;
+            });
+        };
+
+        maxInput.addEventListener('input', update);
+        update();
     }
 
     /**
@@ -255,6 +421,59 @@ class BattleApp {
         this.elements.cancelCustomChar?.addEventListener('click', () => this.closeModal());
         this.elements.saveCustomChar?.addEventListener('click', () => this.saveCustomCharacter());
         this.elements.modalDelete?.addEventListener('click', () => this.deleteCharacter());
+
+        // 스킬 사용 횟수(잠금/해제/초기화)
+        document.getElementById('skill-uses-reset')?.addEventListener('click', () => {
+            if (!this.currentEditCharId) return;
+            const char = this.teams?.[this.currentEditTeam]?.characters?.find(c => c.id === this.currentEditCharId);
+            if (!char) return;
+            char.skillUsesUsed = 0;
+            char.skillUsesLocked = false;
+            this.saveToLocalStorage();
+            this.openEditCharacterModal(this.currentEditTeam, this.currentEditCharId);
+            this.showToast('스킬 사용 기록을 초기화했습니다.', 'success');
+        });
+
+        document.getElementById('skill-uses-unlock')?.addEventListener('click', async () => {
+            if (!this.currentEditCharId) return;
+            const char = this.teams?.[this.currentEditTeam]?.characters?.find(c => c.id === this.currentEditCharId);
+            if (!char) return;
+
+            const used = Math.max(0, Math.floor(Number(char.skillUsesUsed) || 0));
+
+            const add = await this.showNumberPrompt({
+                title: '잠금 해제',
+                message: '잠금해제하면서 스킬 기회를 몇 번 더 줄까요?\n(1~99, 0은 사용 불가)',
+                initialValue: 1,
+                min: 0,
+                max: 99,
+                okText: '적용',
+                cancelText: '취소'
+            });
+            if (add === null) return;
+            if (add <= 0) {
+                this.showToast('추가 기회가 0회라 잠금해제를 취소했습니다.', 'warning');
+                return;
+            }
+
+            // “남은 횟수 = add”가 되도록 max를 used+add로 설정
+            char.skillUsesMax = Math.min(99, used + add);
+            char.skillUsesLocked = false;
+
+            this.saveToLocalStorage();
+            this.openEditCharacterModal(this.currentEditTeam, this.currentEditCharId);
+            this.showToast(`잠금 해제: 기회 ${add}회 추가`, 'success');
+        });
+
+        document.getElementById('skill-uses-lock')?.addEventListener('click', () => {
+            if (!this.currentEditCharId) return;
+            const char = this.teams?.[this.currentEditTeam]?.characters?.find(c => c.id === this.currentEditCharId);
+            if (!char) return;
+            char.skillUsesLocked = true;
+            this.saveToLocalStorage();
+            this.openEditCharacterModal(this.currentEditTeam, this.currentEditCharId);
+            this.showToast('스킬을 잠금 처리했습니다.', 'success');
+        });
         
         this.elements.modal?.addEventListener('click', (e) => {
             if (e.target === this.elements.modal) {
@@ -485,6 +704,75 @@ class BattleApp {
     }
 
     /**
+     * 공용 숫자 입력 모달 (브라우저 prompt 대체)
+     * @returns {Promise<number|null>} 취소면 null
+     */
+    showNumberPrompt({ title = '입력', message = '', initialValue = 1, min = 0, max = 99, okText = '적용', cancelText = '취소' } = {}) {
+        return new Promise((resolve) => {
+            const modal = document.getElementById('number-prompt-modal');
+            const t = document.getElementById('number-prompt-title');
+            const m = document.getElementById('number-prompt-message');
+            const input = document.getElementById('number-prompt-input');
+            const ok = document.getElementById('number-prompt-ok');
+            const cancel = document.getElementById('number-prompt-cancel');
+            const closeBtn = document.getElementById('number-prompt-close');
+
+            if (!modal || !t || !m || !input || !ok || !cancel) {
+                const raw = prompt(message, String(initialValue));
+                if (raw === null) { resolve(null); return; }
+                const n = Math.max(min, Math.min(max, Math.floor(Number(raw) || 0)));
+                resolve(n);
+                return;
+            }
+
+            t.textContent = title;
+            m.textContent = message;
+            ok.textContent = okText;
+            cancel.textContent = cancelText;
+
+            input.min = String(min);
+            input.max = String(max);
+            input.step = '1';
+            const init = Math.max(min, Math.min(max, Math.floor(Number(initialValue) || 0)));
+            input.value = String(init);
+
+            modal.style.display = 'block';
+
+            const cleanup = () => {
+                modal.style.display = 'none';
+                ok.removeEventListener('click', onOk);
+                cancel.removeEventListener('click', onCancel);
+                closeBtn?.removeEventListener('click', onCancel);
+                modal.removeEventListener('click', onBackdrop);
+                document.removeEventListener('keydown', onKeydown);
+            };
+
+            const onOk = () => {
+                const n = Math.max(min, Math.min(max, Math.floor(Number(input.value) || 0)));
+                cleanup();
+                resolve(n);
+            };
+            const onCancel = () => { cleanup(); resolve(null); };
+            const onBackdrop = (e) => { if (e.target === modal) onCancel(); };
+            const onKeydown = (e) => {
+                if (e.key === 'Escape') onCancel();
+                if (e.key === 'Enter') onOk();
+            };
+
+            ok.addEventListener('click', onOk);
+            cancel.addEventListener('click', onCancel);
+            closeBtn?.addEventListener('click', onCancel);
+            modal.addEventListener('click', onBackdrop);
+            document.addEventListener('keydown', onKeydown);
+
+            setTimeout(() => {
+                input.focus();
+                input.select();
+            }, 0);
+        });
+    }
+
+    /**
      * 페이지 표시
      */
     showPage(pageId) {
@@ -510,6 +798,9 @@ class BattleApp {
      */
     renderTeam(teamIndex, container) {
         if (!container) return;
+
+        const activeScreen = document.querySelector('.screen.screen-active')?.id;
+        const isSelectionScreen = activeScreen === 'character-selection';
         
         const team = this.teams[teamIndex];
         container.innerHTML = '';
@@ -539,7 +830,10 @@ class BattleApp {
             info.className = 'character-info';
             info.addEventListener('click', (infoEvent) => {
                 if (infoEvent.target.tagName !== 'BUTTON') {
-                    this.openEditCharacterModal(teamIndex, char.id);
+                    // 캐릭터 선택(메인) 화면에서는 수정 금지
+                    if (!isSelectionScreen) {
+                        this.openEditCharacterModal(teamIndex, char.id);
+                    }
                 }
             });
 
@@ -558,7 +852,10 @@ class BattleApp {
             removeBtn.textContent = '×';
             removeBtn.addEventListener('click', (e) => {
                 e.stopPropagation();
-                this.requestRemoveCharacter(teamIndex, char.id);
+                // 캐릭터 선택(메인) 화면에서는 삭제 금지
+                if (!isSelectionScreen) {
+                    this.requestRemoveCharacter(teamIndex, char.id);
+                }
             });
 
             info.appendChild(name);
@@ -566,7 +863,10 @@ class BattleApp {
 
             item.appendChild(checkbox);
             item.appendChild(info);
-            item.appendChild(removeBtn);
+            // 캐릭터 선택(메인) 화면에서는 삭제 버튼 자체를 숨김
+            if (!isSelectionScreen) {
+                item.appendChild(removeBtn);
+            }
 
             if (checkbox.checked) {
                 item.classList.add('selected');
@@ -707,6 +1007,10 @@ class BattleApp {
         if (this.elements.modalTitle) this.elements.modalTitle.textContent = '캐릭터 생성';
         if (this.elements.modalDelete) this.elements.modalDelete.classList.add('hidden');
         if (this.elements.modal) this.elements.modal.style.display = 'block';
+        ['skill-uses-reset', 'skill-uses-unlock', 'skill-uses-lock'].forEach((id) => {
+            const btn = document.getElementById(id);
+            if (btn) btn.disabled = true;
+        });
         this.enforceSingleSkillType();
     }
 
@@ -714,6 +1018,13 @@ class BattleApp {
      * 캐릭터 수정 모달 열기
      */
     openEditCharacterModal(teamIndex, charId) {
+        // 캐릭터 선택(메인) 화면에서는 수정 모달을 절대 열지 않음
+        const activeScreen = document.querySelector('.screen.screen-active')?.id;
+        if (activeScreen === 'character-selection') {
+            // 조용히 무시 (선택 UX 방해 방지)
+            return;
+        }
+
         console.log('openEditCharacterModal 호출됨:', teamIndex, charId);
         this.currentEditTeam = teamIndex;
         this.currentEditCharId = charId;
@@ -737,10 +1048,52 @@ class BattleApp {
             if (valueSpan) valueSpan.textContent = char[stat] || 3;
         });
 
-        // 스킬 타입 설정
-        const skillTypeCheckboxes = document.querySelectorAll('input[name="skillType"]');
-        skillTypeCheckboxes.forEach(checkbox => {
-            checkbox.checked = char.skillTypes && char.skillTypes.includes(checkbox.value);
+        // 스킬 타입(단일) 설정
+        const skillTypeInputs = document.querySelectorAll('input[name="skillType"]');
+        skillTypeInputs.forEach(input => {
+            input.checked = !!(char.skillTypes && char.skillTypes.includes(input.value));
+        });
+        // 혹시 아무것도 체크되지 않았으면 기본값으로 보정
+        if (!document.querySelector('input[name="skillType"]:checked')) {
+            const fallback = document.querySelector('input[name="skillType"][value="공격형"]');
+            if (fallback) fallback.checked = true;
+        }
+
+        // 스킬 대상 설정(추가 UI)
+        const mode = char.skillTarget?.mode || 'single';
+        const modeRadio = document.querySelector(`input[name="skillTargetMode"][value="${mode}"]`);
+        if (modeRadio) modeRadio.checked = true;
+        const includeSelf = document.querySelector('input[name="skillIncludeSelf"]');
+        if (includeSelf) {
+            const enabled = mode === 'multi';
+            includeSelf.disabled = !enabled;
+            includeSelf.checked = enabled ? !!char.skillTarget?.includeSelf : false;
+        }
+
+        // 스킬 사용 횟수/잠금
+        const usesMax = document.getElementById('skill-uses-max');
+        const usesUsed = document.getElementById('skill-uses-used');
+        const usesRemaining = document.getElementById('skill-uses-remaining');
+        const usesStatus = document.getElementById('skill-uses-status');
+
+        const max = Math.max(0, Math.min(99, Math.floor(Number(char.skillUsesMax ?? 1) || 0)));
+        const used = Math.max(0, Math.floor(Number(char.skillUsesUsed) || 0));
+        const locked = !!char.skillUsesLocked;
+        const exhausted = max === 0 ? true : (used >= max);
+        const remaining = max === 0 ? 0 : Math.max(0, max - used);
+
+        if (usesMax) usesMax.value = String(max);
+        if (usesUsed) usesUsed.textContent = String(used);
+        if (usesRemaining) usesRemaining.textContent = String(remaining);
+        if (usesStatus) {
+            const effectiveLocked = locked || exhausted;
+            usesStatus.classList.toggle('is-locked', effectiveLocked);
+            usesStatus.textContent = effectiveLocked ? '🔒 잠김: 스킬 사용이 제한됩니다.' : '✅ 사용 가능';
+        }
+
+        ['skill-uses-reset', 'skill-uses-unlock', 'skill-uses-lock'].forEach((id) => {
+            const btn = document.getElementById(id);
+            if (btn) btn.disabled = false;
         });
 
         // 상태 설정
@@ -782,7 +1135,31 @@ class BattleApp {
             if (valueSpan) valueSpan.textContent = '3';
         });
 
-        document.querySelectorAll('input[name="skillType"]').forEach(cb => cb.checked = false);
+        // 스킬 타입 기본값: 공격형
+        const defaultSkillType = document.querySelector('input[name="skillType"][value="공격형"]');
+        if (defaultSkillType) defaultSkillType.checked = true;
+
+        // 스킬 대상 기본값: 단일, 본인 포함 비활성
+        const defaultTarget = document.querySelector('input[name="skillTargetMode"][value="single"]');
+        if (defaultTarget) defaultTarget.checked = true;
+        const includeSelf = document.querySelector('input[name="skillIncludeSelf"]');
+        if (includeSelf) {
+            includeSelf.checked = false;
+            includeSelf.disabled = true;
+        }
+
+        // 스킬 사용 횟수 기본값
+        const usesMax = document.getElementById('skill-uses-max');
+        const usesUsed = document.getElementById('skill-uses-used');
+        const usesRemaining = document.getElementById('skill-uses-remaining');
+        const usesStatus = document.getElementById('skill-uses-status');
+        if (usesMax) usesMax.value = '1';
+        if (usesUsed) usesUsed.textContent = '0';
+        if (usesRemaining) usesRemaining.textContent = '1';
+        if (usesStatus) {
+            usesStatus.textContent = '✅ 사용 가능';
+            usesStatus.classList.remove('is-locked');
+        }
         
         const activeRadio = document.querySelector('input[name="status"][value="active"]');
         if (activeRadio) activeRadio.checked = true;
@@ -829,13 +1206,17 @@ class BattleApp {
         const agility = parseInt(document.querySelector('input[name="agility"]:checked')?.value || 3);
         const skill = parseInt(document.querySelector('input[name="skill"]:checked')?.value || 3);
 
-        const skillTypes = Array.from(document.querySelectorAll('input[name="skillType"]:checked'))
-            .map(cb => cb.value);
+        // 스킬 타입(단일) -> 기존 호환을 위해 배열로 저장
+        const selectedSkillType = document.querySelector('input[name="skillType"]:checked')?.value || '공격형';
+        const skillTypes = [selectedSkillType];
 
-        if (skillTypes.length > 1) {
-            this.showAlert({ title: '제한', message: '스킬 타입은 한 개만 선택할 수 있습니다.' });
-            return;
-        }
+        // 스킬 대상 설정(추가 UI)
+        const skillTargetMode = document.querySelector('input[name="skillTargetMode"]:checked')?.value || 'single';
+        const skillIncludeSelf = !!document.querySelector('input[name="skillIncludeSelf"]')?.checked;
+
+        // 스킬 사용 횟수(희귀 스킬)
+        const usesMaxInput = document.getElementById('skill-uses-max');
+        const skillUsesMax = Math.max(0, Math.min(99, Math.floor(Number(usesMaxInput?.value) || 0)));
 
         const skillDescription = this.elements.skillDescription?.value.trim() || '';
         const status = document.querySelector('input[name="status"]:checked')?.value || 'active';
@@ -852,6 +1233,15 @@ class BattleApp {
                 char.skill = skill;
                 char.skillTypes = skillTypes;
                 char.skillDescription = skillDescription;
+                char.skillTarget = {
+                    mode: skillTargetMode,
+                    includeSelf: skillTargetMode === 'multi' ? skillIncludeSelf : false
+                };
+                char.skillUsesMax = skillUsesMax;
+                char.skillUsesUsed = Math.max(0, Math.floor(Number(char.skillUsesUsed) || 0));
+                // 최대치가 줄어든 경우 잠금 상태 재계산
+                const exhausted = skillUsesMax === 0 ? true : (char.skillUsesUsed >= skillUsesMax);
+                if (exhausted) char.skillUsesLocked = true;
                 char.status = status;
             }
         } else {
@@ -859,6 +1249,13 @@ class BattleApp {
             const newChar = {
                 name, hp, attack, defense, agility, skill,
                 skillTypes, skillDescription, status,
+                skillTarget: {
+                    mode: skillTargetMode,
+                    includeSelf: skillTargetMode === 'multi' ? skillIncludeSelf : false
+                },
+                skillUsesMax,
+                skillUsesUsed: 0,
+                skillUsesLocked: false,
                 id: `custom_${Date.now()}`
             };
             this.teams[this.currentEditTeam].characters.push(newChar);
@@ -1157,13 +1554,23 @@ class BattleApp {
      * 로컬 스토리지에 저장
      */
     saveToLocalStorage() {
+        // 저장 전에 스키마/누락 필드 보정
+        this.normalizePersistedData({ save: false });
+
         try {
-            const data = {
-                teams: this.teams,
-                selectedCharacters: this.selectedCharacters,
-                battleHistory: this.battleHistory
-            };
-            localStorage.setItem('battleProgramData', JSON.stringify(data));
+            if (this.dataManager?.saveToLocalStorage) {
+                this.dataManager.saveToLocalStorage();
+            } else {
+                const key = this.dataManager?.localStorageKey || 'battleProgramData';
+                const data = {
+                    schemaVersion: this.dataManager?.schemaVersion || 2,
+                    savedAt: new Date().toISOString(),
+                    teams: this.teams,
+                    selectedCharacters: this.selectedCharacters,
+                    battleHistory: this.battleHistory
+                };
+                localStorage.setItem(key, JSON.stringify(data));
+            }
         } catch (error) {
             console.error('로컬 스토리지 저장 실패:', error);
         }
@@ -1746,39 +2153,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     <div class="char-table-cell status-cell"><span class="char-status ${statusClass}">${statusText}</span></div>
                 `;
                 
-                // 선택된 캐릭터면 배경색 표시
-                const teamKey = ['hero', 'gov', 'villain'][teamIndex];
-                if (this.selectedCharacters[teamKey].includes(char.id)) {
-                    row.style.background = 'rgba(66, 153, 225, 0.15)';
-                    row.style.borderLeft = '4px solid #4299e1';
-                }
-                
-                // 클릭 이벤트 바인드 - 캐릭터를 전투에 참여시킬지 여부 선택
+                // 클릭 이벤트 바인드 - 캐릭터 목록 페이지에서는 "선택"이 아니라 "세부/수정 모달"만
                 const clickHandler = () => {
                     console.log('Row clicked! teamIndex:', teamIndex, 'charId:', char.id);
-                    
-                    // 활동 중인 캐릭터만 선택 가능
-                    if (char.status !== 'active') {
-                        alert('⚠️ 활동 중인 캐릭터만 선택할 수 있습니다!');
-                        return;
-                    }
-                    
-                    // 캐릭터 선택/해제
-                    const teamKey = ['hero', 'gov', 'villain'][teamIndex];
-                    const isCurrentlySelected = this.selectedCharacters[teamKey].includes(char.id);
-                    
-                    if (isCurrentlySelected) {
-                        // 선택 해제
-                        this.toggleCharacterSelection(teamIndex, char.id, false);
-                        row.style.background = '';
-                    } else {
-                        // 선택
-                        this.toggleCharacterSelection(teamIndex, char.id, true);
-                        row.style.background = 'rgba(66, 153, 225, 0.1)';
-                    }
-                    
-                    this.updateSelectedCount();
-                    this.renderCharacterList();
+                    this.openEditCharacterModal(teamIndex, char.id);
                 };
                 row.addEventListener('click', clickHandler);
                 

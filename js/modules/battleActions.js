@@ -8,7 +8,347 @@ class BattleActions {
         this.app = app;
         this.selectedTarget = null;
         this.targetSelectionMode = false;
+        this.skillTargetUiInitialized = false;
+        this.skillTargetContext = null; // { attacker, teamKey, skillType, mode, includeSelf, eligibleTeams, selected: Set<string> }
         this.initBattleActionListeners();
+    }
+
+    getSkillUseState(attacker) {
+        const max = Math.max(0, Math.min(99, Math.floor(Number(attacker?.skillUsesMax ?? 1) || 0)));
+        const used = Math.max(0, Math.floor(Number(attacker?.skillUsesUsed) || 0));
+        const locked = !!attacker?.skillUsesLocked;
+        const exhausted = max === 0 ? true : (used >= max);
+        const canUse = !(locked || exhausted);
+        const remaining = max === 0 ? 0 : Math.max(0, max - used);
+        return { max, used, remaining, locked, exhausted, canUse };
+    }
+
+    consumeSkillUse(attacker) {
+        if (!attacker) return { consumed: false, exhaustedNow: false, state: this.getSkillUseState(attacker) };
+        const state = this.getSkillUseState(attacker);
+        if (!state.canUse) return { consumed: false, exhaustedNow: state.exhausted, state };
+
+        attacker.skillUsesMax = state.max;
+        attacker.skillUsesUsed = state.used + 1;
+        const after = this.getSkillUseState(attacker);
+
+        const exhaustedNow = after.max === 0 ? true : (after.used >= after.max);
+        if (exhaustedNow) attacker.skillUsesLocked = true;
+
+        // 전투 중 사용도 즉시 저장(다음 전투/새로고침에도 반영)
+        if (this.app?.saveToLocalStorage) {
+            this.app.saveToLocalStorage();
+        }
+
+        return { consumed: true, exhaustedNow, state: after };
+    }
+
+    initSkillTargetUi() {
+        if (this.skillTargetUiInitialized) return;
+
+        const modal = document.getElementById('skill-target-modal');
+        const closeBtn = document.getElementById('skill-target-close');
+        const cancelBtn = document.getElementById('skill-target-cancel');
+        const confirmBtn = document.getElementById('skill-target-confirm');
+        if (!modal || !closeBtn || !cancelBtn || !confirmBtn) return;
+
+        const onCancel = () => this.hideSkillTargetModal();
+        closeBtn.addEventListener('click', onCancel);
+        cancelBtn.addEventListener('click', onCancel);
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) onCancel();
+        });
+
+        confirmBtn.addEventListener('click', () => this.confirmSkillTargets());
+
+        this.skillTargetUiInitialized = true;
+    }
+
+    hideSkillTargetModal() {
+        const modal = document.getElementById('skill-target-modal');
+        if (modal) modal.style.display = 'none';
+        this.skillTargetContext = null;
+    }
+
+    getAlliance(teamKey) {
+        // 규칙: 히어로+정부는 연합, 빌런은 단독
+        if (teamKey === 'villain') return { allies: ['villain'], enemies: ['hero', 'gov'] };
+        return { allies: ['hero', 'gov'], enemies: ['villain'] };
+    }
+
+    getPrimarySkillType(attacker) {
+        const type = Array.isArray(attacker?.skillTypes) ? attacker.skillTypes[0] : null;
+        return type || '공격형';
+    }
+
+    openSkillTargetModal({ attacker, teamKey, skillType, mode, includeSelf, eligibleTeams }) {
+        this.initSkillTargetUi();
+
+        const modal = document.getElementById('skill-target-modal');
+        const title = document.getElementById('skill-target-title');
+        const subtitle = document.getElementById('skill-target-subtitle');
+        const list = document.getElementById('skill-target-list');
+        const note = document.getElementById('skill-target-note');
+
+        if (!modal || !title || !subtitle || !list) return;
+
+        const isMulti = mode === 'multi';
+        const sideLabel = (skillType === '공격형') ? '적군' : '아군';
+        title.textContent = isMulti
+            ? `🎯 ${skillType} 대상 선택 (다수 · ${sideLabel})`
+            : `🎯 ${skillType} 대상 선택 (단일 · ${sideLabel})`;
+
+        const targetHint = (skillType === '공격형')
+            ? '적 목록에서 대상을 선택하세요.'
+            : '아군 목록에서 대상을 선택하세요.';
+        subtitle.textContent = `${attacker?.name || '사용자'} · ${targetHint}`;
+
+        if (note) {
+            if (isMulti) {
+                if (skillType === '공격형') {
+                    note.textContent = '다수 공격형은 선택한 대상 수 n으로 1/n 분배(내림) 후 각 대상 방어%를 적용합니다.';
+                } else if (skillType === '방어형') {
+                    note.textContent = '다수 방어형(쉴드)은 선택한 대상 수 n으로 1/n 분배(내림)합니다. 쉴드는 피해를 먼저 흡수하며 소모될 때까지 유지됩니다.';
+                } else if (skillType === '치료형') {
+                    note.textContent = '다수 치료형은 선택한 대상 수 n으로 1/n 분배(내림)합니다. 회복은 maxHP를 넘지 않습니다.';
+                } else {
+                    note.textContent = '다수 스킬은 선택한 대상 수 n으로 1/n 분배(내림) 규칙을 사용합니다.';
+                }
+            } else {
+                if (skillType === '방어형') note.textContent = '방어형은 쉴드를 부여합니다(쉴드는 피해를 먼저 흡수).';
+                else if (skillType === '치료형') note.textContent = '치료형은 HP를 회복합니다(maxHP 초과 불가).';
+                else note.textContent = '';
+            }
+        }
+
+        this.skillTargetContext = {
+            attacker,
+            teamKey,
+            skillType,
+            mode,
+            includeSelf,
+            eligibleTeams,
+            selected: new Set()
+        };
+
+        // UI 렌더
+        list.innerHTML = '';
+        const teamLabels = { hero: '🦸 히어로', gov: '🏛️ 정부', villain: '😈 빌런' };
+
+        eligibleTeams.forEach((t) => {
+            const group = document.createElement('div');
+            group.className = 'skill-target-group';
+
+            const groupTitle = document.createElement('div');
+            groupTitle.className = 'skill-target-group-title';
+            groupTitle.textContent = teamLabels[t] || t;
+
+            const buttons = document.createElement('div');
+            buttons.className = 'skill-target-buttons';
+
+            const chars = (this.app.battleSystem?.combatCharacters?.[t] || []).filter(c => (Number(c.hp) || 0) > 0);
+            const filtered = chars.filter(c => {
+                if (skillType !== '공격형' && mode === 'multi' && !includeSelf) {
+                    return c.id !== attacker?.id;
+                }
+                return true;
+            });
+
+            if (filtered.length === 0) {
+                const empty = document.createElement('div');
+                empty.style.color = '#718096';
+                empty.style.fontSize = '13px';
+                empty.textContent = '선택 가능한 대상이 없습니다.';
+                buttons.appendChild(empty);
+            } else {
+                filtered.forEach((c) => {
+                    const btn = document.createElement('button');
+                    btn.type = 'button';
+                    btn.className = 'skill-target-btn';
+                    btn.dataset.teamKey = t;
+                    btn.dataset.charId = c.id;
+
+                    const name = document.createElement('div');
+                    name.className = 'skill-target-btn-name';
+                    name.textContent = c.name;
+
+                    const hp = document.createElement('div');
+                    hp.className = 'skill-target-btn-hp';
+                    const maxHp = Number.isFinite(Number(c.maxHp)) ? Math.max(1, Math.round(Number(c.maxHp))) : 100;
+                    const totalHp = Math.max(0, Math.round(Number(c.hp) || 0));
+                    const baseHp = Math.min(maxHp, totalHp);
+                    const shieldHp = Math.max(0, totalHp - maxHp);
+                    hp.textContent = shieldHp > 0
+                        ? `HP ${baseHp}/${maxHp} · 🛡️+${shieldHp}`
+                        : `HP ${baseHp}/${maxHp}`;
+
+                    btn.appendChild(name);
+                    btn.appendChild(hp);
+
+                    btn.addEventListener('click', () => {
+                        const ctx = this.skillTargetContext;
+                        if (!ctx) return;
+                        const key = `${t}:${c.id}`;
+
+                        if (ctx.mode !== 'multi') {
+                            // 단일: 하나만 선택
+                            ctx.selected.clear();
+                            // UI에서도 다른 선택 해제
+                            list.querySelectorAll('.skill-target-btn.is-selected').forEach(el => el.classList.remove('is-selected'));
+                            ctx.selected.add(key);
+                            btn.classList.add('is-selected');
+                            return;
+                        }
+
+                        // 다수: 토글
+                        if (ctx.selected.has(key)) {
+                            ctx.selected.delete(key);
+                            btn.classList.remove('is-selected');
+                        } else {
+                            ctx.selected.add(key);
+                            btn.classList.add('is-selected');
+                        }
+                    });
+
+                    buttons.appendChild(btn);
+                });
+            }
+
+            group.appendChild(groupTitle);
+            group.appendChild(buttons);
+            list.appendChild(group);
+        });
+
+        modal.style.display = 'flex';
+    }
+
+    confirmSkillTargets() {
+        const ctx = this.skillTargetContext;
+        if (!ctx) return;
+
+        if (ctx.selected.size === 0) {
+            this.app?.showToast?.('대상을 1명 이상 선택해주세요.', 'warning');
+            return;
+        }
+
+        // 선택 목록 파싱
+        const targets = Array.from(ctx.selected).map((k) => {
+            const [teamKey, charId] = k.split(':');
+            const char = (this.app.battleSystem?.combatCharacters?.[teamKey] || []).find(c => c.id === charId);
+            return { teamKey, charId, char };
+        }).filter(t => t.char);
+
+        const names = targets.map(t => t.char.name).join(', ');
+        this.app.battleSystem.addLog(`🎯 스킬 대상 선택: ${names}`);
+
+        // 공격형: 단일/다수 모두 실제 적용
+        if (ctx.skillType === '공격형') {
+            const useState = this.getSkillUseState(ctx.attacker);
+            if (!useState.canUse) {
+                this.hideSkillTargetModal();
+                this.app?.showToast?.('경고. 본 캐릭터의 스킬 횟수를 모두 사용하였습니다.', 'danger');
+                this.app.battleSystem.addLog('🔒 스킬 사용 불가: 사용 횟수 소진/잠금 상태');
+                return;
+            }
+
+            const consumed = this.consumeSkillUse(ctx.attacker);
+            if (!consumed.consumed) {
+                this.hideSkillTargetModal();
+                this.app?.showToast?.('경고. 본 캐릭터의 스킬 횟수를 모두 사용하였습니다.', 'danger');
+                this.app.battleSystem.addLog('🔒 스킬 사용 불가: 사용 횟수 소진/잠금 상태');
+                return;
+            }
+            if (consumed.exhaustedNow) {
+                this.app?.showToast?.('경고. 본 캐릭터의 스킬 횟수를 모두 사용하였습니다.', 'danger');
+                this.app.battleSystem.addLog('🔒 스킬 사용 횟수 소진: 자동 잠금 처리');
+            }
+
+            this.hideSkillTargetModal();
+
+            if (ctx.mode !== 'multi') {
+                const first = targets[0];
+                this.app.battleSystem.executeUltimate(ctx.attacker, first.char, first.teamKey);
+            } else {
+                this.app.battleSystem.executeUltimateMulti(ctx.attacker, targets.map(t => t.char));
+            }
+
+            this.app.battleSystem.renderBattle();
+
+            // NOTE: checkBattleEnd는 내부에서 endBattle()까지 처리하며 현재 반환값이 없습니다.
+            this.app.battleSystem.checkBattleEnd();
+            this.app.battleSystem.nextTurn();
+            this.app.battleSystem.renderBattle();
+            return;
+        }
+
+        // 방어형(쉴드): 단일/다수 모두 실제 적용
+        if (ctx.skillType === '방어형') {
+            const useState = this.getSkillUseState(ctx.attacker);
+            if (!useState.canUse) {
+                this.hideSkillTargetModal();
+                this.app?.showToast?.('경고. 본 캐릭터의 스킬 횟수를 모두 사용하였습니다.', 'danger');
+                this.app.battleSystem.addLog('🔒 스킬 사용 불가: 사용 횟수 소진/잠금 상태');
+                return;
+            }
+
+            const consumed = this.consumeSkillUse(ctx.attacker);
+            if (!consumed.consumed) {
+                this.hideSkillTargetModal();
+                this.app?.showToast?.('경고. 본 캐릭터의 스킬 횟수를 모두 사용하였습니다.', 'danger');
+                this.app.battleSystem.addLog('🔒 스킬 사용 불가: 사용 횟수 소진/잠금 상태');
+                return;
+            }
+            if (consumed.exhaustedNow) {
+                this.app?.showToast?.('경고. 본 캐릭터의 스킬 횟수를 모두 사용하였습니다.', 'danger');
+                this.app.battleSystem.addLog('🔒 스킬 사용 횟수 소진: 자동 잠금 처리');
+            }
+
+            this.hideSkillTargetModal();
+            this.app.battleSystem.executeDefenseSkillMulti(ctx.attacker, targets.map(t => t.char));
+            this.app.battleSystem.renderBattle();
+            this.app.battleSystem.checkBattleEnd();
+            this.app.battleSystem.nextTurn();
+            this.app.battleSystem.renderBattle();
+            return;
+        }
+
+        // 치료형: 단일/다수 모두 실제 적용
+        if (ctx.skillType === '치료형') {
+            const useState = this.getSkillUseState(ctx.attacker);
+            if (!useState.canUse) {
+                this.hideSkillTargetModal();
+                this.app?.showToast?.('경고. 본 캐릭터의 스킬 횟수를 모두 사용하였습니다.', 'danger');
+                this.app.battleSystem.addLog('🔒 스킬 사용 불가: 사용 횟수 소진/잠금 상태');
+                return;
+            }
+
+            const consumed = this.consumeSkillUse(ctx.attacker);
+            if (!consumed.consumed) {
+                this.hideSkillTargetModal();
+                this.app?.showToast?.('경고. 본 캐릭터의 스킬 횟수를 모두 사용하였습니다.', 'danger');
+                this.app.battleSystem.addLog('🔒 스킬 사용 불가: 사용 횟수 소진/잠금 상태');
+                return;
+            }
+            if (consumed.exhaustedNow) {
+                this.app?.showToast?.('경고. 본 캐릭터의 스킬 횟수를 모두 사용하였습니다.', 'danger');
+                this.app.battleSystem.addLog('🔒 스킬 사용 횟수 소진: 자동 잠금 처리');
+            }
+
+            this.hideSkillTargetModal();
+            this.app.battleSystem.executeHealSkillMulti(ctx.attacker, targets.map(t => t.char));
+            this.app.battleSystem.renderBattle();
+            this.app.battleSystem.checkBattleEnd();
+            this.app.battleSystem.nextTurn();
+            this.app.battleSystem.renderBattle();
+            return;
+        }
+
+        // 그 외(방어/치료/지원)는 UI만 확정 후 로그만 남김
+        this.hideSkillTargetModal();
+        this.app?.showToast?.('아직 구현되지 않은 스킬 타입입니다. (사용 횟수는 차감되지 않습니다)', 'info');
+        this.app.battleSystem.renderBattle();
+        this.app.battleSystem.nextTurn();
+        this.app.battleSystem.renderBattle();
     }
 
     /**
@@ -130,15 +470,37 @@ class BattleActions {
      * 궁극기 대상 선택
      */
     selectTargetForUltimate() {
+        if (this.app?.battleSystem?.pendingDefenseResponse) {
+            alert('방어자 응답 선택 중에는 스킬을 사용할 수 없습니다.');
+            return;
+        }
+
         const currentTeamTurn = this.app.battleSystem.currentTeamTurn;
-        const teamNames = ['hero', 'gov', 'villain'];
+        const teamKeys = ['hero', 'gov', 'villain'];
+        const teamKey = teamKeys[currentTeamTurn];
 
-        const enemyTeams = teamNames.filter((_, idx) => idx !== currentTeamTurn);
+        const currentTeamChars = this.app.battleSystem.combatCharacters[teamKey];
+        const attacker = currentTeamChars.find(c => (Number(c.hp) || 0) > 0);
+        if (!attacker) {
+            alert('스킬을 사용할 수 있는 캐릭터가 없습니다!');
+            return;
+        }
 
-        this.targetSelectionMode = true;
-        this.currentAction = 'ultimate';
+        const state = this.getSkillUseState(attacker);
+        if (!state.canUse) {
+            this.app?.showToast?.('경고. 본 캐릭터의 스킬 횟수를 모두 사용하였습니다.', 'danger');
+            this.app.battleSystem.addLog('🔒 스킬 사용 불가: 사용 횟수 소진/잠금 상태');
+            return;
+        }
 
-        this.enableTargetSelection(enemyTeams);
+        const skillType = this.getPrimarySkillType(attacker);
+        const mode = attacker.skillTarget?.mode || 'single';
+        const includeSelf = !!attacker.skillTarget?.includeSelf;
+
+        const alliance = this.getAlliance(teamKey);
+        const eligibleTeams = (skillType === '공격형') ? alliance.enemies : alliance.allies;
+
+        this.openSkillTargetModal({ attacker, teamKey, skillType, mode, includeSelf, eligibleTeams });
     }
 
     /**

@@ -10,10 +10,12 @@
 }
 
 body {
-    font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, 'Roboto', sans-serif;
+    font-family: 'Noto Sans KR', 'Segoe UI', -apple-system, BlinkMacSystemFont, 'Roboto', sans-serif;
     background: #e8e9f3;
     color: #2c3e50;
     min-height: 100vh;
+    font-weight: 600;
+    line-height: 1.4;
 }
 
 /* 컨테이너 */

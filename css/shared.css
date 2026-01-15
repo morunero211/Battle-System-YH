@@ -84,16 +84,196 @@
     background: #f7fafc;
 }
 
-.skill-type-option input[type="checkbox"] {
-    width: 20px;
-    height: 20px;
+.skill-type-option input {
+    display: none;
+}
+
+.skill-type-option:has(input:checked) {
+    border-color: #667eea;
+    background: #eef2ff;
+}
+
+.skill-type-option:has(input:checked) span {
+    color: #667eea;
+    font-weight: 700;
+}
+
+/* 스킬 대상 선택기 */
+.skill-target-selector {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+    margin-bottom: 10px;
+}
+
+.skill-target-option {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 12px;
+    background: white;
+    border: 2px solid #e3e6f0;
+    border-radius: 10px;
     cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.skill-target-option input {
+    display: none;
+}
+
+.skill-target-option:hover {
+    border-color: #667eea;
+    background: #f7fafc;
+}
+
+.skill-target-option:has(input:checked) {
+    border-color: #667eea;
+    background: #eef2ff;
+}
+
+.skill-target-option:has(input:checked) span {
+    color: #667eea;
+    font-weight: 700;
+}
+
+.skill-include-self {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    background: #f8f9fc;
+    border: 2px solid #e3e6f0;
+    border-radius: 10px;
+    margin-bottom: 16px;
+    user-select: none;
+}
+
+.skill-include-self input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
     accent-color: #667eea;
 }
 
-.skill-type-option input:checked ~ span {
-    color: #667eea;
-    font-weight: 600;
+.skill-include-self input[type="checkbox"][disabled] {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.skill-config-note {
+    font-size: 12px;
+    color: #718096;
+    margin: -8px 0 16px 0;
+    line-height: 1.4;
+}
+
+/* 스킬 사용 횟수 UI */
+.skill-uses-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+    margin: 8px 0 8px 0;
+}
+
+.skill-uses-field {
+    background: #f8f9fc;
+    border: 2px solid #e3e6f0;
+    border-radius: 10px;
+    padding: 10px;
+}
+
+.skill-uses-label {
+    font-size: 12px;
+    color: #718096;
+    margin-bottom: 6px;
+}
+
+#skill-uses-max {
+    width: 100%;
+    padding: 10px 12px;
+    border-radius: 10px;
+    border: 2px solid #e3e6f0;
+    background: #fff;
+    font-size: 14px;
+    transition: border-color 0.15s ease;
+}
+
+#skill-uses-max:focus {
+    outline: none;
+    border-color: #667eea;
+}
+
+.skill-uses-readonly {
+    font-size: 18px;
+    font-weight: 800;
+    color: #2c3e50;
+    padding: 8px 2px;
+}
+
+.skill-uses-status {
+    margin-top: 6px;
+    font-size: 13px;
+    color: #4a5568;
+    line-height: 1.4;
+}
+
+.skill-uses-status.is-locked {
+    color: #c53030;
+    font-weight: 800;
+}
+
+.skill-uses-note {
+    margin-top: 6px;
+    font-size: 12px;
+    color: #718096;
+    line-height: 1.4;
+}
+
+/* 숫자 입력 모달 (prompt 대체) */
+.number-prompt-message {
+    margin: 0 0 10px 0;
+    line-height: 1.5;
+    color: #4a5568;
+    font-size: 14px;
+}
+
+.number-prompt-input {
+    width: 100%;
+    padding: 10px 12px;
+    border-radius: 10px;
+    border: 2px solid #e3e6f0;
+    background: #fff;
+    font-size: 16px;
+    font-weight: 800;
+    color: #2c3e50;
+    transition: border-color 0.15s ease;
+}
+
+.number-prompt-input:focus {
+    outline: none;
+    border-color: #667eea;
+}
+
+.number-prompt-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+    margin-top: 14px;
+}
+
+.skill-uses-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    margin: 10px 0 4px 0;
+}
+
+@media (max-width: 520px) {
+    .skill-uses-grid {
+        grid-template-columns: 1fr;
+    }
 }
 
 /* 상태 선택기 */
@@ -553,37 +733,47 @@ textarea:focus {
 /* 토스트 */
 .toast-container {
     position: fixed;
-    bottom: 24px;
-    right: 24px;
+    bottom: 48px;
+    right: 48px;
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: 20px;
     z-index: 10001;
 }
 
 .toast {
-    min-width: 260px;
-    max-width: 420px;
+    min-width: 520px;
+    max-width: 840px;
     background: #ffffff;
     border: 2px solid #e3e6f0;
-    border-radius: 12px;
+    border-radius: 24px;
     box-shadow: 0 10px 24px rgba(0,0,0,0.12);
-    padding: 12px 14px;
+    padding: 24px 28px;
     display: flex;
-    align-items: center;
-    gap: 10px;
+    align-items: flex-start;
+    gap: 20px;
     color: #2d3748;
+    font-size: 20px;
     animation: toast-slide-in 250ms ease-out;
 }
 
-.toast-title { font-weight: 600; color: #4a5568; }
-.toast-message { font-size: 0.92em; }
+.toast-body {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.toast-title { font-weight: 800; color: #4a5568; font-size: 0.95em; }
+.toast-message { font-size: 1em; line-height: 1.4; }
 
 .toast.success { border-color: #9ae6b4; background: #f0fff4; }
 .toast.success .toast-title { color: #276749; }
 
 .toast.info { border-color: #90cdf4; background: #ebf8ff; }
 .toast.info .toast-title { color: #2b6cb0; }
+
+.toast.warning { border-color: #fbd38d; background: #fffaf0; }
+.toast.warning .toast-title { color: #b7791f; }
 
 .toast.danger { border-color: #feb2b2; background: #fff5f5; }
 .toast.danger .toast-title { color: #c53030; }
@@ -596,4 +786,20 @@ textarea:focus {
 @keyframes toast-fade-out {
     from { opacity: 1; }
     to   { opacity: 0; }
+}
+
+@media (max-width: 520px) {
+    .toast-container {
+        left: 12px;
+        right: 12px;
+        bottom: 12px;
+    }
+    .toast {
+        min-width: 0;
+        max-width: none;
+        width: 100%;
+        padding: 18px 18px;
+        border-radius: 18px;
+        font-size: 18px;
+    }
 }
