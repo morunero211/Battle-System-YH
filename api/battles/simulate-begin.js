@@ -3,10 +3,7 @@
  * 2-step 시뮬레이션 1단계: 공격 판정만 수행
  */
 
-import { createRequire } from 'module';
-import { randomUUID } from 'crypto';
-
-const require = createRequire(import.meta.url);
+const { randomUUID } = require('crypto');
 const battleEngine = require('../../backend/src/services/battleEngine');
 
 const pendingReactions = globalThis.__battle_pendingReactions || new Map();
@@ -51,7 +48,7 @@ function gradeLabel(grade) {
   }
 }
 
-export default async function handler(req, res) {
+module.exports = async function handler(req, res) {
   setCorsHeaders(res);
 
   if (req.method === 'OPTIONS') {

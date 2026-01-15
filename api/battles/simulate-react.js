@@ -3,9 +3,6 @@
  * 2-step 시뮬레이션 2단계: 방어자 반응 처리 후 결과 확정
  */
 
-import { createRequire } from 'module';
-
-const require = createRequire(import.meta.url);
 const battleEngine = require('../../backend/src/services/battleEngine');
 
 const pendingReactions = globalThis.__battle_pendingReactions || new Map();
@@ -50,7 +47,7 @@ function normalizeResponse(value) {
   return 'PASS';
 }
 
-export default async function handler(req, res) {
+module.exports = async function handler(req, res) {
   setCorsHeaders(res);
 
   if (req.method === 'OPTIONS') {
