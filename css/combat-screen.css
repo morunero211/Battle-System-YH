@@ -564,6 +564,121 @@ main #combat-screen {
     gap: 16px;
 }
 
+/* ============================================
+   방어자 응답 선택 모달 (회피/반격/PASS)
+   ============================================ */
+
+.defense-response-modal .modal-content {
+    max-width: 560px;
+    width: min(560px, calc(100% - 28px));
+}
+
+.defense-response-modal .defense-response-header {
+    padding-top: 18px;
+    padding-bottom: 18px;
+}
+
+.defense-response-modal .defense-response-title {
+    font-family: 'Gaegu', system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+    font-weight: 700;
+    font-size: 32px;
+    letter-spacing: 0.5px;
+    color: #3b5bdb;
+}
+
+.defense-response-modal .defense-response-banner {
+    background: #3a3a3a;
+    color: #ffffff;
+    border-radius: 6px;
+    padding: 16px 18px;
+    margin-bottom: 16px;
+}
+
+.defense-response-modal .defense-response-banner__line {
+    font-size: 18px;
+    line-height: 1.25;
+    font-weight: 700;
+}
+
+.defense-response-modal .defense-response-banner__who {
+    color: #ffffff;
+}
+
+.defense-response-modal .defense-response-banner__grade {
+    color: #22c55e;
+    font-weight: 900;
+}
+
+.defense-response-modal .defense-response-buttons {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+    margin-bottom: 10px;
+}
+
+.defense-response-modal .dr-btn {
+    appearance: none;
+    border: none;
+    border-radius: 6px;
+    padding: 14px 10px;
+    font-size: 18px;
+    font-weight: 900;
+    cursor: pointer;
+    color: #ffffff;
+    transition: transform 0.08s ease, filter 0.15s ease;
+}
+
+.defense-response-modal .dr-btn:hover {
+    filter: brightness(1.03);
+    transform: translateY(-1px);
+}
+
+.defense-response-modal .dr-btn:active {
+    transform: translateY(0);
+}
+
+.defense-response-modal .dr-btn:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.25);
+}
+
+.defense-response-modal .dr-btn--counter {
+    background: linear-gradient(90deg, #f2e85e, #f1a33c);
+    color: #ffffff;
+}
+
+.defense-response-modal .dr-btn--dodge {
+    background: linear-gradient(90deg, #6b88ff, #7a66ff);
+}
+
+.defense-response-modal .dr-btn--pass {
+    background: linear-gradient(90deg, #ff3b3b, #ff2d86);
+}
+
+.defense-response-modal .defense-response-footnote {
+    margin-top: 14px;
+    padding-top: 12px;
+    border-top: 1px solid #e3e6f0;
+    display: grid;
+    gap: 6px;
+}
+
+.defense-response-modal .defense-response-footnote__hint {
+    color: #718096;
+    font-size: 12.5px;
+    line-height: 1.4;
+}
+
+@media (max-width: 820px) {
+    .defense-response-modal .defense-response-title {
+        font-size: 26px;
+    }
+
+    .defense-response-modal .defense-response-buttons {
+        grid-template-columns: 1fr;
+    }
+}
+
 /* 반응형 레이아웃 */
 @media (max-width: 1200px) {
     .combat-columns {

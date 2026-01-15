@@ -4,12 +4,15 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>양호후환 전투 시스템</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Gaegu:wght@700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="css/base.css">
     <link rel="stylesheet" href="css/shared.css">
-    <link rel="stylesheet" href="css/main-screen.css">
-    <link rel="stylesheet" href="css/combat-screen.css">
-    <link rel="stylesheet" href="css/battle-room.css">
-    <link rel="stylesheet" href="css/dark-theme.css">
+    <link rel="stylesheet" href="css/main-screen.css?v=20260115">
+    <link rel="stylesheet" href="css/combat-screen.css?v=20260115">
+    <link rel="stylesheet" href="css/battle-room.css?v=20260115">
+    <link rel="stylesheet" href="css/dark-theme.css?v=20260115">
 </head>
 <body>
     <div class="container">
@@ -530,7 +533,6 @@
                             <div class="action-bar">
                                 <div class="action-buttons">
                                     <button id="action-attack" class="btn btn-action">공격</button>
-                                    <button id="action-defend" class="btn btn-action">방어</button>
                                     <button id="action-ultimate" class="btn btn-action">스킬</button>
                                     <button id="forfeit-button" class="btn btn-secondary">시간 종료</button>
                                 </div>
@@ -541,8 +543,18 @@
                                 <div id="target-buttons" class="target-buttons"></div>
                             </div>
 
+                            <!-- 공격 성공 시 방어자 응답(회피/반격) 선택 모달은 페이지 하단에 위치 -->
+
                             <div class="log-panel">
                                 <div class="log-header">전투 로그</div>
+                                <div id="combat-log-toolbar" class="log-toolbar">
+                                    <div class="log-tools">
+                                        <label class="log-toggle">
+                                            <input id="combat-log-autoscroll" type="checkbox" checked />
+                                            자동 스크롤
+                                        </label>
+                                    </div>
+                                </div>
                                 <div id="combat-log" class="log-content"></div>
                             </div>
                         </div>
@@ -594,6 +606,56 @@
         <div id="auth-banner" style="display:none; position:fixed; bottom:20px; right:20px; background:#1a202c; color:#fff; padding:14px 16px; border-radius:12px; box-shadow:0 8px 24px rgba(0,0,0,0.15); z-index:999; gap:8px; align-items:center;">
             <div style="font-weight:600;">로그인이 필요합니다</div>
             <button id="auth-open" class="btn btn-primary" style="padding:8px 12px;">로그인</button>
+        </div>
+
+        <!-- 방어자 응답 선택 모달(공격 성공 후, 같은 턴 내 하위 단계) -->
+        <div id="defense-response-modal" class="modal centered defense-response-modal" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="defense-response-title" aria-describedby="defense-response-text">
+            <div class="modal-content">
+                <div class="modal-header defense-response-header">
+                    <h2 id="defense-response-title" class="defense-response-title">반격 / 회피 / PASS</h2>
+                    <div class="modal-actions">
+                        <button id="defense-response-close" class="modal-close" aria-label="닫기(=PASS)">&times;</button>
+                    </div>
+                </div>
+                <div class="modal-body">
+                    <div id="defense-response-text" class="defense-response-banner" role="note">
+                        <div class="defense-response-banner__line">
+                            <span class="defense-response-banner__who">공격자</span>의 공격이 들어왔습니다.
+                        </div>
+                        <div class="defense-response-banner__line">
+                            상대의 성공 수준은 <span id="defense-response-grade" class="defense-response-banner__grade">성공</span> 입니다.
+                        </div>
+                    </div>
+
+                    <div class="defense-response-buttons" role="group" aria-label="방어자 응답 선택">
+                        <button id="defense-response-counter" type="button" class="dr-btn dr-btn--counter">반격</button>
+                        <button id="defense-response-dodge" type="button" class="dr-btn dr-btn--dodge">회피</button>
+                        <button id="defense-response-pass" type="button" class="dr-btn dr-btn--pass">PASS</button>
+                    </div>
+
+                    <div class="defense-response-footnote">
+                        <div class="defense-response-footnote__hint">※ 공격 성공 후 방어자가 응답하는 단계입니다(턴 수치 증가는 없음).</div>
+                        <div id="defense-response-hint" class="defense-response-footnote__hint">ESC 또는 바깥 클릭은 PASS로 처리됩니다.</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 전투 결과 모달(시간 종료 등) -->
+        <div id="battle-result-modal" class="modal centered" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="battle-result-title">
+            <div class="modal-content" style="max-width:560px;">
+                <div class="modal-header">
+                    <h2 id="battle-result-title">⚔️ 전투 결과 (시간 종료)</h2>
+                    <button id="battle-result-close" class="modal-close" aria-label="닫기">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <p id="battle-result-winner" style="margin:0 0 12px 0; font-size:18px; font-weight:800; color:#2c3e50;"></p>
+                    <div id="battle-result-scores" style="background:#f8f9fc; border:1px solid #e3e6f0; border-radius:10px; padding:12px; color:#4a5568; line-height:1.55;"></div>
+                    <div class="form-actions confirm-actions" style="margin-top:16px;">
+                        <button id="battle-result-ok" class="btn btn-primary">확인</button>
+                    </div>
+                </div>
+            </div>
         </div>
 
         <footer>

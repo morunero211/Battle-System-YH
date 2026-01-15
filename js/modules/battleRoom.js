@@ -88,6 +88,7 @@ class BattleRoom {
 
     container.innerHTML = this.getHTML();
     this.attachEventListeners();
+    this.scrollBattleLogToBottom();
   }
 
   /**
@@ -318,20 +319,39 @@ class BattleRoom {
       return '<p style="color: #999;">로그가 없습니다</p>';
     }
 
-    return this.battle.logs
-      .slice(0, 10)
+    const recent = this.battle.logs.slice(-20); // 최근 20개
+    return recent
       .map(log => {
-        const participant = this.battle.participants.find(p => p.id === log.payload.actor || p.id === log.payload.defender);
+        const payload = log?.payload || {};
+        const actorId = payload.actor;
+        const defenderId = payload.defender;
+        const participant = this.battle.participants.find(p => p.id === actorId || p.id === defenderId);
         const name = participant?.character?.name || '?';
+        const typeClass = String(log?.type || 'UNKNOWN').toLowerCase();
 
         return `
-          <div class="log-entry log-${log.type.toLowerCase()}">
-            <span class="log-turn">[${log.turnNo}턴]</span>
-            <span class="log-text">${this.getLogText(log, name)}</span>
+          <div class="log-entry log-${this.escapeHtml(typeClass)}">
+            <span class="log-turn">[${this.escapeHtml(log?.turnNo)}턴]</span>
+            <span class="log-text">${this.escapeHtml(this.getLogText(log, name))}</span>
           </div>
         `;
       })
       .join('');
+  }
+
+  scrollBattleLogToBottom() {
+    const el = document.getElementById('battle-log');
+    if (!el) return;
+    el.scrollTop = el.scrollHeight;
+  }
+
+  escapeHtml(value) {
+    return String(value ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
   }
 
   /**

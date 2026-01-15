@@ -20,23 +20,125 @@ class BattleActions {
             this.selectTargetForAttack();
         });
 
-        // 방어 버튼
-        document.getElementById('action-defend')?.addEventListener('click', () => {
-            this.handleDefend();
-        });
-
-        // 궁극기 버튼
+        // 스킬(궁극기) 버튼
         document.getElementById('action-ultimate')?.addEventListener('click', () => {
             this.selectTargetForUltimate();
         });
 
-        // 항복 버튼
+        // 시간 종료 버튼(타임아웃 판정)
         document.getElementById('forfeit-button')?.addEventListener('click', () => {
-            if (confirm('정말로 항복하시겠습니까?')) {
-                this.handleForfeit();
+            if (this.app?.battleSystem?.pendingDefenseResponse) {
+                alert('방어자 응답 선택 중에는 시간 종료할 수 없습니다.');
+                return;
+            }
+            if (confirm('시간 종료하시겠습니까? (현재 HP 상태로 승패를 판정합니다)')) {
+                this.handleTimeoutEnd();
             }
         });
 
+        // 전투 결과 모달 닫기
+        document.getElementById('battle-result-close')?.addEventListener('click', () => this.hideBattleResultModal());
+        document.getElementById('battle-result-ok')?.addEventListener('click', () => this.hideBattleResultModal());
+
+    }
+
+    computeAverageHp(teamKeys) {
+        const chars = teamKeys.flatMap((k) => this.app.battleSystem.combatCharacters[k] || []);
+        const count = chars.length;
+        const sumHp = chars.reduce((acc, c) => acc + Math.max(0, Math.round(Number(c.hp) || 0)), 0);
+        const avgHp = count > 0 ? (sumHp / count) : 0;
+        return { avgHp, sumHp, count };
+    }
+
+    computeTimeoutOutcome() {
+        // 팀 규칙: 히어로+정부 = 같은 팀, 빌런 = 상대 팀
+        const ally = this.computeAverageHp(['hero', 'gov']);
+        const villain = this.computeAverageHp(['villain']);
+
+        let winner = '무승부';
+        if (ally.avgHp > villain.avgHp) winner = '히어로/정부 연합';
+        else if (ally.avgHp < villain.avgHp) winner = '빌런';
+
+        return {
+            winner,
+            ally,
+            villain
+        };
+    }
+
+    handleTimeoutEnd() {
+        const outcome = this.computeTimeoutOutcome();
+
+        this.app.battleSystem.addLog('⏱️ 시간 종료! 현재 HP 상태로 승패를 판정합니다.');
+        this.app.battleSystem.renderBattle();
+
+        // 전투 기록 업데이트(현재 HP 상태 그대로 저장)
+        const lastRecord = this.app.battleHistory?.[this.app.battleHistory.length - 1];
+        if (lastRecord) {
+            lastRecord.winner = outcome.winner;
+            lastRecord.turnCount = this.app.battleSystem.currentTurn;
+            lastRecord.endReason = 'TIMEOUT';
+            lastRecord.scores = {
+                allyAvgHp: outcome.ally.avgHp,
+                allySumHp: outcome.ally.sumHp,
+                allyCount: outcome.ally.count,
+                villainAvgHp: outcome.villain.avgHp,
+                villainSumHp: outcome.villain.sumHp,
+                villainCount: outcome.villain.count
+            };
+        }
+
+        this.app.saveToLocalStorage();
+
+        // 전투는 종료 처리(추가 액션 방지)
+        this.app.battleSystem.setActionButtonsEnabled(false);
+        this.showBattleResultModal(outcome);
+    }
+
+    showBattleResultModal(outcome) {
+        const modal = document.getElementById('battle-result-modal');
+        const winnerEl = document.getElementById('battle-result-winner');
+        const scoresEl = document.getElementById('battle-result-scores');
+
+        if (winnerEl) {
+            winnerEl.textContent = `🏆 승리: ${outcome.winner}`;
+        }
+
+        if (scoresEl) {
+            const allyAvg = Math.round(outcome.ally.avgHp * 10) / 10;
+            const villainAvg = Math.round(outcome.villain.avgHp * 10) / 10;
+
+            scoresEl.innerHTML = `
+                <div style="font-weight:800; margin-bottom:8px;">판정 기준</div>
+                <div>히어로/정부 팀 평균 HP vs 빌런 팀 평균 HP</div>
+                <div style="height:10px;"></div>
+                <div style="font-weight:800; margin-bottom:6px;">점수</div>
+                <div>히어로/정부: 평균 ${allyAvg} (총합 ${outcome.ally.sumHp} / ${outcome.ally.count}명)</div>
+                <div>빌런: 평균 ${villainAvg} (총합 ${outcome.villain.sumHp} / ${outcome.villain.count}명)</div>
+            `;
+        }
+
+        if (modal) modal.style.display = 'flex';
+    }
+
+    hideBattleResultModal() {
+        const modal = document.getElementById('battle-result-modal');
+        if (modal) modal.style.display = 'none';
+    }
+
+    /**
+     * 궁극기 대상 선택
+     */
+    selectTargetForUltimate() {
+        const currentTeamTurn = this.app.battleSystem.currentTeamTurn;
+        const teamNames = ['hero', 'gov', 'villain'];
+
+        const enemyTeams = teamNames.filter((_, idx) => idx !== currentTeamTurn);
+
+        this.targetSelectionMode = true;
+        this.currentAction = 'ultimate';
+
+        this.enableTargetSelection(enemyTeams);
     }
 
     /**
@@ -53,21 +155,6 @@ class BattleActions {
         this.currentAction = 'attack';
         
         // 적 팀 UI 활성화
-        this.enableTargetSelection(enemyTeams);
-    }
-
-    /**
-     * 궁극기 대상 선택
-     */
-    selectTargetForUltimate() {
-        const currentTeamTurn = this.app.battleSystem.currentTeamTurn;
-        const teamNames = ['hero', 'gov', 'villain'];
-        
-        const enemyTeams = teamNames.filter((_, idx) => idx !== currentTeamTurn);
-        
-        this.targetSelectionMode = true;
-        this.currentAction = 'ultimate';
-        
         this.enableTargetSelection(enemyTeams);
     }
 
@@ -99,9 +186,9 @@ class BattleActions {
         // 안내 메시지
         const log = document.getElementById('combat-log');
         if (log) {
-            const action = this.currentAction === 'attack' ? '공격' : '궁극기';
             const msg = document.createElement('div');
             msg.className = 'battle-log-entry info';
+            const action = this.currentAction === 'ultimate' ? '스킬' : '공격';
             msg.textContent = `🎯 ${action}할 대상을 선택하세요.`;
             log.insertBefore(msg, log.firstChild);
         }
@@ -135,10 +222,16 @@ class BattleActions {
         }
         
         // 액션 실행
-        if (this.currentAction === 'attack') {
-            await this.app.battleSystem.executeAttack(attacker, target, targetTeam);
-        } else if (this.currentAction === 'ultimate') {
+        if (this.currentAction === 'ultimate') {
             this.app.battleSystem.executeUltimate(attacker, target, targetTeam);
+        } else {
+            const result = await this.app.battleSystem.executeAttack(attacker, target, targetTeam, currentTeamName);
+
+            // 2-step 방어자 응답 대기 중이면 같은 턴 안에서 일시정지
+            if (result && result.awaitingResponse) {
+                this.app.battleSystem.renderBattle();
+                return;
+            }
         }
         
         // UI 업데이트
@@ -152,41 +245,6 @@ class BattleActions {
             this.app.battleSystem.nextTurn();
             this.app.battleSystem.renderBattle();
         }
-    }
-
-    /**
-     * 방어 액션
-     */
-    async handleDefend() {
-        const currentTeamTurn = this.app.battleSystem.currentTeamTurn;
-        const teamNames = ['hero', 'gov', 'villain'];
-        const currentTeamName = teamNames[currentTeamTurn];
-        
-        // 현재 팀의 모든 캐릭터 방어 상태 활성화 (이번 턴에만)
-        const currentTeamChars = this.app.battleSystem.combatCharacters[currentTeamName];
-        currentTeamChars.forEach(char => {
-            char.defending = true;
-        });
-        
-        // 로그 추가
-        this.app.battleSystem.addLog(`🛡️ ${currentTeamName === 'hero' ? '히어로' : currentTeamName === 'gov' ? '정부' : '빌런'} 팀이 방어 태세를 취했습니다!`);
-        
-        // UI 업데이트
-        this.app.battleSystem.renderBattle();
-        
-        // 방어 상태 리셋 후 다음 턴
-        setTimeout(() => {
-            currentTeamChars.forEach(char => {
-                char.defending = false;
-            });
-            this.app.battleSystem.nextTurn();
-            this.app.battleSystem.renderBattle();
-            
-            // 전투 종료 확인
-            if (this.app.battleSystem.checkBattleEnd()) {
-                this.endBattle();
-            }
-        }, 1000);
     }
 
     /**

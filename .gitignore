@@ -26,3 +26,9 @@ Thumbs.db
 
 # Local environment
 .env.local
+
+# Backend env/secrets (backend/ is being absorbed into main repo)
+backend/.env
+backend/.env.*
+backend/prisma-dev.pid
+backend/node_modules/

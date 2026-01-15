@@ -16,6 +16,14 @@ class BattleSystem {
             villain: []
         };
         this.usedUltimate = {}; // 전투 내 궁극기 사용 기록 (charId => true)
+
+        // ===== UI 상태(로그) =====
+        this.logAutoScroll = true;
+        this.logUiInitialized = false;
+
+        // ===== 2-step 방어자 응답 =====
+        this.pendingDefenseResponse = null; // { pendingId, attackerRef, defenderRef, targetTeam, attackerTeam, expiresAt }
+        this.defenseUiInitialized = false;
     }
 
     /**
@@ -26,6 +34,7 @@ class BattleSystem {
         this.currentTeamTurn = 0;
         this.battleLog = [];
         this.usedUltimate = {};
+        this.pendingDefenseResponse = null;
         
         // 선택된 캐릭터들로 전투 캐릭터 설정
         this.combatCharacters = {
@@ -43,6 +52,180 @@ class BattleSystem {
         this.addLog(`⚔️ 전투 시작! (${this.app.battleMode === 'team' ? '팀전' : '개인전'} 모드)`);
         this.addLog(`히어로: ${this.combatCharacters.hero.length}명 | 정부: ${this.combatCharacters.gov.length}명 | 빌런: ${this.combatCharacters.villain.length}명`);
         this.addLog('---');
+    }
+
+    initDefenseResponseUi() {
+        if (this.defenseUiInitialized) return;
+
+        const modal = document.getElementById('defense-response-modal');
+        const dodgeBtn = document.getElementById('defense-response-dodge');
+        const counterBtn = document.getElementById('defense-response-counter');
+        const passBtn = document.getElementById('defense-response-pass');
+        const closeBtn = document.getElementById('defense-response-close');
+
+        if (!modal || !dodgeBtn || !counterBtn || !passBtn || !closeBtn) return;
+
+        dodgeBtn.addEventListener('click', () => this.submitDefenseResponse('DODGE'));
+        counterBtn.addEventListener('click', () => this.submitDefenseResponse('COUNTER'));
+        passBtn.addEventListener('click', () => this.submitDefenseResponse('PASS'));
+        closeBtn.addEventListener('click', () => this.submitDefenseResponse('PASS'));
+
+        // 백드롭 클릭은 PASS로 처리
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) this.submitDefenseResponse('PASS');
+        });
+
+        // ESC는 PASS로 처리(대기 상태일 때만)
+        document.addEventListener('keydown', (e) => {
+            if (e.key !== 'Escape') return;
+            const open = modal.style.display !== 'none';
+            if (!open) return;
+            if (!this.pendingDefenseResponse) return;
+            this.submitDefenseResponse('PASS');
+        });
+
+        this.defenseUiInitialized = true;
+    }
+
+    gradeLabelKo(grade) {
+        switch (grade) {
+            case 'EXTREME':
+                return '극단적 성공';
+            case 'HARD':
+                return '어려운 성공';
+            case 'SUCCESS':
+                return '성공';
+            case 'FAIL':
+            default:
+                return '실패';
+        }
+    }
+
+    teamLabelKo(teamKey) {
+        if (teamKey === 'hero') return '히어로';
+        if (teamKey === 'gov') return '정부';
+        if (teamKey === 'villain') return '빌런';
+        return null;
+    }
+
+    setActionButtonsEnabled(enabled) {
+        const attackBtn = document.getElementById('action-attack');
+        const ultimateBtn = document.getElementById('action-ultimate');
+        const forfeitBtn = document.getElementById('forfeit-button');
+
+        [attackBtn, ultimateBtn, forfeitBtn].forEach((btn) => {
+            if (!btn) return;
+            btn.disabled = !enabled;
+            btn.style.opacity = enabled ? '1' : '0.5';
+            btn.style.pointerEvents = enabled ? 'auto' : 'none';
+        });
+    }
+
+    showDefenseResponsePanel(attackerName, defenderName) {
+        this.initDefenseResponseUi();
+
+        const modal = document.getElementById('defense-response-modal');
+        const title = document.getElementById('defense-response-title');
+        const who = document.querySelector('#defense-response-text .defense-response-banner__who');
+        const gradeEl = document.getElementById('defense-response-grade');
+
+        if (who) {
+            const atkTeamLabel = this.teamLabelKo(this.pendingDefenseResponse?.attackerTeam);
+            who.textContent = atkTeamLabel ? `${atkTeamLabel} '${attackerName}'` : (attackerName || '공격자');
+        }
+
+        if (gradeEl) {
+            const grade = this.pendingDefenseResponse?.attackGrade;
+            gradeEl.textContent = this.gradeLabelKo(grade);
+        }
+        if (title) {
+            title.textContent = `${defenderName}의 반격 / 회피 / PASS`;
+        }
+        if (modal) {
+            modal.style.display = 'flex';
+        }
+
+        const hint = document.getElementById('defense-response-hint');
+        if (hint) {
+            const expiresAt = this.pendingDefenseResponse?.expiresAt;
+            const remainingMs = typeof expiresAt === 'number' ? Math.max(0, expiresAt - Date.now()) : null;
+            const remainingMin = typeof remainingMs === 'number' ? Math.max(1, Math.ceil(remainingMs / 60000)) : null;
+            hint.textContent = remainingMin
+                ? `ESC 또는 바깥 클릭은 PASS로 처리됩니다 · 남은 시간 약 ${remainingMin}분`
+                : 'ESC 또는 바깥 클릭은 PASS로 처리됩니다.';
+        }
+
+        // 기본 포커스(키보드/모바일 접근성)
+        const counterBtn = document.getElementById('defense-response-counter');
+        if (counterBtn) {
+            setTimeout(() => {
+                try { counterBtn.focus(); } catch (_) {}
+            }, 0);
+        }
+
+        // 다른 선택 UI 숨김
+        const targetPanel = document.getElementById('target-selection');
+        if (targetPanel) targetPanel.classList.add('hidden');
+
+        this.setActionButtonsEnabled(false);
+    }
+
+    hideDefenseResponsePanel() {
+        const modal = document.getElementById('defense-response-modal');
+        if (modal) modal.style.display = 'none';
+        this.setActionButtonsEnabled(true);
+    }
+
+    async submitDefenseResponse(responseKind) {
+        try {
+            const pending = this.pendingDefenseResponse;
+            const apiUrl = window.CONFIG?.API_BASE_URL;
+            if (!pending || !apiUrl) return;
+
+            const response = await fetch(`${apiUrl}/battles/simulate-react`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    pendingId: pending.pendingId,
+                    response: responseKind
+                })
+            });
+
+            if (!response.ok) {
+                const err = await response.json().catch(() => ({}));
+                throw new Error(err?.message || err?.error || '방어자 응답 처리 실패');
+            }
+
+            const result = await response.json();
+            if (Array.isArray(result.log)) {
+                result.log.forEach((logEntry) => this.addLog(logEntry));
+            }
+
+            // 반격 성공 시 공격자 HP 갱신(서버는 delta만 제공)
+            if (typeof result.attackerDamage === 'number' && pending.attackerRef) {
+                const before = Math.max(0, Math.round(Number(pending.attackerRef.hp) || 0));
+                pending.attackerRef.hp = Math.max(0, before - Math.max(0, Math.round(result.attackerDamage)));
+                this.addLog(`  💔 ${pending.attackerRef.name} HP: ${before} → ${pending.attackerRef.hp}`);
+            }
+
+            if (typeof result.defenderHp === 'number' && pending.defenderRef) {
+                pending.defenderRef.hp = result.defenderHp;
+            }
+
+            this.pendingDefenseResponse = null;
+            this.hideDefenseResponsePanel();
+
+            // 같은 턴의 하위 단계가 끝났으니 이제 턴을 진행
+            this.renderBattle();
+            this.nextTurn();
+        } catch (error) {
+            console.error('방어자 응답 처리 에러:', error);
+            this.addLog(`❌ 방어자 응답 처리 중 오류: ${error.message}`);
+            // 안전하게 패널 닫고 상태 초기화
+            this.pendingDefenseResponse = null;
+            this.hideDefenseResponsePanel();
+            this.renderBattle();
+        }
     }
 
     /**
@@ -164,59 +347,252 @@ class BattleSystem {
         this.battleLog.push(`[${timestamp}] ${message}`);
     }
 
+    // ===== 밸런스(프론트 폴백용, 정수) =====
+    rollInt(min, max) {
+        const lo = Math.ceil(Number(min));
+        const hi = Math.floor(Number(max));
+        if (!Number.isFinite(lo) || !Number.isFinite(hi) || hi < lo) return 0;
+        return Math.floor(Math.random() * (hi - lo + 1)) + lo;
+    }
+
+    // 방어 스탯(1~5) -> 방어력%(완만 버전)
+    getDefenseReductionPercent(defStat) {
+        const stat = Math.max(1, Math.min(5, Math.round(Number(defStat) || 1)));
+        const table = [0, 0, 5, 11, 15, 20];
+        return table[stat] ?? 0;
+    }
+
+    applyDefenseReduction(rawDamage, defensePercent) {
+        const base = Math.max(0, Math.floor(Number(rawDamage) || 0));
+        if (base === 0) return 0;
+        const pct = Math.max(0, Math.min(80, Math.round(Number(defensePercent) || 0)));
+        const reduced = Math.floor((base * (100 - pct)) / 100);
+        return Math.max(1, reduced);
+    }
+
+    rollAttackSkillRawDamage(skillStat) {
+        const stat = Math.max(1, Math.min(5, Math.round(Number(skillStat) || 1)));
+        const table = {
+            1: { min: 10, extraMax: 3 },
+            2: { min: 13, extraMax: 3 },
+            3: { min: 15, extraMax: 4 },
+            4: { min: 18, extraMax: 4 },
+            5: { min: 20, extraMax: 5 }
+        };
+        const profile = table[stat] || table[1];
+        const bonus = this.rollInt(1, profile.extraMax);
+        const raw = Math.floor(profile.min + bonus);
+        return {
+            stat,
+            min: profile.min,
+            extraMax: profile.extraMax,
+            bonus,
+            raw,
+            max: profile.min + profile.extraMax
+        };
+    }
+
     /**
      * 로그 렌더링
      */
     renderLog() {
         const logEl = document.getElementById('combat-log');
         if (logEl) {
-            logEl.innerHTML = this.battleLog
-                .slice(-20) // 최근 20개만 표시
-                .map(log => `<div style="padding: 6px 0; border-bottom: 1px solid #eee;">${log}</div>`)
+            this.initLogUi();
+
+            const entries = this.battleLog.slice(-60); // 최근 60개만 표시
+            logEl.innerHTML = entries
+                .map((raw) => {
+                    const parsed = this.parseLogLine(raw);
+
+                    if (parsed.kind === 'separator') {
+                        return `<div class="log-separator">${this.escapeHtml(parsed.text)}</div>`;
+                    }
+
+                    const timeHtml = parsed.time ? `<span class="log-time">${this.escapeHtml(parsed.time)}</span>` : '';
+                    return `
+                        <div class="log-entry log-entry--${parsed.kind}">
+                            ${timeHtml}
+                            <span class="log-message">${this.escapeHtml(parsed.text)}</span>
+                        </div>
+                    `;
+                })
                 .join('');
-            logEl.scrollTop = logEl.scrollHeight; // 자동 스크롤
+            if (this.logAutoScroll) {
+                logEl.scrollTop = logEl.scrollHeight; // 자동 스크롤
+            }
         }
     }
 
-    /**
-     * 공격 실행 (클라이언트 사이드 계산)
-     */
-    async executeAttack(attacker, defender, targetTeam) {
-        try {
-            // 클라이언트에서 직접 계산 (API 없음)
-            this.addLog(`\n⚔️ ${attacker.name} → ${defender.name} 공격!`);
-            
-            // 주사위 100 굴림
-            const attackRoll = Math.floor(Math.random() * 100) + 1;
-            const defendRoll = Math.floor(Math.random() * 100) + 1;
-            
-            // 공격 판정
-            const attackPower = attacker.attack * 10 + attacker.skill * 5;
-            const defensePower = defender.defense * 10 + defender.agility * 5;
-            
-            this.addLog(`  🎲 공격 주사위: ${attackRoll} (필요: ${attackPower})`);
-            this.addLog(`  🛡️ 방어 주사위: ${defendRoll} (능력: ${defensePower})`);
-            
-            if (attackRoll <= 30) {
-                // 30% 치명타
-                const criticalDamage = Math.floor((attacker.attack * 3 + attacker.skill) * 1.5);
-                defender.hp = Math.max(0, defender.hp - criticalDamage);
-                this.addLog(`  💥 치명타! ${criticalDamage} 데미지!`);
-            } else if (attackRoll > 50) {
-                // 50% 이상 미스
-                this.addLog(`  ❌ 공격 미스!`);
-            } else {
-                // 일반 공격
-                const damage = Math.floor(attacker.attack * 2 + attacker.skill - (defender.defense * 0.5));
-                defender.hp = Math.max(0, defender.hp - damage);
-                this.addLog(`  ✅ 명중! ${damage} 데미지!`);
-            }
-            
-            this.addLog(`  💚 ${defender.name} HP: ${defender.hp}`);
+    initLogUi() {
+        if (this.logUiInitialized) return;
 
+        const toolbar = document.getElementById('combat-log-toolbar');
+        const autoScroll = document.getElementById('combat-log-autoscroll');
+
+        if (!toolbar || !autoScroll) {
+            return;
+        }
+
+        // 자동 스크롤 토글
+        autoScroll.addEventListener('change', () => {
+            this.logAutoScroll = !!autoScroll.checked;
+            this.renderLog();
+        });
+
+        this.logUiInitialized = true;
+    }
+
+    /**
+     * 로그 한 줄 파싱: [시간] 메시지 형태를 분리 + 타입 분류
+     */
+    parseLogLine(raw) {
+        const trimmed = String(raw ?? '').replace(/^\n+/, '').trimEnd();
+        const match = trimmed.match(/^\[(.*?)\]\s*(.*)$/);
+        const time = match ? match[1] : '';
+        const text = match ? match[2] : trimmed;
+        const message = text.trim();
+
+        if (message === '---' || message === '—' || message === '―') {
+            return { time: '', text: '—', kind: 'separator' };
+        }
+
+        // 이모지/키워드 기반 간단 분류
+        const kind = this.classifyLogMessage(message);
+        return { time, text, kind };
+    }
+
+    classifyLogMessage(message) {
+        if (message.includes('❌') || message.toLowerCase().includes('오류')) return 'error';
+        if (message.includes('✅')) return 'success';
+        if (message.includes('💥')) return 'damage';
+        if (message.includes('💚') || message.includes('HP')) return 'hp';
+        if (message.includes('🎲') || message.includes('🎯')) return 'roll';
+        if (message.includes('🛡️')) return 'defense';
+        if (message.includes('⚔️') || message.includes('⭐')) return 'action';
+        return 'info';
+    }
+
+    escapeHtml(value) {
+        return String(value ?? '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    }
+
+    /**
+     * 공격 실행 (백엔드 우선, 실패 시 로컬 폴백)
+     */
+    async executeAttack(attacker, defender, targetTeam, attackerTeam) {
+        try {
+            const apiUrl = window.CONFIG?.API_BASE_URL;
+
+            // 이미 방어자 응답 대기 중이면 추가 공격 금지
+            if (this.pendingDefenseResponse) {
+                this.addLog('ℹ️ 방어자 응답을 먼저 선택해주세요.');
+                return { awaitingResponse: true };
+            }
+
+            if (apiUrl) {
+                // 2-step begin: 공격 판정만 수행
+                const response = await fetch(`${apiUrl}/battles/simulate-begin`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        attacker: {
+                            name: attacker.name,
+                            attack: attacker.attack ?? attacker.atk,
+                            defense: attacker.defense ?? attacker.def,
+                            agility: attacker.agility ?? attacker.agi,
+                            skill: attacker.skill ?? attacker.skillStat
+                        },
+                        defender: {
+                            name: defender.name,
+                            hp: defender.hp,
+                            maxHp: defender.maxHp,
+                            attack: defender.attack ?? defender.atk,
+                            defense: defender.defense ?? defender.def,
+                            agility: defender.agility ?? defender.agi
+                        }
+                    })
+                });
+
+                if (response.ok) {
+                    const result = await response.json();
+                    if (Array.isArray(result.log)) {
+                        result.log.forEach((logEntry) => this.addLog(logEntry));
+                    }
+
+                    // 공격 실패 등으로 즉시 종료되는 케이스
+                    if (result.phase === 'RESOLVED') {
+                        if (typeof result.defenderHp === 'number') {
+                            defender.hp = result.defenderHp;
+                        }
+                        return { awaitingResponse: false };
+                    }
+
+                    // 공격 성공: 방어자 응답 대기
+                    if (result.phase === 'AWAITING_DEFENDER_RESPONSE' && result.pendingId) {
+                        const expiresInMs = Number.isFinite(Number(result.expiresInMs))
+                            ? Math.max(1, Math.round(Number(result.expiresInMs)))
+                            : 30 * 60 * 1000;
+
+                        const attackGrade = result?.attackJudgment?.grade;
+
+                        this.pendingDefenseResponse = {
+                            pendingId: result.pendingId,
+                            attackerRef: attacker,
+                            defenderRef: defender,
+                            targetTeam,
+                            attackerTeam,
+                            expiresAt: Date.now() + expiresInMs,
+                            attackGrade
+                        };
+
+                        this.showDefenseResponsePanel(attacker.name, defender.name);
+                        return { awaitingResponse: true };
+                    }
+
+                    if (typeof result.defenderHp === 'number') {
+                        defender.hp = result.defenderHp;
+                    }
+                    return { awaitingResponse: false };
+                }
+            }
+
+            // ===== 폴백(로컬 계산) =====
+            this.addLog(`\n⚔️ ${attacker.name} → ${defender.name} 공격!`);
+
+            const attackRoll = Math.floor(Math.random() * 100) + 1;
+            const attackPower = (attacker.attack ?? attacker.atk ?? 1) * 10 + (attacker.skill ?? attacker.skillStat ?? 1) * 5;
+            this.addLog(`  🎲 공격 판정: ${attackRoll} (필요: ${attackPower})`);
+
+            if (attackRoll > attackPower) {
+                this.addLog(`  ❌ 공격 실패!`);
+                return { awaitingResponse: false };
+            }
+
+            const atkStat = Math.max(1, Math.min(5, Math.round(Number(attacker.attack ?? attacker.atk ?? 1))));
+            const defStat = Math.max(1, Math.min(5, Math.round(Number(defender.defense ?? defender.def ?? 1))));
+
+            // 기본공격 rawDamage: 3~10 (회의안: 필요 시 3~13으로 변경)
+            const rawDamage = this.rollInt(3, 10);
+            const defensePercent = this.getDefenseReductionPercent(defStat);
+            const finalDamage = this.applyDefenseReduction(rawDamage, defensePercent);
+
+            defender.hp = Math.max(0, Math.round(Number(defender.hp) || 0) - finalDamage);
+            this.addLog(`  🛡️ 방어력: ${defensePercent}% (원데미지 ${rawDamage} → 실제 ${finalDamage})`);
+            this.addLog(`  💥 데미지: ${finalDamage}`);
+            this.addLog(`  💚 ${defender.name} HP: ${defender.hp}`);
+            return { awaitingResponse: false };
         } catch (error) {
             console.error('전투 계산 에러:', error);
             this.addLog(`❌ 전투 계산 중 오류: ${error.message}`);
+            return { awaitingResponse: false, error };
         }
     }
 
@@ -232,29 +608,34 @@ class BattleSystem {
      */
     executeUltimate(attacker, defender, targetTeam) {
         this.addLog(`\n⭐ ${attacker.name} → ${defender.name} 궁극기 시전!`);
-        this.addLog(`  💫 궁극기는 100% 명중합니다!`);
-        
-        // 1. 크리티컬 판정 (궁극기도 크리티컬 가능)
-        const critRoll = Math.floor(Math.random() * 100) + 1;
-        const critRate = Math.min(attacker.skill * 5, 50);
-        const isCritical = critRoll <= critRate;
-        this.addLog(`  🎲 크리티컬 판정: ${critRoll} / ${critRate}`);
-        
-        // 2. 데미지 계산 (기본 2배 데미지)
-        const baseDamage = (attacker.skill + attacker.attack) * 15;
-        const defense = defender.defense * 3;
-        let damage = Math.max(Math.floor(baseDamage - defense), 1);
-        
-        if (isCritical) {
-            damage = Math.floor(damage * 1.5);
-            this.addLog(`  💥 크리티컬 히트! 추가 1.5배 데미지!`);
+
+        const isAttackSkill = Array.isArray(attacker.skillTypes)
+            ? attacker.skillTypes.includes('공격형')
+            : true;
+
+        if (!isAttackSkill) {
+            this.addLog('  ℹ️ 공격형 스킬이 아니라 데미지를 주지 않습니다.');
+            return;
         }
-        
-        this.addLog(`  📊 데미지 계산: (스킬 ${attacker.skill} + 공격 ${attacker.attack}) × 15 - 방어력 ${defense} ${isCritical ? '× 1.5' : ''} = ${damage}`);
+
+        this.addLog('  💫 궁극기는 100% 명중합니다!');
+
+        // 공격형 스킬 데미지(이미지 테이블): 최소 + 추가(1~N)
+        const skillStat = attacker.skill ?? attacker.skillStat ?? 1;
+        const rolled = this.rollAttackSkillRawDamage(skillStat);
+
+        const defStat = Math.max(1, Math.min(5, Math.round(Number(defender.defense ?? defender.def ?? 1))));
+        const defensePercent = this.getDefenseReductionPercent(defStat);
+        const damage = this.applyDefenseReduction(rolled.raw, defensePercent);
+
+        this.addLog(`  🎲 스킬 데미지: ${rolled.min} + (1~${rolled.extraMax})[${rolled.bonus}] = ${rolled.raw} (최대 ${rolled.max})`);
+        this.addLog(`  🛡️ 방어력: ${defensePercent}% (원데미지 ${rolled.raw} → 실제 ${damage})`);
+        this.addLog(`  💥 데미지: ${damage}`);
         
         // 3. 데미지 적용
-        defender.hp = Math.max(defender.hp - damage, 0);
-        this.addLog(`  💔 ${defender.name} HP: ${defender.hp + damage} → ${defender.hp}`);
+        const beforeHp = Math.round(Number(defender.hp) || 0);
+        defender.hp = Math.max(beforeHp - Math.round(Number(damage) || 0), 0);
+        this.addLog(`  💔 ${defender.name} HP: ${beforeHp} → ${defender.hp}`);
         
         if (attacker && attacker.id) {
             this.usedUltimate[attacker.id] = true;

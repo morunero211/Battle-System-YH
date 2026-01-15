@@ -379,7 +379,7 @@
   max-height: 150px;
   overflow-y: auto;
   display: flex;
-  flex-direction: column-reverse;
+  flex-direction: column;
   gap: 6px;
   font-size: 12px;
 }

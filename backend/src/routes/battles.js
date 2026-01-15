@@ -8,8 +8,26 @@ const {
     zBattleSimulate
 } = require('../schemas/validationSchemas');
 const { z } = require('zod');
+const { randomUUID } = require('crypto');
 
 const router = express.Router();
+
+// ============================================
+// 2-step 시뮬레이션(같은 턴 안에서 하위 단계)
+// - begin: 공격 판정만 수행하고, 방어자 반응 선택을 기다림
+// - react: 방어자 반응(DODGE/COUNTER/PASS)을 받아 결과 확정
+// ============================================
+
+const pendingReactions = new Map();
+const PENDING_TTL_MS = 30 * 60 * 1000;
+
+function prunePendingReactions(now = Date.now()) {
+    for (const [id, entry] of pendingReactions.entries()) {
+        if (!entry || !entry.createdAt || (now - entry.createdAt) > PENDING_TTL_MS) {
+            pendingReactions.delete(id);
+        }
+    }
+}
 
 let prisma = null;
 function getPrisma() {
@@ -110,13 +128,29 @@ router.post('/simulate', async (req, res) => {
         log.push(`\n⚔️ ${attackerName} → ${defenderName} 공격!`);
         log.push(`  🎯 공격 판정: ${result.attackJudgment.roll} / ${result.attackJudgment.threshold} (${gradeLabel(result.attackJudgment.grade)})`);
 
-        if (result.defenseJudgment) {
+        if (response === 'COUNTER') {
+            if (result.counterJudgment) {
+                log.push(`  ↩️ 반격(공격) 판정: ${result.counterJudgment.roll} / ${result.counterJudgment.threshold} (${gradeLabel(result.counterJudgment.grade)})`);
+            } else if (result.defenseJudgment) {
+                log.push(`  ↩️ 반격(공격) 판정: ${result.defenseJudgment.roll} / ${result.defenseJudgment.threshold} (${gradeLabel(result.defenseJudgment.grade)})`);
+            }
+            if (result.counterAgiJudgment) {
+                log.push(`  💨 반격(민첩) 판정: ${result.counterAgiJudgment.roll} / ${result.counterAgiJudgment.threshold} (${gradeLabel(result.counterAgiJudgment.grade)})`);
+            }
+        } else if (result.defenseJudgment) {
             const label = response === 'DODGE' ? '회피' : '반격';
             log.push(`  🛡️ ${label} 판정: ${result.defenseJudgment.roll} / ${result.defenseJudgment.threshold} (${gradeLabel(result.defenseJudgment.grade)})`);
         }
 
         if (result.countered) {
-            log.push(`  ↩️ 반격 성공! ${attackerName}이(가) ${result.counterDamage} 데미지!`);
+            const pct = Number.isFinite(Number(result.counterDefensePercent))
+                ? Math.round(Number(result.counterDefensePercent))
+                : null;
+            if (pct !== null && Number.isFinite(Number(result.rawCounterDamage))) {
+                log.push(`  ↩️ 반격 성공! (원데미지 ${Math.round(Number(result.rawCounterDamage))} → 방어력 ${pct}% → 실제 ${Math.round(result.counterDamage)})`);
+            } else {
+                log.push(`  ↩️ 반격 성공! ${attackerName}이(가) ${Math.round(result.counterDamage)} 데미지!`);
+            }
             return res.json({
                 log,
                 defenderHp
@@ -140,10 +174,15 @@ router.post('/simulate', async (req, res) => {
         }
 
         const nextHp = Math.max(0, defenderHp - result.damage);
-        if (result.blocked) {
-            log.push(`  🧱 방어: ${result.block} (원데미지 ${result.rawDamage} → 실제 ${result.damage})`);
+        const defensePercent = Number.isFinite(Number(result.defensePercent)) ? Math.round(Number(result.defensePercent)) : null;
+        if (defensePercent !== null) {
+            if (response === 'COUNTER' && result.counterFailedPenalty) {
+                log.push(`  ⚠️ 반격 실패 페널티: 방어력 무시 (원데미지 ${result.rawDamage} → 실제 ${result.damage})`);
+            } else {
+                log.push(`  🛡️ 방어력: ${defensePercent}% (원데미지 ${result.rawDamage} → 실제 ${result.damage})`);
+            }
         }
-        log.push(`  💥 데미지: ${result.damage}`);
+        log.push(`  💥 데미지: ${Math.round(result.damage)}`);
         log.push(`  💚 ${defenderName} HP: ${defenderHp} → ${nextHp}`);
 
         return res.json({
@@ -155,6 +194,267 @@ router.post('/simulate', async (req, res) => {
             return res.status(400).json({ errors: error.errors });
         }
         console.error('전투 시뮬레이션 오류:', error);
+        return res.status(500).json({ error: error.message });
+    }
+});
+
+/**
+ * POST /battles/simulate-begin
+ * 2-step 시뮬레이션 1단계: 공격 판정만 수행
+ * 응답:
+ * - 공격 실패: { phase: 'RESOLVED', log, defenderHp }
+ * - 공격 성공: { phase: 'AWAITING_DEFENDER_RESPONSE', pendingId, log, defenderHp }
+ */
+router.post('/simulate-begin', async (req, res) => {
+    try {
+        prunePendingReactions();
+
+        const validated = zBattleSimulate.parse(req.body);
+
+        const attacker = validated.attacker || {};
+        const defender = validated.defender || {};
+
+        const attackerName = attacker.name || '공격자';
+        const defenderName = defender.name || '방어자';
+
+        const attackerChar = {
+            atk: clampStat(attacker.atk ?? attacker.attack),
+            def: clampStat(attacker.def ?? attacker.defense ?? 1),
+            agi: clampStat(attacker.agi ?? attacker.agility ?? 1),
+            skillStat: clampStat(attacker.skillStat ?? attacker.skill ?? 1),
+            name: attackerName
+        };
+
+        const defenderMaxHp = Number.isFinite(Number(defender.maxHp)) ? Math.max(1, Math.round(Number(defender.maxHp))) : 100;
+        const defenderHp = Number.isFinite(Number(defender.hp)) ? Math.max(0, Math.round(Number(defender.hp))) : defenderMaxHp;
+        const defenderChar = {
+            atk: clampStat(defender.atk ?? 1),
+            def: clampStat(defender.def ?? defender.defense ?? 1),
+            agi: clampStat(defender.agi ?? defender.agility ?? 1),
+            skillStat: clampStat(defender.skillStat ?? 1),
+            maxHp: defenderMaxHp,
+            name: defenderName
+        };
+
+        const attackJudgment = battleEngine.judgeAttack(attackerChar.atk);
+
+        const log = [];
+        log.push(`\n⚔️ ${attackerName} → ${defenderName} 공격 시도!`);
+        log.push(`  🎯 공격 판정: ${attackJudgment.roll} / ${attackJudgment.threshold} (${gradeLabel(attackJudgment.grade)})`);
+
+        if (attackJudgment.grade === 'FAIL') {
+            log.push('  ❌ 공격 실패!');
+            return res.json({
+                phase: 'RESOLVED',
+                log,
+                defenderHp
+            });
+        }
+
+        const pendingId = randomUUID();
+        pendingReactions.set(pendingId, {
+            createdAt: Date.now(),
+            attackerName,
+            defenderName,
+            attackerChar,
+            defenderChar,
+            defenderHp,
+            attackJudgment
+        });
+
+        log.push('  ✅ 공격 성공! 방어자 반응을 선택하세요: DODGE / COUNTER / PASS');
+        return res.json({
+            phase: 'AWAITING_DEFENDER_RESPONSE',
+            pendingId,
+            attackerName,
+            defenderName,
+            attackJudgment,
+            expiresInMs: PENDING_TTL_MS,
+            log,
+            defenderHp
+        });
+    } catch (error) {
+        if (error instanceof z.ZodError) {
+            return res.status(400).json({ errors: error.errors });
+        }
+        console.error('2-step 시뮬레이션(begin) 오류:', error);
+        return res.status(500).json({ error: error.message });
+    }
+});
+
+/**
+ * POST /battles/simulate-react
+ * 2-step 시뮬레이션 2단계: 방어자 반응 처리 후 결과 확정
+ * 요청: { pendingId: string, response: 'DODGE'|'COUNTER'|'PASS' }
+ * 응답: { phase: 'RESOLVED', log, defenderHp }
+ */
+router.post('/simulate-react', async (req, res) => {
+    try {
+        prunePendingReactions();
+
+        const zReact = z.object({
+            pendingId: z.string().min(1),
+            response: z.enum(['DODGE', 'COUNTER', 'PASS']).default('PASS')
+        });
+
+        const { pendingId, response } = zReact.parse(req.body);
+        const pending = pendingReactions.get(pendingId);
+
+        if (!pending) {
+            return res.status(404).json({
+                error: 'PENDING_NOT_FOUND',
+                message: '대기 중인 반응 단계가 없습니다(만료되었거나 이미 처리됨).'
+            });
+        }
+
+        pendingReactions.delete(pendingId);
+
+        const { attackerName, defenderName, attackerChar, defenderChar, defenderHp, attackJudgment } = pending;
+
+        const ruleSet = await battleEngine.getActiveRuleSetOrDefault();
+        const battle = { ruleSet };
+
+        const result = battleEngine.resolveBasicAttack({
+            battle,
+            attacker: { id: 'sim_attacker' },
+            defender: { id: 'sim_defender' },
+            attackerChar,
+            defenderChar,
+            attackJudgment,
+            response
+        });
+
+        const log = [];
+        log.push(`\n🧩 방어자 반응 처리: ${defenderName} 선택 = ${response}`);
+
+        if (response === 'COUNTER') {
+            if (result.counterJudgment) {
+                log.push(`  ↩️ 반격(공격) 판정: ${result.counterJudgment.roll} / ${result.counterJudgment.threshold} (${gradeLabel(result.counterJudgment.grade)})`);
+            } else if (result.defenseJudgment) {
+                log.push(`  ↩️ 반격(공격) 판정: ${result.defenseJudgment.roll} / ${result.defenseJudgment.threshold} (${gradeLabel(result.defenseJudgment.grade)})`);
+            }
+            if (result.counterAgiJudgment) {
+                log.push(`  💨 반격(민첩) 판정: ${result.counterAgiJudgment.roll} / ${result.counterAgiJudgment.threshold} (${gradeLabel(result.counterAgiJudgment.grade)})`);
+            }
+        } else if (result.defenseJudgment) {
+            const label = response === 'DODGE' ? '회피' : '반격';
+            log.push(`  🛡️ ${label} 판정: ${result.defenseJudgment.roll} / ${result.defenseJudgment.threshold} (${gradeLabel(result.defenseJudgment.grade)})`);
+        }
+
+        if (result.countered) {
+            const pct = Number.isFinite(Number(result.counterDefensePercent))
+                ? Math.round(Number(result.counterDefensePercent))
+                : null;
+            if (pct !== null && Number.isFinite(Number(result.rawCounterDamage))) {
+                log.push(`  ↩️ 반격 성공! (원데미지 ${Math.round(Number(result.rawCounterDamage))} → 방어력 ${pct}% → 실제 ${Math.round(result.counterDamage)})`);
+            } else {
+                log.push(`  ↩️ 반격 성공! ${attackerName}이(가) ${Math.round(result.counterDamage)} 데미지!`);
+            }
+            // simulate 계열은 defenderHp만 관리(공격자 HP는 여기서 갱신하지 않음)
+            return res.json({
+                phase: 'RESOLVED',
+                log,
+                defenderHp,
+                attackerDamage: Number.isFinite(Number(result.counterDamage)) ? Math.round(Number(result.counterDamage)) : 0
+            });
+        }
+
+        if (result.dodged) {
+            log.push('  💨 회피 성공! 데미지 없음');
+            return res.json({
+                phase: 'RESOLVED',
+                log,
+                defenderHp
+            });
+        }
+
+        if (!result.success) {
+            log.push('  ❌ 공격 실패!');
+            return res.json({
+                phase: 'RESOLVED',
+                log,
+                defenderHp
+            });
+        }
+
+        const nextHp = Math.max(0, defenderHp - result.damage);
+        const defensePercent = Number.isFinite(Number(result.defensePercent)) ? Math.round(Number(result.defensePercent)) : null;
+        if (defensePercent !== null) {
+            if (response === 'COUNTER' && result.counterFailedPenalty) {
+                log.push(`  ⚠️ 반격 실패 페널티: 방어력 무시 (원데미지 ${result.rawDamage} → 실제 ${result.damage})`);
+            } else {
+                log.push(`  🛡️ 방어력: ${defensePercent}% (원데미지 ${result.rawDamage} → 실제 ${result.damage})`);
+            }
+        }
+        log.push(`  💥 데미지: ${Math.round(result.damage)}`);
+        log.push(`  💚 ${defenderName} HP: ${defenderHp} → ${nextHp}`);
+
+        return res.json({
+            phase: 'RESOLVED',
+            log,
+            defenderHp: nextHp
+        });
+    } catch (error) {
+        if (error instanceof z.ZodError) {
+            return res.status(400).json({ errors: error.errors });
+        }
+        console.error('2-step 시뮬레이션(react) 오류:', error);
+        return res.status(500).json({ error: error.message });
+    }
+});
+
+/**
+ * POST /battles/simulate-skill
+ * 공격형 스킬 단발 시뮬레이션
+ * 응답: { log: string[], defenderHp: number }
+ */
+router.post('/simulate-skill', async (req, res) => {
+    try {
+        const validated = zBattleSimulate.parse(req.body);
+
+        const attacker = validated.attacker || {};
+        const defender = validated.defender || {};
+
+        const attackerName = attacker.name || '공격자';
+        const defenderName = defender.name || '방어자';
+
+        const attackerChar = {
+            atk: clampStat(attacker.atk ?? attacker.attack),
+            def: clampStat(attacker.def ?? attacker.defense ?? 1),
+            agi: clampStat(attacker.agi ?? attacker.agility ?? 1),
+            skillStat: clampStat(attacker.skillStat ?? attacker.skill ?? 1),
+            name: attackerName
+        };
+
+        const defenderMaxHp = Number.isFinite(Number(defender.maxHp)) ? Math.max(1, Math.round(Number(defender.maxHp))) : 50;
+        const defenderHp = Number.isFinite(Number(defender.hp)) ? Math.max(0, Math.round(Number(defender.hp))) : defenderMaxHp;
+        const defenderChar = {
+            def: clampStat(defender.def ?? defender.defense ?? 1),
+            name: defenderName,
+            maxHp: defenderMaxHp
+        };
+
+        const rolled = battleEngine.rollAttackSkillRawDamage(attackerChar.skillStat);
+        const defensePercent = battleEngine.getDefenseReductionPercent(defenderChar.def);
+        const damage = battleEngine.applyDefenseReduction(rolled.raw, defensePercent);
+        const nextHp = Math.max(0, defenderHp - damage);
+
+        const log = [];
+        log.push(`\n⭐ ${attackerName} → ${defenderName} 공격형 스킬!`);
+        log.push(`  🎲 스킬 데미지: ${rolled.min} + (1~${rolled.extraMax})[${rolled.bonus}] = ${rolled.raw} (최대 ${rolled.max})`);
+        log.push(`  🛡️ 방어력: ${Math.round(defensePercent)}% (원데미지 ${rolled.raw} → 실제 ${Math.round(damage)})`);
+        log.push(`  💥 데미지: ${Math.round(damage)}`);
+        log.push(`  💚 ${defenderName} HP: ${defenderHp} → ${nextHp}`);
+
+        return res.json({
+            log,
+            defenderHp: nextHp
+        });
+    } catch (error) {
+        if (error instanceof z.ZodError) {
+            return res.status(400).json({ errors: error.errors });
+        }
+        console.error('스킬 시뮬레이션 오류:', error);
         return res.status(500).json({ error: error.message });
     }
 });

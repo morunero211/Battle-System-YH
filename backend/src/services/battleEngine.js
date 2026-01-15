@@ -44,6 +44,75 @@ function rollD100() {
   return Math.floor(Math.random() * 100) + 1;
 }
 
+function rollInt(min, max) {
+  const lo = Math.ceil(Number(min));
+  const hi = Math.floor(Number(max));
+  if (!Number.isFinite(lo) || !Number.isFinite(hi) || hi < lo) return 0;
+  return Math.floor(Math.random() * (hi - lo + 1)) + lo;
+}
+
+// ===== 전투 밸런스(정수 기반) =====
+// 기본공격 rawDamage 범위: 회의 결과로 3~10 또는 3~13 중 하나로 결정
+const BASIC_RAW_DAMAGE = { min: 3, max: 10 };
+
+// 공격형 스킬 데미지 테이블(이미지 기반)
+// format: { max | min (+ 1~N) }
+// 1: 13 | 10 (+1~3)
+// 2: 16 | 13 (+1~3)
+// 3: 19 | 15 (+1~4)
+// 4: 22 | 18 (+1~4)
+// 5: 25 | 20 (+1~5)
+const ATTACK_SKILL_DAMAGE_BY_STAT = {
+  1: { min: 10, extraMax: 3 },
+  2: { min: 13, extraMax: 3 },
+  3: { min: 15, extraMax: 4 },
+  4: { min: 18, extraMax: 4 },
+  5: { min: 20, extraMax: 5 }
+};
+
+// 방어 스탯(1~5) -> 방어력%(완만 버전). 필요 시 여기만 조정.
+// index: defStat (1..5)
+// NOTE: 기본공격 raw 범위가 작아서(3~10) 5%/10%가 floor 처리에서 동일 결과가 나기 쉬움.
+//       def=3을 11%로 두면 def=2(5%)와 구분되는 구간이 생김.
+const DEFENSE_REDUCTION_PCT_BY_STAT = [0, 0, 5, 11, 15, 20];
+
+// 맞았을 때 최소 데미지(0 허용하고 싶으면 0으로)
+const MIN_DAMAGE_ON_HIT = 1;
+
+// 방어 스탯(1~5) -> 방어력%(10~50)
+function getDefenseReductionPercent(defStat) {
+  const stat = Math.max(1, Math.min(5, Math.round(Number(defStat) || 1)));
+  return DEFENSE_REDUCTION_PCT_BY_STAT[stat] ?? 0;
+}
+
+function applyDefenseReduction(rawDamage, defensePercent) {
+  const base = Math.max(0, Math.floor(Number(rawDamage) || 0));
+  if (base === 0) return 0;
+
+  const pct = Math.max(0, Math.min(80, Math.round(Number(defensePercent) || 0)));
+  const reduced = Math.floor((base * (100 - pct)) / 100);
+  return Math.max(MIN_DAMAGE_ON_HIT, reduced);
+}
+
+function rollRawDamage(range) {
+  return rollInt(range?.min ?? 0, range?.max ?? 0);
+}
+
+function rollAttackSkillRawDamage(skillStat) {
+  const stat = Math.max(1, Math.min(5, Math.round(Number(skillStat) || 1)));
+  const profile = ATTACK_SKILL_DAMAGE_BY_STAT[stat] || ATTACK_SKILL_DAMAGE_BY_STAT[1];
+  const bonus = rollInt(1, profile.extraMax);
+  const raw = Math.floor(profile.min + bonus);
+  return {
+    stat,
+    min: profile.min,
+    extraMax: profile.extraMax,
+    bonus,
+    raw,
+    max: profile.min + profile.extraMax
+  };
+}
+
 // DB가 없거나 RuleSet이 비어있어도 동작하도록 기본 RuleSet 제공
 const DEFAULT_RULESET = {
   id: 'default',
@@ -226,6 +295,9 @@ function executeBasicAttack({
   let defenseJudgment = null;
   let blocked = false;
   let counterDamage = 0;
+  let counterJudgment = null;
+  let counterAgiJudgment = null;
+  let counterFailedPenalty = false;
   
   // 2. 방어 응답 처리
   if (response === 'DODGE') {
@@ -244,42 +316,61 @@ function executeBasicAttack({
       };
     }
   } else if (response === 'COUNTER') {
-    defenseJudgment = judgeCounter(defenderChar.atk);
-    
-    // 반격 성공: 반격 등급 > 공격 등급
-    if (compareGrades(defenseJudgment.grade, attackJudgment.grade) > 0) {
-      // 반격 데미지 계산 (반격자 atk vs 원래 공격자 def)
-      counterDamage = getDamageFromRuleSet(ruleSet, defenderChar.atk, attackerChar.def);
+    counterJudgment = judgeCounter(defenderChar.atk);
+    counterAgiJudgment = judgeDodge(defenderChar.agi);
+    // 기존 로그 호환: defenseJudgment는 "반격(공격)" 판정으로 유지
+    defenseJudgment = counterJudgment;
+
+    // 반격 성공: (1) 반격(공격) 등급 > 공격 등급 AND (2) 민첩(회피) 등급 >= 공격 등급
+    const counterAtkOk = compareGrades(counterJudgment.grade, attackJudgment.grade) > 0;
+    const counterAgiOk = compareGrades(counterAgiJudgment.grade, attackJudgment.grade) >= 0;
+    if (counterAtkOk && counterAgiOk) {
+      // 반격 데미지 계산: 기본데미지(반격자 atk) -> 원래 공격자 방어력%로 감소
+      const rawCounterDamage = rollRawDamage(BASIC_RAW_DAMAGE);
+      const counterDefensePercent = getDefenseReductionPercent(attackerChar.def);
+      counterDamage = applyDefenseReduction(rawCounterDamage, counterDefensePercent);
       
       return {
         success: false,
         damage: 0,
         attackJudgment,
         defenseJudgment,
+        counterJudgment,
+        counterAgiJudgment,
         blocked: false,
         countered: true,
         counterDamage,
+        rawCounterDamage,
+        counterDefensePercent,
         message: '반격에 성공했습니다!'
       };
     }
+
+    // 반격 시도 실패: 패널티(방어력 %감소 무시)
+    counterFailedPenalty = true;
   }
   
   // 3. 데미지 계산
-  const rawDamage = getDamageFromRuleSet(ruleSet, attackerChar.atk, defenderChar.def);
-  const block = getBlockFromRuleSet(ruleSet, defenderChar.def);
-  
-  damage = Math.max(0, rawDamage - block);
-  blocked = block > 0;
+  // 기본 데미지는 공격자 atk만으로 산출(방어는 %감소로만 처리)
+  const rawDamage = rollRawDamage(BASIC_RAW_DAMAGE);
+  const defensePercent = counterFailedPenalty ? 0 : getDefenseReductionPercent(defenderChar.def);
+  damage = counterFailedPenalty ? rawDamage : applyDefenseReduction(rawDamage, defensePercent);
+  blocked = defensePercent > 0;
   
   return {
     success: true,
     damage,
     attackJudgment,
     defenseJudgment,
+    counterJudgment,
+    counterAgiJudgment,
+    counterFailedPenalty,
     blocked,
     rawDamage,
-    block,
-    message: `${damage} 데미지를 입혔습니다!`
+    defensePercent,
+    message: counterFailedPenalty
+      ? `반격 실패! 방어력 무시 페널티로 ${damage} 데미지를 입혔습니다!`
+      : `${damage} 데미지를 입혔습니다!`
   };
 }
 
@@ -296,6 +387,115 @@ function compareGrades(grade1, grade2) {
   };
   
   return Math.sign(gradeValues[grade1] - gradeValues[grade2]);
+}
+
+/**
+ * 기본 공격 처리 (2-step용: 공격 판정은 외부에서 주입)
+ * - 1단계: judgeAttack(atkStat)으로 attackJudgment 생성
+ * - 2단계: 이 함수를 호출해 DODGE/COUNTER/PASS를 처리
+ */
+function resolveBasicAttack({
+  battle,
+  attacker,
+  defender,
+  attackerChar,
+  defenderChar,
+  attackJudgment,
+  response = 'PASS'
+}) {
+  // 공격 실패 시
+  if (!attackJudgment || attackJudgment.grade === 'FAIL') {
+    return {
+      success: false,
+      damage: 0,
+      attackJudgment: attackJudgment || null,
+      defenseJudgment: null,
+      blocked: false,
+      message: '공격이 빗나갔습니다!'
+    };
+  }
+
+  let damage = 0;
+  let defenseJudgment = null;
+  let blocked = false;
+  let counterDamage = 0;
+  let counterJudgment = null;
+  let counterAgiJudgment = null;
+  let counterFailedPenalty = false;
+
+  // 2. 방어 응답 처리
+  if (response === 'DODGE') {
+    defenseJudgment = judgeDodge(defenderChar.agi);
+
+    // 회피 성공: 회피 등급 >= 공격 등급
+    if (compareGrades(defenseJudgment.grade, attackJudgment.grade) >= 0) {
+      return {
+        success: false,
+        damage: 0,
+        attackJudgment,
+        defenseJudgment,
+        blocked: false,
+        dodged: true,
+        message: '공격을 회피했습니다!'
+      };
+    }
+  } else if (response === 'COUNTER') {
+    counterJudgment = judgeCounter(defenderChar.atk);
+    counterAgiJudgment = judgeDodge(defenderChar.agi);
+    // 기존 로그 호환: defenseJudgment는 "반격(공격)" 판정으로 유지
+    defenseJudgment = counterJudgment;
+
+    // 반격 성공: (1) 반격(공격) 등급 > 공격 등급 AND (2) 민첩(회피) 등급 >= 공격 등급
+    const counterAtkOk = compareGrades(counterJudgment.grade, attackJudgment.grade) > 0;
+    const counterAgiOk = compareGrades(counterAgiJudgment.grade, attackJudgment.grade) >= 0;
+    if (counterAtkOk && counterAgiOk) {
+      // 반격 데미지 계산: 기본데미지(반격자 atk) -> 원래 공격자 방어력%로 감소
+      const rawCounterDamage = rollRawDamage(BASIC_RAW_DAMAGE);
+      const counterDefensePercent = getDefenseReductionPercent(attackerChar.def);
+      counterDamage = applyDefenseReduction(rawCounterDamage, counterDefensePercent);
+
+      return {
+        success: false,
+        damage: 0,
+        attackJudgment,
+        defenseJudgment,
+        counterJudgment,
+        counterAgiJudgment,
+        blocked: false,
+        countered: true,
+        counterDamage,
+        rawCounterDamage,
+        counterDefensePercent,
+        message: '반격에 성공했습니다!'
+      };
+    }
+
+    // 반격 시도 실패: 패널티(방어력 %감소 무시)
+    counterFailedPenalty = true;
+  }
+
+  // 3. 데미지 계산
+  // 기본 데미지는 공격자 atk만으로 산출(방어는 %감소로만 처리)
+  const rawDamage = rollRawDamage(BASIC_RAW_DAMAGE);
+  const defensePercent = counterFailedPenalty ? 0 : getDefenseReductionPercent(defenderChar.def);
+  damage = counterFailedPenalty ? rawDamage : applyDefenseReduction(rawDamage, defensePercent);
+  blocked = defensePercent > 0;
+
+  return {
+    success: true,
+    damage,
+    attackJudgment,
+    defenseJudgment,
+    counterJudgment,
+    counterAgiJudgment,
+    counterFailedPenalty,
+    blocked,
+    rawDamage,
+    defensePercent,
+    message: counterFailedPenalty
+      ? `반격 실패! 방어력 무시 페널티로 ${damage} 데미지를 입혔습니다!`
+      : `${damage} 데미지를 입혔습니다!`
+  };
 }
 
 /**
@@ -442,12 +642,18 @@ module.exports = {
   judgeAttack,
   judgeDodge,
   judgeCounter,
+  compareGrades,
   executeBasicAttack,
+  resolveBasicAttack,
   executeSkill,
   executeItem,
   calculateInitiativeOrder,
   judgeTimeoutVictory,
   getDamageFromRuleSet,
   getBlockFromRuleSet,
+  getDefenseReductionPercent,
+  applyDefenseReduction,
+  rollRawDamage,
+  rollAttackSkillRawDamage,
   getActiveRuleSetOrDefault
 };

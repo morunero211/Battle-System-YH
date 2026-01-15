@@ -110,6 +110,47 @@ curl -X POST http://localhost:3000/api/battles/simulate \
 
 ---
 
+### 2-1️⃣ 전투 시뮬레이션 (2-step: 같은 턴 내 반응 선택)
+
+공격 성공 후 **방어자가 회피/반격/PASS를 선택**하도록, 시뮬레이션을 2단계로 나눕니다.
+
+#### 1단계: 공격 판정
+
+**`POST /api/battles/simulate-begin`**
+
+- 공격 판정만 수행하고, 공격 성공 시 `pendingId`를 반환합니다.
+- 이 단계는 **턴 수치를 증가시키지 않으며**, 같은 턴 안에서 다음 반응 단계로 넘어갑니다.
+
+**Example:**
+```bash
+curl -X POST http://localhost:3000/api/battles/simulate-begin \
+  -H "Content-Type: application/json" \
+  -d '{
+    "attacker": {"name":"A","atk":3,"def":2,"agi":2,"skillStat":2},
+    "defender": {"name":"B","hp":50,"maxHp":50,"def":4,"agi":3}
+  }'
+```
+
+#### 2단계: 방어자 반응 처리
+
+**`POST /api/battles/simulate-react`**
+
+- `pendingId`와 `response`를 보내면 결과를 확정합니다.
+- `response`: `DODGE` | `COUNTER` | `PASS`
+- `pendingId`는 기본적으로 약 30분 후 만료됩니다(응답의 `expiresInMs` 참고).
+
+**Example:**
+```bash
+curl -X POST http://localhost:3000/api/battles/simulate-react \
+  -H "Content-Type: application/json" \
+  -d '{
+    "pendingId": "<simulate-begin에서 받은 pendingId>",
+    "response": "DODGE"
+  }'
+```
+
+---
+
 ### 3️⃣ 전투 기록 저장
 
 **`POST /api/battles/record`**
