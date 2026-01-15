@@ -48,6 +48,12 @@
 }
 
 .badge-turn {
+  background: rgba(72, 187, 120, 0.18);
+  border-color: rgba(20, 83, 45, 0.35);
+  color: #14532d;
+}
+
+body.dark-theme .badge-turn {
   background: rgba(72, 187, 120, 0.2);
   border-color: #48bb78;
   color: #68f0a8;
