@@ -26,34 +26,6 @@ main #combat-screen {
 .combat-header-row {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 12px;
-    margin-bottom: 20px;
-}
-
-/* 배지 공통 */
-.badge-row { display: flex; gap: 10px; align-items: center; }
-.badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    background: #f8f9fc;
-    border: 2px solid #e3e6f0;
-    color: #4a5568;
-    border-radius: 999px;
-    padding: 8px 12px;
-    font-weight: 700;
-    font-size: 0.9em;
-}
-.badge-mode { color: #667eea; border-color: #cbd5e0; }
-.badge-turn { color: #2c3e50; }
-
-.battle-badge {
-    background: white;
-    border: 2px solid #e3e6f0;
-    border-radius: 12px;
-    padding: 16px;
-    text-align: center;
-    font-weight: 600;
     color: #4a5568;
     transition: all 0.2s ease;
 }
@@ -85,6 +57,25 @@ main #combat-screen {
 
 /* 좌측 메인 래퍼 */
 .combat-main { display: flex; flex-direction: column; gap: 16px; }
+
+/* 캐릭터 표시(팀 카드) 고정: 화면이 스크롤되어도 상단에 붙어서 항상 보이게 */
+.team-cards-row {
+    position: sticky;
+    top: 74px; /* app-header( sticky ) 아래로 */
+    z-index: 5;
+    background: #e8e9f3;
+    padding: 10px 8px;
+    margin: -10px -8px 8px;
+    border-radius: 14px;
+    box-shadow: 0 8px 18px rgba(0,0,0,0.06);
+}
+
+/* 우측 사이드(실시간)도 고정 */
+.combat-side {
+    position: sticky;
+    top: 74px;
+    align-self: start;
+}
 
 /* 팀 카드들 행 */
 .team-cards-row {
@@ -366,11 +357,168 @@ main #combat-screen {
     border-radius: 12px;
     padding: 12px;
     height: 420px;
-    overflow-y: auto;
+    overflow: hidden;
     font-family: 'Courier New', monospace;
     font-size: 0.95em;
     line-height: 1.5;
 }
+
+.log-header {
+    font-weight: 800;
+    margin-bottom: 8px;
+    color: #e2e8f0;
+}
+
+.log-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 8px;
+}
+
+.log-tools {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.log-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 700;
+    font-family: 'Noto Sans KR', sans-serif;
+}
+
+.log-tool-btn {
+    border: 1px solid #4a5568;
+    background: rgba(255,255,255,0.06);
+    color: #e2e8f0;
+    padding: 6px 10px;
+    border-radius: 10px;
+    font-weight: 800;
+    cursor: pointer;
+}
+
+.log-tool-btn:hover {
+    background: rgba(255,255,255,0.10);
+}
+
+.log-content {
+    height: calc(100% - 74px);
+    overflow-y: auto;
+    padding-right: 4px;
+}
+
+.log-separator {
+    height: 1px;
+    background: rgba(255,255,255,0.12);
+    margin: 10px 0;
+}
+
+.log-entry {
+    margin-bottom: 6px;
+    padding: 6px 8px;
+    border-left: 3px solid #667eea;
+    padding-left: 10px;
+}
+
+.log-time {
+    display: inline-block;
+    min-width: 70px;
+    color: #a0aec0;
+    font-size: 0.85em;
+    margin-right: 6px;
+}
+
+.log-message {
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.log-entry--error .log-message { color: #fecaca; }
+.log-entry--success .log-message { color: #a7f3d0; }
+.log-entry--damage .log-message { color: #fca5a5; }
+.log-entry--hp .log-message { color: #86efac; }
+.log-entry--roll .log-message { color: #e9d5ff; }
+.log-entry--defense .log-message { color: #67e8f9; }
+.log-entry--action .log-message { color: #93c5fd; }
+.log-entry--info .log-message { color: #e2e8f0; }
+
+/* ===== 로그 그룹(행동 단위 블럭) ===== */
+.log-group {
+    border: 1px solid rgba(255,255,255,0.10);
+    border-radius: 12px;
+    margin-bottom: 10px;
+    overflow: hidden;
+    background: rgba(255,255,255,0.03);
+}
+
+.log-group__header {
+    width: 100%;
+    text-align: left;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    padding: 10px 10px;
+    cursor: pointer;
+}
+
+.log-group__title-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.log-group__chevron {
+    width: 18px;
+    display: inline-flex;
+    justify-content: center;
+    color: rgba(226,232,240,0.9);
+    transform: rotate(0deg);
+    transition: transform 0.15s ease;
+}
+
+.log-group__title {
+    font-weight: 900;
+    font-family: 'Noto Sans KR', sans-serif;
+    letter-spacing: -0.2px;
+}
+
+.log-group__meta {
+    margin-left: auto;
+    font-size: 12px;
+    color: rgba(226,232,240,0.75);
+    font-family: 'Noto Sans KR', sans-serif;
+    font-weight: 800;
+}
+
+.log-group__preview {
+    margin-top: 6px;
+    color: rgba(226,232,240,0.78);
+    font-size: 12px;
+    font-family: 'Noto Sans KR', sans-serif;
+    font-weight: 700;
+    line-height: 1.35;
+}
+
+.log-group__body {
+    padding: 0 10px 10px;
+}
+
+.log-group.is-collapsed .log-group__body {
+    display: none;
+}
+
+.log-group.is-collapsed .log-group__chevron {
+    transform: rotate(-90deg);
+}
+
+.log-group--fail { border-color: rgba(239, 68, 68, 0.35); }
+.log-group--pending { border-color: rgba(96, 165, 250, 0.35); }
+.log-group--resolved { border-color: rgba(34, 197, 94, 0.28); }
 
 .log-entry {
     margin-bottom: 6px;

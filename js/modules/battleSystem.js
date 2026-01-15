@@ -20,6 +20,7 @@ class BattleSystem {
         // ===== UI 상태(로그) =====
         this.logAutoScroll = true;
         this.logUiInitialized = false;
+        this.collapsedLogGroups = new Set();
 
         // ===== 2-step 방어자 응답 =====
         this.pendingDefenseResponse = null; // { pendingId, attackerRef, defenderRef, targetTeam, attackerTeam, expiresAt }
@@ -486,24 +487,59 @@ class BattleSystem {
         if (logEl) {
             this.initLogUi();
 
-            const entries = this.battleLog.slice(-60); // 최근 60개만 표시
-            logEl.innerHTML = entries
-                .map((raw) => {
-                    const parsed = this.parseLogLine(raw);
+            const maxLines = 200;
+            const startIndex = Math.max(0, this.battleLog.length - maxLines);
+            const entries = this.battleLog.slice(startIndex);
 
-                    if (parsed.kind === 'separator') {
-                        return `<div class="log-separator">${this.escapeHtml(parsed.text)}</div>`;
+            const parsedEntries = entries.map((raw) => this.parseLogLine(raw));
+            const blocks = this.groupLogEntries(parsedEntries, startIndex);
+
+            logEl.innerHTML = blocks
+                .map((block) => {
+                    if (block.type === 'separator') {
+                        return `<div class="log-separator">${this.escapeHtml(block.text)}</div>`;
                     }
 
-                    const timeHtml = parsed.time ? `<span class="log-time">${this.escapeHtml(parsed.time)}</span>` : '';
+                    const collapsed = this.collapsedLogGroups.has(block.id);
+                    const ariaExpanded = collapsed ? 'false' : 'true';
+                    const headerTitle = this.escapeHtml(block.title);
+                    const headerMeta = block.meta
+                        ? `<span class="log-group__meta">${this.escapeHtml(block.meta)}</span>`
+                        : '';
+                    const preview = block.preview
+                        ? `<div class="log-group__preview">${this.escapeHtml(block.preview)}</div>`
+                        : '';
+
+                    const bodyHtml = block.lines
+                        .map((line) => {
+                            const timeHtml = line.time ? `<span class="log-time">${this.escapeHtml(line.time)}</span>` : '';
+                            return `
+                                <div class="log-entry log-entry--${line.kind}">
+                                    ${timeHtml}
+                                    <span class="log-message">${this.escapeHtml(line.text)}</span>
+                                </div>
+                            `;
+                        })
+                        .join('');
+
                     return `
-                        <div class="log-entry log-entry--${parsed.kind}">
-                            ${timeHtml}
-                            <span class="log-message">${this.escapeHtml(parsed.text)}</span>
+                        <div class="log-group log-group--${block.status}${collapsed ? ' is-collapsed' : ''}" data-log-group-id="${this.escapeHtml(block.id)}">
+                            <button type="button" class="log-group__header" aria-expanded="${ariaExpanded}">
+                                <div class="log-group__title-row">
+                                    <span class="log-group__chevron">▾</span>
+                                    <span class="log-group__title">${headerTitle}</span>
+                                    ${headerMeta}
+                                </div>
+                                ${preview}
+                            </button>
+                            <div class="log-group__body">
+                                ${bodyHtml}
+                            </div>
                         </div>
                     `;
                 })
                 .join('');
+
             if (this.logAutoScroll) {
                 logEl.scrollTop = logEl.scrollHeight; // 자동 스크롤
             }
@@ -526,7 +562,157 @@ class BattleSystem {
             this.renderLog();
         });
 
+        // 전체 접기/펼치기 버튼 추가
+        const tools = toolbar.querySelector('.log-tools');
+        if (tools) {
+            const collapseAllBtn = document.createElement('button');
+            collapseAllBtn.type = 'button';
+            collapseAllBtn.className = 'log-tool-btn';
+            collapseAllBtn.textContent = '전체 접기';
+
+            const expandAllBtn = document.createElement('button');
+            expandAllBtn.type = 'button';
+            expandAllBtn.className = 'log-tool-btn';
+            expandAllBtn.textContent = '전체 펼치기';
+
+            collapseAllBtn.addEventListener('click', () => {
+                // 현재 화면의 그룹을 전부 접기
+                const groups = this.getCurrentLogGroupIds();
+                groups.forEach((id) => this.collapsedLogGroups.add(id));
+                this.renderLog();
+            });
+
+            expandAllBtn.addEventListener('click', () => {
+                const groups = this.getCurrentLogGroupIds();
+                groups.forEach((id) => this.collapsedLogGroups.delete(id));
+                this.renderLog();
+            });
+
+            tools.appendChild(collapseAllBtn);
+            tools.appendChild(expandAllBtn);
+        }
+
+        // 그룹 헤더 클릭 토글(이벤트 위임)
+        const logEl = document.getElementById('combat-log');
+        if (logEl) {
+            logEl.addEventListener('click', (e) => {
+                const header = e.target?.closest?.('.log-group__header');
+                if (!header) return;
+                const groupEl = header.closest('.log-group');
+                const id = groupEl?.getAttribute?.('data-log-group-id');
+                if (!id) return;
+
+                if (this.collapsedLogGroups.has(id)) {
+                    this.collapsedLogGroups.delete(id);
+                } else {
+                    this.collapsedLogGroups.add(id);
+                }
+                this.renderLog();
+            });
+        }
+
         this.logUiInitialized = true;
+    }
+
+    getCurrentLogGroupIds() {
+        const maxLines = 200;
+        const startIndex = Math.max(0, this.battleLog.length - maxLines);
+        const entries = this.battleLog.slice(startIndex);
+        const parsedEntries = entries.map((raw) => this.parseLogLine(raw));
+        const blocks = this.groupLogEntries(parsedEntries, startIndex);
+        return blocks.filter((b) => b.type === 'group').map((b) => b.id);
+    }
+
+    isActionStartLogLine(text) {
+        const t = String(text || '').trim();
+        // 행동 시작을 나타내는 대표 라인들
+        return t.startsWith('⚔️') || t.startsWith('⭐') || t.includes('전투 시작') || t.includes('턴 종료');
+    }
+
+    summarizeGroup(lines) {
+        const first = lines[0];
+        const title = first ? String(first.text || '').replace(/^\n+/, '').trim() : '행동';
+
+        let status = 'neutral';
+        let damage = null;
+        let hasAwait = false;
+
+        for (const line of lines) {
+            const msg = String(line.text || '');
+            if (msg.includes('❌')) status = 'fail';
+            if (msg.includes('✅ 공격 성공') && msg.includes('반응을 선택')) hasAwait = true;
+
+            const dmgMatch = msg.match(/💥\s*데미지:\s*([0-9]+)/);
+            if (dmgMatch) {
+                damage = Number(dmgMatch[1]);
+            }
+        }
+
+        if (hasAwait && status !== 'fail') status = 'pending';
+        if (damage !== null && status !== 'fail') status = 'resolved';
+
+        const metaParts = [];
+        if (damage !== null) metaParts.push(`데미지 ${damage}`);
+        metaParts.push(`${lines.length}줄`);
+
+        // collapsed 상태에서 보여줄 1줄 미리보기
+        let preview = null;
+        const preferred = lines
+            .map((l) => String(l.text || '').trim())
+            .filter(Boolean)
+            .filter((m) => !this.isActionStartLogLine(m));
+        const important = preferred.find((m) => m.includes('💥') || m.includes('❌') || m.includes('💚') || m.includes('🛡️'));
+        preview = important || preferred[0] || null;
+
+        return {
+            title,
+            status,
+            meta: metaParts.join(' · '),
+            preview
+        };
+    }
+
+    groupLogEntries(parsedEntries, startIndex) {
+        const blocks = [];
+        let current = null;
+
+        const flush = () => {
+            if (!current) return;
+            const summary = this.summarizeGroup(current.lines);
+            blocks.push({
+                type: 'group',
+                id: current.id,
+                title: summary.title,
+                status: summary.status,
+                meta: summary.meta,
+                preview: summary.preview,
+                lines: current.lines
+            });
+            current = null;
+        };
+
+        for (let i = 0; i < parsedEntries.length; i++) {
+            const line = parsedEntries[i];
+            const text = String(line.text || '').replace(/^\n+/, '').trim();
+
+            if (line.kind === 'separator') {
+                flush();
+                blocks.push({ type: 'separator', text: '—' });
+                continue;
+            }
+
+            const starts = this.isActionStartLogLine(text);
+            if (!current || starts) {
+                flush();
+                const id = `g_${startIndex + i}`;
+                current = { id, lines: [] };
+            }
+
+            current.lines.push({ ...line, text });
+        }
+
+        flush();
+        return blocks;
     }
 
     /**
