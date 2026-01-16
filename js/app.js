@@ -102,6 +102,7 @@ class BattleApp {
             modalClose: document.getElementById('modal-close'),
             modalDelete: document.getElementById('modal-delete'),
             charName: document.getElementById('char-name'),
+            charTeam: document.getElementById('char-team'),
             charHp: document.getElementById('char-hp'),
             skillDescription: document.getElementById('skill-description'),
             skillTemplateId: document.getElementById('skill-template-id'),
@@ -1227,6 +1228,7 @@ class BattleApp {
         this.currentEditTeam = teamIndex;
         this.currentEditCharId = null;
         this.clearCustomForm();
+        if (this.elements.charTeam) this.elements.charTeam.value = String(teamIndex);
         if (this.elements.modalTitle) this.elements.modalTitle.textContent = '캐릭터 생성';
         if (this.elements.modalDelete) this.elements.modalDelete.classList.add('hidden');
         if (this.elements.modal) this.elements.modal.style.display = 'block';
@@ -1261,6 +1263,7 @@ class BattleApp {
 
         // 폼에 데이터 채우기
         if (this.elements.charName) this.elements.charName.value = char.name;
+        if (this.elements.charTeam) this.elements.charTeam.value = String(teamIndex);
         if (this.elements.charHp) this.elements.charHp.value = char.hp;
         if (this.elements.skillDescription) this.elements.skillDescription.value = char.skillDescription || '';
 
@@ -1354,6 +1357,9 @@ class BattleApp {
      */
     clearCustomForm() {
         if (this.elements.charName) this.elements.charName.value = '';
+        if (this.elements.charTeam && this.currentEditTeam !== null && this.currentEditTeam !== undefined) {
+            this.elements.charTeam.value = String(this.currentEditTeam);
+        }
         if (this.elements.charHp) this.elements.charHp.value = 100;
         if (this.elements.skillDescription) this.elements.skillDescription.value = '';
         
@@ -1441,6 +1447,14 @@ class BattleApp {
         const agility = parseInt(document.querySelector('input[name="agility"]:checked')?.value || 3);
         const skill = parseInt(document.querySelector('input[name="skill"]:checked')?.value || 3);
 
+        // 소속(팀)
+        const desiredTeamIndex = (() => {
+            const v = this.elements.charTeam?.value;
+            const n = Number.parseInt(String(v ?? ''), 10);
+            if (Number.isFinite(n) && n >= 0 && n <= 2) return n;
+            return (this.currentEditTeam ?? 0);
+        })();
+
         // 스킬 타입(단일) -> 기존 호환을 위해 배열로 저장
         const selectedSkillType = document.querySelector('input[name="skillType"]:checked')?.value || '공격형';
         const skillTypes = [selectedSkillType];
@@ -1468,7 +1482,8 @@ class BattleApp {
 
         if (this.currentEditCharId) {
             // 수정
-            const char = this.teams[this.currentEditTeam].characters.find(c => c.id === this.currentEditCharId);
+            const originalTeamIndex = this.currentEditTeam;
+            const char = this.teams[originalTeamIndex].characters.find(c => c.id === this.currentEditCharId);
             if (char) {
                 char.name = name;
                 char.hp = hp;
@@ -1496,6 +1511,27 @@ class BattleApp {
                     delete char.skillTemplateId;
                     delete char.skillTemplateOptions;
                 }
+
+                // 소속 변경: 팀 배열 이동 + 선택 상태 유지
+                if (desiredTeamIndex !== originalTeamIndex) {
+                    const fromList = this.teams[originalTeamIndex].characters;
+                    const idx = fromList.findIndex(c => c.id === this.currentEditCharId);
+                    if (idx >= 0) fromList.splice(idx, 1);
+                    this.teams[desiredTeamIndex].characters.push(char);
+
+                    const toKey = desiredTeamIndex === 0 ? 'hero' : (desiredTeamIndex === 1 ? 'gov' : 'villain');
+                    const allKeys = ['hero', 'gov', 'villain'];
+                    const wasSelected = allKeys.some(k => (this.selectedCharacters?.[k] || []).includes(this.currentEditCharId));
+                    allKeys.forEach(k => {
+                        this.selectedCharacters[k] = (this.selectedCharacters?.[k] || []).filter(id => id !== this.currentEditCharId);
+                    });
+                    if (wasSelected) {
+                        this.selectedCharacters[toKey].push(this.currentEditCharId);
+                    }
+
+                    // 이후 저장/렌더에 사용될 현재 팀도 갱신
+                    this.currentEditTeam = desiredTeamIndex;
+                }
             }
         } else {
             // 추가
@@ -1516,7 +1552,7 @@ class BattleApp {
                 newChar.skillTemplateId = skillTemplateId;
                 newChar.skillTemplateOptions = skillTemplateOptions;
             }
-            this.teams[this.currentEditTeam].characters.push(newChar);
+            this.teams[desiredTeamIndex].characters.push(newChar);
         }
 
         // 먼저 자동 저장

@@ -704,7 +704,7 @@ textarea:focus {
 
 #custom-character-modal .stat-circles {
     flex-wrap: wrap;
-    gap: 14px;
+    gap: 40px;
 }
 
 .char-modal-grid {
