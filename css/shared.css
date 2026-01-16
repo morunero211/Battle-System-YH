@@ -954,7 +954,10 @@ textarea:focus {
    ============================= */
 
 #chase-event-modal .modal-content {
-    font-size: 16px;
+    font-size: 18px;
+    font-weight: 750;
+    font-family: 'Noto Sans KR', system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+    letter-spacing: -0.2px;
 }
 
 #chase-event-modal .modal-body {
@@ -969,6 +972,7 @@ textarea:focus {
     border: 1px solid rgba(0, 0, 0, 0.12);
     background: rgba(255, 255, 255, 0.92);
     font-weight: 900;
+    font-size: 18px;
     color: rgba(0, 0, 0, 0.8);
 }
 
@@ -990,6 +994,7 @@ textarea:focus {
     border-radius: 14px;
     padding: 16px;
     box-shadow: 0 10px 30px rgba(0, 0, 0, 0.12);
+    font-weight: 750;
 }
 
 .chase-board {
@@ -1010,10 +1015,11 @@ textarea:focus {
     justify-content: center;
     align-items: center;
     gap: 4px;
+    font-size: 16px;
 }
 
 .chase-cell-index {
-    font-size: 12px;
+    font-size: 13px;
     color: rgba(0, 0, 0, 0.55);
     font-weight: 800;
 }
@@ -1033,7 +1039,7 @@ textarea:focus {
     padding: 4px 8px;
     border-radius: 999px;
     font-weight: 900;
-    font-size: 14px;
+    font-size: 16px;
     line-height: 1;
 }
 
@@ -1055,8 +1061,10 @@ textarea:focus {
     border-radius: 12px;
     border: 1px solid rgba(0, 0, 0, 0.12);
     padding: 10px 12px;
-    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-    font-size: 14px;
+    /* 전투 로그(로그 패널) 느낌의 모노스페이스 기반 */
+    font-family: 'Courier New', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+    font-size: 16px;
+    font-weight: 750;
     line-height: 1.55;
     background: rgba(255, 255, 255, 0.9);
 }
@@ -1068,7 +1076,8 @@ textarea:focus {
 
 /* 상태 텍스트(현재 차례/종료) 가독성 */
 #chase-status {
-    font-size: 18px;
+    font-size: 22px;
+    font-weight: 900;
     line-height: 1.25;
 }
 
@@ -1085,6 +1094,7 @@ textarea:focus {
     padding: 0 14px;
     border-radius: 12px;
     font-weight: 900;
+    font-size: 16px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
