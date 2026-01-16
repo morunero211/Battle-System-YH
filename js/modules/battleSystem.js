@@ -303,7 +303,13 @@ class BattleSystem {
 
                 this.addLog(`  🌊 부수 피해: ${raw} (대상 ${list.length}명)`);
                 list.forEach((t) => {
-                    const damage = raw;
+                    const defStat = ef.applyDefense ? this.getEffectiveStat(t, 'defense') : 1;
+                    const defensePercent = ef.applyDefense ? this.getDefenseReductionPercent(defStat) : 0;
+                    const damage = ef.applyDefense ? this.applyDefenseReduction(raw, defensePercent) : raw;
+
+                    if (ef.applyDefense) {
+                        this.addLog(`    🛡️ ${t.name} 방어 적용: ${defensePercent}% (원데미지 ${raw} → 실제 ${damage})`);
+                    }
                     this.applyDamageWithShield(t, damage);
                 });
                 continue;

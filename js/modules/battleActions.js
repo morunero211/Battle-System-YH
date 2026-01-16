@@ -244,6 +244,18 @@ class BattleActions {
         // 템플릿 스킬(조건+이펙트) 우선 처리
         const tmpl = this.app?.battleSystem?.getSkillTemplate?.(ctx.attacker);
         if (tmpl) {
+            const consumed = this.consumeSkillUse(ctx.attacker);
+            if (!consumed.consumed) {
+                this.hideSkillTargetModal();
+                this.app?.showToast?.('경고. 본 캐릭터의 스킬 횟수를 모두 사용하였습니다.', 'danger');
+                this.app.battleSystem.addLog('🔒 스킬 사용 불가: 사용 횟수 소진/잠금 상태');
+                return;
+            }
+            if (consumed.exhaustedNow) {
+                this.app?.showToast?.('스킬 사용 횟수를 모두 소진했습니다. (자동 잠금)', 'info');
+                this.app.battleSystem.addLog('🔒 스킬 사용 횟수 소진: 자동 잠금 처리');
+            }
+
             const res = this.app.battleSystem.executeSkillTemplate({ attacker: ctx.attacker, teamKey: ctx.teamKey, targets: targets.map(t => t.char) });
             this.hideSkillTargetModal();
             if (res?.ok) {

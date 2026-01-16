@@ -11,6 +11,64 @@ class DataManager {
         this.collection = 'battleApp';
         this.documentId = 'default';
         this.userId = null;
+        this.skillTemplatesBaseKey = 'battleSkillTemplates';
+        this.skillTemplatesKey = this.getSkillTemplatesKeyForUser(null);
+    }
+
+    getSkillTemplatesKeyForUser(userId) {
+        return userId ? `${this.skillTemplatesBaseKey}_${userId}` : this.skillTemplatesBaseKey;
+    }
+
+    /**
+     * 스킬 템플릿 라이브러리 저장 (localStorage)
+     */
+    saveSkillTemplates(templates) {
+        try {
+            localStorage.setItem(this.skillTemplatesKey, JSON.stringify(templates || {}));
+            if (this.app && this.app.battleSystem) {
+                // 내장 템플릿을 유지하면서 사용자 템플릿을 덮어씀
+                this.app.battleSystem.skillTemplates = {
+                    ...(this.app.battleSystem.skillTemplates || {}),
+                    ...(templates || {})
+                };
+            }
+        } catch (e) {
+            console.error('스킬 템플릿 저장 실패:', e);
+        }
+    }
+
+    /**
+     * 스킬 템플릿 라이브러리 불러오기 (localStorage)
+     */
+    loadSkillTemplates() {
+        try {
+            const raw = localStorage.getItem(this.skillTemplatesKey);
+            const templates = raw ? JSON.parse(raw) : {};
+            if (this.app && this.app.battleSystem) {
+                this.app.battleSystem.skillTemplates = {
+                    ...(this.app.battleSystem.skillTemplates || {}),
+                    ...(templates || {})
+                };
+            }
+            return templates;
+        } catch (e) {
+            console.error('스킬 템플릿 불러오기 실패:', e);
+            return {};
+        }
+    }
+
+    /**
+     * 스킬 템플릿 라이브러리 동기화 (앱/battleSystem)
+     */
+    syncSkillTemplates() {
+        const templates = this.loadSkillTemplates();
+        if (this.app && this.app.battleSystem) {
+            this.app.battleSystem.skillTemplates = {
+                ...(this.app.battleSystem.skillTemplates || {}),
+                ...(templates || {})
+            };
+        }
+        return templates;
     }
 
     hasAnyCharacters(teams) {
@@ -51,13 +109,39 @@ class DataManager {
      */
     setUser(userId, { applyLocalCache = true, migrate = true, render = true } = {}) {
         const prevKey = this.localStorageKey;
+        const prevSkillTemplatesKey = this.skillTemplatesKey;
         this.userId = userId || null;
         this.localStorageKey = userId ? `battleProgramData_${userId}` : 'battleProgramData';
+        this.skillTemplatesKey = this.getSkillTemplatesKeyForUser(this.userId);
         // 경로: users/{uid}/battle/default
         this.collection = userId ? 'users' : 'battleApp';
         this.documentId = 'default';
         if (this.app) {
             this.app.currentUserId = this.userId;
+        }
+
+        // 템플릿 키가 바뀌면, 기본 키(공용) → 사용자 키로 1회 이관(선택)
+        try {
+            const switchingTemplatesKey = prevSkillTemplatesKey && this.skillTemplatesKey && prevSkillTemplatesKey !== this.skillTemplatesKey;
+            if (migrate && switchingTemplatesKey && this.userId) {
+                const prevTemplates = this.getLocalDataForKey(prevSkillTemplatesKey);
+                const nextTemplates = this.getLocalDataForKey(this.skillTemplatesKey);
+                const prevHas = !!(prevTemplates && typeof prevTemplates === 'object' && Object.keys(prevTemplates).length > 0);
+                const nextHas = !!(nextTemplates && typeof nextTemplates === 'object' && Object.keys(nextTemplates).length > 0);
+
+                if (prevHas && !nextHas) {
+                    localStorage.setItem(this.skillTemplatesKey, JSON.stringify({
+                        ...prevTemplates,
+                        migratedFrom: prevSkillTemplatesKey,
+                        migratedAt: new Date().toISOString()
+                    }));
+                }
+            }
+
+            // 사용자 전환 시 템플릿도 즉시 동기화
+            this.syncSkillTemplates();
+        } catch (e) {
+            console.error('사용자 전환 시 템플릿 키 적용 실패:', e);
         }
 
         if (!applyLocalCache) return;

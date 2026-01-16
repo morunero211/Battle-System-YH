@@ -189,6 +189,9 @@
                                 <button id="paste-json" class="btn-management">
                                     <span>📝</span> 붙여넣기
                                 </button>
+                                <button id="open-skill-template-library" class="btn-management" style="background:linear-gradient(90deg,#667eea,#764ba2);color:#fff;">
+                                    <span>🛠️</span> 스킬 템플릿 라이브러리
+                                </button>
                             </div>
                         </div>
                     </div>
@@ -629,6 +632,7 @@
                                 <div class="action-buttons">
                                     <button id="action-attack" class="btn btn-action">공격</button>
                                     <button id="action-ultimate" class="btn btn-action">스킬</button>
+                                    <button id="action-chase" class="btn btn-secondary">도주 이벤트</button>
                                     <button id="forfeit-button" class="btn btn-secondary">시간 종료</button>
                                 </div>
                             </div>
@@ -759,6 +763,134 @@
             </div>
         </div>
 
+        <!-- 도주 이벤트(술래잡기) 모달 -->
+        <div id="chase-event-modal" class="modal centered" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="chase-title">
+            <div class="modal-content" style="max-width:1600px; width:min(1600px, 99.5vw); max-height:97vh; overflow:auto;">
+                <div class="modal-header">
+                    <h2 id="chase-title">🏃 도주 이벤트 (술래잡기)</h2>
+                    <button id="chase-close" class="modal-close" aria-label="닫기">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <div id="chase-fx-banner" class="chase-fx-banner" style="display:none;"></div>
+                    <div class="chase-grid">
+                        <div class="chase-card">
+                            <div class="char-modal-section-title" style="margin:0 0 12px;">설정</div>
+                            <div class="form-group">
+                                <label>도망자(히어로/정부)
+                                    <div id="chase-runner-label" class="chase-readonly">-</div>
+                                </label>
+                                <label>술래(빌런)
+                                    <div id="chase-chaser-label" class="chase-readonly">-</div>
+                                </label>
+                                <label>보드 칸 수
+                                    <input id="chase-board" type="number" min="5" max="12" value="8" />
+                                </label>
+                                <label>시작 거리(칸)
+                                    <input id="chase-gap" type="number" min="1" max="6" value="2" />
+                                </label>
+                                <label style="display:flex; align-items:center; gap:10px;">
+                                    <input id="chase-auto-mini" type="checkbox">
+                                    <span>종료 시 미니 공격 2회 자동 실행</span>
+                                </label>
+
+                                <div class="skill-template-actions chase-actions" style="margin-top:0;">
+                                    <button id="chase-start" type="button" class="btn">시작</button>
+                                    <button id="chase-roll" type="button" class="btn" disabled>민첩 굴림</button>
+                                    <button id="chase-mini-attack" type="button" class="btn" disabled>미니 공격 2회</button>
+                                    <button id="chase-reset" type="button" class="btn">초기화</button>
+                                </div>
+                                <div style="margin-top:10px; color:rgba(0,0,0,0.6); font-size:12px; font-weight:700;">
+                                    미니 공격: 반격/회피 없음 · 공격 판정은 공격 스탯 기반 · 피해 1~3
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="chase-card">
+                            <div class="char-modal-section-title" style="margin:0 0 12px;">진행</div>
+                            <div id="chase-status" style="font-weight:900; color:#2c3e50; margin-bottom:10px;">도망자/술래를 선택하고 시작하세요.</div>
+                            <div id="chase-board-view" class="chase-board" aria-label="도주 보드"></div>
+                            <textarea id="chase-log" class="chase-log" readonly placeholder="진행 로그가 여기에 표시됩니다."></textarea>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 스킬 템플릿 라이브러리/에디터 모달 -->
+        <div id="skill-template-library-modal" class="modal centered" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="skill-template-library-title">
+            <div class="modal-content skill-template-library-content">
+                <div class="modal-header">
+                    <h2 id="skill-template-library-title">스킬 템플릿 라이브러리</h2>
+                    <button id="skill-template-library-close" class="modal-close" aria-label="닫기">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <div class="skill-template-library-stack">
+                        <aside class="skill-template-library-sidebar" aria-label="템플릿 목록">
+                            <div class="skill-template-library-sidebar-head">
+                                <div class="char-modal-section-title" style="margin:0;">템플릿 목록</div>
+                                <button id="skill-template-add" class="btn btn-primary">+ 새 템플릿</button>
+                            </div>
+                            <ul id="skill-template-list" class="skill-template-list"></ul>
+                        </aside>
+
+                        <section class="skill-template-library-editor" aria-label="템플릿 편집">
+                            <div class="char-modal-section-title" style="margin:0 0 12px;">템플릿 편집</div>
+                            <form id="skill-template-editor" autocomplete="off">
+                                <div class="form-group">
+                                    <label>이름
+                                        <input id="template-name" type="text" maxlength="30" required>
+                                    </label>
+                                    <label>설명
+                                        <textarea id="template-desc" maxlength="120"></textarea>
+                                    </label>
+
+                                    <label>스킬 타입</label>
+                                    <div id="template-types" class="skill-type-selector template-skill-type-selector" aria-label="스킬 타입 선택">
+                                        <label class="skill-type-option">
+                                            <input type="radio" name="templateSkillType" value="공격형" checked>
+                                            <span>⚔️ 공격형</span>
+                                        </label>
+                                        <label class="skill-type-option">
+                                            <input type="radio" name="templateSkillType" value="방어형">
+                                            <span>🛡️ 방어형</span>
+                                        </label>
+                                        <label class="skill-type-option">
+                                            <input type="radio" name="templateSkillType" value="지원형">
+                                            <span>🤝 지원형</span>
+                                        </label>
+                                        <label class="skill-type-option">
+                                            <input type="radio" name="templateSkillType" value="치료형">
+                                            <span>💚 치료형</span>
+                                        </label>
+                                    </div>
+                                </div>
+
+                                <div id="template-conditions" class="skill-template-editor-block">
+                                    <h4 class="skill-template-editor-title">조건</h4>
+                                    <div id="template-conditions-list"></div>
+                                    <button id="template-condition-add" type="button" class="btn btn-secondary">+ 조건 추가</button>
+                                </div>
+
+                                <div id="template-effects" class="skill-template-editor-block" style="margin-top:14px;">
+                                    <h4 class="skill-template-editor-title">효과</h4>
+                                    <div id="template-effects-list"></div>
+                                    <button id="template-effect-add" type="button" class="btn btn-secondary">+ 효과 추가</button>
+                                </div>
+
+                                <div id="template-preview" class="skill-template-preview"></div>
+
+                                <div class="skill-template-actions">
+                                    <button id="template-save" type="submit" class="btn btn-primary">저장</button>
+                                    <button id="template-delete" type="button" class="btn btn-danger">삭제</button>
+                                    <button id="template-cancel" type="button" class="btn btn-secondary">취소</button>
+                                </div>
+                            </form>
+                        </section>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <footer>
             <p>&copy; 2025 Combat Calculator | 턴제 전투 계산 시스템</p>
         </footer>
@@ -788,6 +920,7 @@
     <script src="js/modules/pageManager.js?v=20260115c"></script>
     <script src="js/modules/battleSystem.js?v=20260116l"></script>
     <script src="js/modules/battleActions.js?v=20260116j"></script>
+    <script src="js/modules/chaseEvent.js?v=20260116a"></script>
     <script src="js/modules/battleManager.js?v=20260115c"></script>
     <script src="js/modules/battleRoom.js?v=20260116c"></script>
     

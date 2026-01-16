@@ -85,6 +85,7 @@ class BattleApp {
             fileInput: document.getElementById('file-input'),
                 copyCharacters: document.getElementById('copy-characters'),
                 copyCharactersH: document.getElementById('copy-characters-h'),
+            openSkillTemplateLibrary: document.getElementById('open-skill-template-library'),
             viewCharacterList: document.getElementById('view-character-list'),
             viewBattleHistory: document.getElementById('view-battle-history'),
             backToSelection: document.getElementById('back-to-selection'),
@@ -162,7 +163,13 @@ class BattleApp {
         this.characterManager = new CharacterManager(this);
         this.pageManager = new PageManager(this);
         this.battleSystem = new BattleSystem(this);
-    this.battleActions = new BattleActions(this);
+        this.battleActions = new BattleActions(this);
+
+        // 도주 이벤트(술래잡기) 미니게임
+        if (window.ChaseEvent) {
+            this.chaseEvent = new window.ChaseEvent(this);
+            this.chaseEvent.init();
+        }
 
         // Auth 상태가 이미 확정된(로그인된) 경우: 유저 키를 먼저 세팅해서
         // "기본 키 로드 → Default 표시" 깜빡임을 방지
@@ -179,6 +186,11 @@ class BattleApp {
 
         this.dataManager.loadFromLocalStorage(); // 저장된 데이터 자동 불러오기
         this.normalizePersistedData({ save: true });
+
+        // 스킬 템플릿 로드/동기화(내장 템플릿 + 로컬 저장 템플릿 병합)
+        if (this.dataManager?.syncSkillTemplates) {
+            this.dataManager.syncSkillTemplates();
+        }
 
         // 로컬에 아무 것도 없으면 그때만 샘플 로드
         this.loadSampleCharacters();
@@ -198,6 +210,7 @@ class BattleApp {
         this.initSkillConfigUI();
         this.initSkillUsesUI();
         this.initSkillTemplateUI();
+        this.initSkillTemplateLibraryUI();
 
         // 개발 모드 로직 제거됨
     }
@@ -431,6 +444,27 @@ class BattleApp {
 
         rebuildOptions();
         rerender();
+
+        // 다른 UI(템플릿 라이브러리)에서도 갱신을 호출할 수 있도록 노출
+        this._skillTemplateUI = { rebuildOptions, rerender };
+    }
+
+    initSkillTemplateLibraryUI() {
+        // 열기 버튼
+        this.elements.openSkillTemplateLibrary?.addEventListener('click', () => {
+            this.openSkillTemplateLibraryModal();
+        });
+
+        // 모달 닫기 버튼
+        document.getElementById('skill-template-library-close')?.addEventListener('click', () => {
+            this.closeSkillTemplateLibraryModal();
+        });
+
+        // 모달 바깥 클릭 시 닫기
+        const modal = document.getElementById('skill-template-library-modal');
+        modal?.addEventListener('click', (e) => {
+            if (e.target === modal) this.closeSkillTemplateLibraryModal();
+        });
     }
 
     describeCondition(cond) {
@@ -562,6 +596,607 @@ class BattleApp {
             .replace(/>/g, '&gt;')
             .replace(/"/g, '&quot;')
             .replace(/'/g, '&#39;');
+    }
+
+    // ===== 스킬 템플릿 라이브러리(모달) =====
+    openSkillTemplateLibraryModal() {
+        const modal = document.getElementById('skill-template-library-modal');
+        if (!modal) return;
+        modal.style.display = 'block';
+        this.renderSkillTemplateLibrary();
+    }
+
+    closeSkillTemplateLibraryModal() {
+        const modal = document.getElementById('skill-template-library-modal');
+        if (modal) modal.style.display = 'none';
+    }
+
+    getTemplateEditorDom() {
+        return {
+            listEl: document.getElementById('skill-template-list'),
+            addBtn: document.getElementById('skill-template-add'),
+            editorForm: document.getElementById('skill-template-editor'),
+            name: document.getElementById('template-name'),
+            desc: document.getElementById('template-desc'),
+            types: document.getElementById('template-types'),
+            conditionsList: document.getElementById('template-conditions-list'),
+            effectsList: document.getElementById('template-effects-list'),
+            conditionAdd: document.getElementById('template-condition-add'),
+            effectAdd: document.getElementById('template-effect-add'),
+            preview: document.getElementById('template-preview'),
+            save: document.getElementById('template-save'),
+            del: document.getElementById('template-delete'),
+            cancel: document.getElementById('template-cancel')
+        };
+    }
+
+    getTemplateSelectedSkillTypes() {
+        const wrap = document.getElementById('template-types');
+        if (!wrap) return [];
+        const checked = wrap.querySelector('input[name="templateSkillType"]:checked');
+        return checked ? [checked.value] : [];
+    }
+
+    setTemplateSelectedSkillTypes(types) {
+        const wrap = document.getElementById('template-types');
+        if (!wrap) return;
+        const first = Array.isArray(types) && types.length > 0 ? String(types[0]) : '';
+        Array.from(wrap.querySelectorAll('input[name="templateSkillType"]')).forEach((el) => {
+            el.checked = !!first && el.value === first;
+        });
+    }
+
+    getDefaultTemplateId(name) {
+        const slug = String(name || 'TEMPLATE')
+            .trim()
+            .replace(/\s+/g, '_')
+            .replace(/[^A-Za-z0-9_\-]/g, '')
+            .slice(0, 32)
+            || 'TEMPLATE';
+        return `${slug}_${Date.now()}`;
+    }
+
+    newEffectOptionKey() {
+        return `opt_${Math.random().toString(16).slice(2, 10)}`;
+    }
+
+    renderSkillTemplateLibrary() {
+        const dom = this.getTemplateEditorDom();
+        if (!dom.listEl || !dom.editorForm) return;
+
+        const templates = this.dataManager?.loadSkillTemplates ? this.dataManager.loadSkillTemplates() : {};
+        dom.listEl.innerHTML = '';
+
+        Object.entries(templates)
+            .filter(([id, t]) => !!id && t && typeof t === 'object')
+            .sort(([a], [b]) => String(a).localeCompare(String(b)))
+            .forEach(([id, t]) => {
+                const li = document.createElement('li');
+                li.className = 'skill-template-list-item';
+                li.textContent = `${t.name || id} (${id})`;
+                li.style.cursor = 'pointer';
+                li.onclick = () => this.editSkillTemplate(id);
+                dom.listEl.appendChild(li);
+            });
+
+        dom.addBtn?.addEventListener('click', () => this.editSkillTemplate(''));
+
+        // 기본: 새 템플릿 화면
+        this.editSkillTemplate('');
+    }
+
+    editSkillTemplate(id = '') {
+        const dom = this.getTemplateEditorDom();
+        if (!dom.name || !dom.desc || !dom.types || !dom.editorForm) return;
+
+        const templates = this.dataManager?.loadSkillTemplates ? this.dataManager.loadSkillTemplates() : {};
+        const t = id ? templates[id] : null;
+
+        this._editingTemplateId = id || '';
+        this._editingTemplateDraft = {
+            id: id || '',
+            name: t?.name || '',
+            description: t?.description || '',
+            allowedSkillTypes: Array.isArray(t?.allowedSkillTypes) ? t.allowedSkillTypes.slice() : [],
+            conditions: Array.isArray(t?.conditions) ? JSON.parse(JSON.stringify(t.conditions)) : [],
+            effects: Array.isArray(t?.effects) ? JSON.parse(JSON.stringify(t.effects)) : []
+        };
+
+        // 새 템플릿 기본값
+        if (!id && (!this._editingTemplateDraft.allowedSkillTypes || this._editingTemplateDraft.allowedSkillTypes.length === 0)) {
+            this._editingTemplateDraft.allowedSkillTypes = ['공격형'];
+        }
+
+        dom.name.value = this._editingTemplateDraft.name;
+        dom.desc.value = this._editingTemplateDraft.description;
+        this.setTemplateSelectedSkillTypes(this._editingTemplateDraft.allowedSkillTypes);
+
+        dom.name.oninput = () => {
+            this._editingTemplateDraft.name = dom.name.value;
+            this.renderTemplatePreview();
+        };
+        dom.desc.oninput = () => {
+            this._editingTemplateDraft.description = dom.desc.value;
+        };
+
+        // 스킬 타입 체크박스 변경 반영
+        Array.from(dom.types.querySelectorAll('input[name="templateSkillType"]')).forEach((input) => {
+            input.onchange = () => {
+                this._editingTemplateDraft.allowedSkillTypes = this.getTemplateSelectedSkillTypes();
+                this.renderTemplatePreview();
+            };
+        });
+
+        this.renderTemplateConditionsEditor();
+        this.renderTemplateEffectsEditor();
+        this.renderTemplatePreview();
+
+        dom.editorForm.onsubmit = (e) => {
+            e.preventDefault();
+            this.saveSkillTemplate();
+        };
+        dom.del.onclick = async (e) => {
+            e.preventDefault();
+            if (!this._editingTemplateId) return;
+            const ok = await this.showConfirm?.({
+                title: '템플릿 삭제',
+                message: `템플릿을 삭제할까요?\n(${this._editingTemplateId})`,
+                okText: '삭제',
+                cancelText: '취소'
+            });
+            if (ok) this.deleteSkillTemplate(this._editingTemplateId);
+        };
+        dom.cancel.onclick = (e) => {
+            e.preventDefault();
+            this.editSkillTemplate('');
+        };
+    }
+
+    renderTemplateConditionsEditor() {
+        const dom = this.getTemplateEditorDom();
+        const draft = this._editingTemplateDraft;
+        if (!dom.conditionsList || !draft) return;
+        const conds = Array.isArray(draft.conditions) ? draft.conditions : [];
+
+        dom.conditionsList.innerHTML = '';
+        conds.forEach((c, idx) => {
+            const row = document.createElement('div');
+            row.className = 'template-cond-row';
+
+            const type = document.createElement('select');
+            type.className = 'cond-type';
+            type.innerHTML = `
+                <option value="TARGET_HP_NOT_FULL">HP가 최대가 아님</option>
+            `;
+            type.value = c?.type || 'TARGET_HP_NOT_FULL';
+            type.onchange = () => {
+                conds[idx] = { ...(conds[idx] || {}), type: type.value };
+                this.renderTemplatePreview();
+            };
+
+            const perTarget = document.createElement('label');
+            perTarget.style.display = 'inline-flex';
+            perTarget.style.gap = '6px';
+            perTarget.style.alignItems = 'center';
+            perTarget.innerHTML = `<input type="checkbox" class="cond-pertarget"> <span>각 대상 기준</span>`;
+            const perTargetCb = perTarget.querySelector('input');
+            perTargetCb.checked = !!(c?.perTarget || String(c?.scope || '').toLowerCase() === 'pertarget');
+            perTargetCb.onchange = () => {
+                const next = { ...(conds[idx] || {}), perTarget: !!perTargetCb.checked };
+                if (perTargetCb.checked) next.scope = 'perTarget';
+                conds[idx] = next;
+                this.renderTemplatePreview();
+            };
+
+            const mode = document.createElement('select');
+            mode.className = 'cond-mode';
+            mode.innerHTML = `
+                <option value="any">(공통) 1명이라도 만족</option>
+                <option value="all">(공통) 전원 만족</option>
+            `;
+            mode.value = c?.mode === 'all' ? 'all' : 'any';
+            mode.onchange = () => {
+                conds[idx] = { ...(conds[idx] || {}), mode: mode.value };
+                this.renderTemplatePreview();
+            };
+
+            const remove = document.createElement('button');
+            remove.type = 'button';
+            remove.className = 'cond-remove btn btn-danger';
+            remove.textContent = '삭제';
+            remove.onclick = () => {
+                conds.splice(idx, 1);
+                this.renderTemplateConditionsEditor();
+                this.renderTemplatePreview();
+            };
+
+            row.appendChild(type);
+            row.appendChild(perTarget);
+            row.appendChild(mode);
+            row.appendChild(remove);
+            dom.conditionsList.appendChild(row);
+        });
+
+        dom.conditionAdd.onclick = () => {
+            conds.push({ type: 'TARGET_HP_NOT_FULL', mode: 'any' });
+            this.renderTemplateConditionsEditor();
+            this.renderTemplatePreview();
+        };
+    }
+
+    renderTemplateEffectsEditor() {
+        const dom = this.getTemplateEditorDom();
+        const draft = this._editingTemplateDraft;
+        if (!dom.effectsList || !draft) return;
+        const effects = Array.isArray(draft.effects) ? draft.effects : [];
+
+        dom.effectsList.innerHTML = '';
+        effects.forEach((e, idx) => {
+            const row = document.createElement('div');
+            row.className = 'template-eff-row';
+
+            const type = document.createElement('select');
+            type.className = 'eff-type';
+            type.innerHTML = `
+                <option value="DAMAGE_SKILL_ROLL">스킬 피해(주사위)</option>
+                <option value="DAMAGE_FLAT">고정 피해</option>
+                <option value="APPLY_STATUS">상태이상 부여</option>
+            `;
+            type.value = e?.type || 'DAMAGE_SKILL_ROLL';
+
+            const enabled = document.createElement('label');
+            enabled.style.display = 'inline-flex';
+            enabled.style.gap = '6px';
+            enabled.style.alignItems = 'center';
+            enabled.innerHTML = `<input type="checkbox" class="eff-enabled"> <span>활성</span>`;
+            const enabledCb = enabled.querySelector('input');
+            enabledCb.checked = e?.enabled !== false;
+            enabledCb.onchange = () => {
+                effects[idx] = { ...(effects[idx] || {}), enabled: !!enabledCb.checked };
+                this.renderTemplatePreview();
+            };
+
+            const targets = document.createElement('select');
+            targets.className = 'eff-targets';
+            targets.innerHTML = `
+                <option value="SELF">자신</option>
+                <option value="SELECTED">선택 대상</option>
+                <option value="ALLIES_INCLUDING_SELF">아군+자신</option>
+            `;
+            targets.value = e?.targets || 'SELECTED';
+            targets.onchange = () => {
+                effects[idx] = { ...(effects[idx] || {}), targets: targets.value };
+                this.renderTemplatePreview();
+            };
+
+            const optionKey = document.createElement('input');
+            optionKey.className = 'eff-option-key';
+            optionKey.placeholder = '옵션키(토글 저장용)';
+            optionKey.style.width = '160px';
+            optionKey.value = e?.optionKey || '';
+            optionKey.oninput = () => {
+                effects[idx] = { ...(effects[idx] || {}), optionKey: optionKey.value.trim() };
+            };
+
+            const optionLabel = document.createElement('input');
+            optionLabel.className = 'eff-option-label';
+            optionLabel.placeholder = '옵션 라벨(선택)';
+            optionLabel.style.width = '180px';
+            optionLabel.value = e?.optionLabel || '';
+            optionLabel.oninput = () => {
+                effects[idx] = { ...(effects[idx] || {}), optionLabel: optionLabel.value };
+            };
+
+            const extra = document.createElement('div');
+            extra.className = 'eff-extra';
+            extra.style.display = 'flex';
+            extra.style.gap = '8px';
+            extra.style.flexWrap = 'wrap';
+
+            const renderExtra = () => {
+                extra.innerHTML = '';
+                const cur = effects[idx] || {};
+
+                if (cur.type === 'DAMAGE_SKILL_ROLL') {
+                    const split = document.createElement('select');
+                    split.innerHTML = `
+                        <option value="evenFloor">다수 분배: floor(총합/n)</option>
+                        <option value="none">분배 없음(그대로)</option>
+                    `;
+                    split.value = cur.split === 'none' ? 'none' : 'evenFloor';
+                    split.onchange = () => {
+                        effects[idx] = { ...(effects[idx] || {}), split: split.value };
+                        this.renderTemplatePreview();
+                    };
+
+                    const applyDefense = document.createElement('label');
+                    applyDefense.style.display = 'inline-flex';
+                    applyDefense.style.gap = '6px';
+                    applyDefense.style.alignItems = 'center';
+                    applyDefense.innerHTML = `<input type="checkbox"> <span>방어 적용</span>`;
+                    const cb = applyDefense.querySelector('input');
+                    cb.checked = cur.applyDefense !== false;
+                    cb.onchange = () => {
+                        effects[idx] = { ...(effects[idx] || {}), applyDefense: !!cb.checked };
+                        this.renderTemplatePreview();
+                    };
+
+                    extra.appendChild(split);
+                    extra.appendChild(applyDefense);
+                }
+
+                if (cur.type === 'DAMAGE_FLAT') {
+                    const amount = document.createElement('input');
+                    amount.type = 'number';
+                    amount.min = '0';
+                    amount.max = '999';
+                    amount.step = '1';
+                    amount.value = String(Number.isFinite(Number(cur.amount)) ? cur.amount : 1);
+                    amount.style.width = '90px';
+                    amount.oninput = () => {
+                        effects[idx] = { ...(effects[idx] || {}), amount: Math.max(0, Math.floor(Number(amount.value) || 0)) };
+                        this.renderTemplatePreview();
+                    };
+
+                    const applyDefense = document.createElement('label');
+                    applyDefense.style.display = 'inline-flex';
+                    applyDefense.style.gap = '6px';
+                    applyDefense.style.alignItems = 'center';
+                    applyDefense.innerHTML = `<input type="checkbox"> <span>방어 적용</span>`;
+                    const cb = applyDefense.querySelector('input');
+                    cb.checked = !!cur.applyDefense;
+                    cb.onchange = () => {
+                        effects[idx] = { ...(effects[idx] || {}), applyDefense: !!cb.checked };
+                        this.renderTemplatePreview();
+                    };
+
+                    extra.appendChild(document.createTextNode('피해량'));
+                    extra.appendChild(amount);
+                    extra.appendChild(applyDefense);
+                }
+
+                if (cur.type === 'APPLY_STATUS') {
+                    const kind = document.createElement('select');
+                    kind.innerHTML = `
+                        <option value="NO_HEAL">치유 불가</option>
+                        <option value="STAT_MOD">스탯 변화</option>
+                    `;
+                    kind.value = cur.status?.kind || 'NO_HEAL';
+                    kind.onchange = () => {
+                        const prevStatus = cur.status && typeof cur.status === 'object' ? cur.status : {};
+                        let nextStatus;
+                        if (kind.value === 'STAT_MOD') {
+                            nextStatus = { kind: 'STAT_MOD', durationRounds: prevStatus.durationRounds ?? 1, statMods: prevStatus.statMods || { defense: -1 } };
+                        } else {
+                            nextStatus = { kind: 'NO_HEAL', durationRounds: prevStatus.durationRounds ?? 1, flags: { ...(prevStatus.flags || {}), noHeal: true } };
+                        }
+                        effects[idx] = { ...(effects[idx] || {}), status: nextStatus };
+                        this.renderTemplateEffectsEditor();
+                        this.renderTemplatePreview();
+                    };
+
+                    const dur = document.createElement('input');
+                    dur.type = 'number';
+                    dur.min = '1';
+                    dur.max = '99';
+                    dur.step = '1';
+                    dur.value = String(Math.max(1, Math.floor(Number(cur.status?.durationRounds) || 1)));
+                    dur.style.width = '70px';
+                    dur.oninput = () => {
+                        const next = Math.max(1, Math.floor(Number(dur.value) || 1));
+                        const status = cur.status && typeof cur.status === 'object' ? { ...cur.status } : { kind: kind.value };
+                        status.durationRounds = next;
+                        if (status.kind === 'NO_HEAL') status.flags = { ...(status.flags || {}), noHeal: true };
+                        effects[idx] = { ...(effects[idx] || {}), status };
+                        this.renderTemplatePreview();
+                    };
+
+                    extra.appendChild(kind);
+                    extra.appendChild(document.createTextNode('지속(턴)'));
+                    extra.appendChild(dur);
+
+                    if ((cur.status?.kind || 'NO_HEAL') === 'STAT_MOD') {
+                        const statKeys = ['attack', 'defense', 'agility', 'skill'];
+                        statKeys.forEach((k) => {
+                            const input = document.createElement('input');
+                            input.type = 'number';
+                            input.min = '-5';
+                            input.max = '5';
+                            input.step = '1';
+                            input.style.width = '60px';
+                            const v = Number(cur.status?.statMods?.[k] || 0);
+                            input.value = String(Number.isFinite(v) ? v : 0);
+                            input.oninput = () => {
+                                const n = Math.max(-5, Math.min(5, Math.floor(Number(input.value) || 0)));
+                                const status = cur.status && typeof cur.status === 'object' ? { ...cur.status } : { kind: 'STAT_MOD' };
+                                status.kind = 'STAT_MOD';
+                                status.statMods = { ...(status.statMods || {}) };
+                                status.statMods[k] = n;
+                                effects[idx] = { ...(effects[idx] || {}), status };
+                                this.renderTemplatePreview();
+                            };
+                            const wrap = document.createElement('label');
+                            wrap.style.display = 'inline-flex';
+                            wrap.style.alignItems = 'center';
+                            wrap.style.gap = '6px';
+                            wrap.textContent = k;
+                            wrap.appendChild(input);
+                            extra.appendChild(wrap);
+                        });
+                    }
+                }
+            };
+
+            type.onchange = () => {
+                const prev = effects[idx] || {};
+                let next = { ...prev, type: type.value };
+
+                if (type.value === 'DAMAGE_SKILL_ROLL') {
+                    next = { ...next, targets: next.targets || 'SELECTED', split: next.split || 'evenFloor', applyDefense: next.applyDefense !== false };
+                }
+                if (type.value === 'DAMAGE_FLAT') {
+                    next = { ...next, targets: next.targets || 'SELECTED', amount: Number.isFinite(Number(next.amount)) ? next.amount : 1 };
+                }
+                if (type.value === 'APPLY_STATUS') {
+                    const status = prev.status && typeof prev.status === 'object' ? prev.status : null;
+                    next = {
+                        ...next,
+                        targets: next.targets || 'SELECTED',
+                        status: status || { kind: 'NO_HEAL', durationRounds: 1, flags: { noHeal: true } }
+                    };
+                }
+
+                effects[idx] = next;
+                renderExtra();
+                this.renderTemplatePreview();
+            };
+
+            const remove = document.createElement('button');
+            remove.type = 'button';
+            remove.className = 'eff-remove btn btn-danger';
+            remove.textContent = '삭제';
+            remove.onclick = () => {
+                effects.splice(idx, 1);
+                this.renderTemplateEffectsEditor();
+                this.renderTemplatePreview();
+            };
+
+            row.appendChild(type);
+            row.appendChild(enabled);
+            row.appendChild(targets);
+            row.appendChild(optionKey);
+            row.appendChild(optionLabel);
+            row.appendChild(remove);
+            row.appendChild(extra);
+
+            dom.effectsList.appendChild(row);
+            renderExtra();
+        });
+
+        dom.effectAdd.onclick = () => {
+            effects.push({
+                type: 'DAMAGE_SKILL_ROLL',
+                targets: 'SELECTED',
+                split: 'evenFloor',
+                applyDefense: true,
+                enabled: true,
+                optionKey: this.newEffectOptionKey()
+            });
+            this.renderTemplateEffectsEditor();
+            this.renderTemplatePreview();
+        };
+    }
+
+    renderTemplatePreview() {
+        const dom = this.getTemplateEditorDom();
+        const draft = this._editingTemplateDraft;
+        if (!dom.preview || !draft) return;
+
+        const conds = Array.isArray(draft.conditions) ? draft.conditions : [];
+        const effects = Array.isArray(draft.effects) ? draft.effects : [];
+        const condText = conds.length === 0
+            ? '없음'
+            : conds.map((c) => `- ${this.escapeHtml(this.describeCondition(c))}`).join('<br/>');
+        const effText = effects.length === 0
+            ? '없음'
+            : effects.map((e) => `- ${this.escapeHtml(this.describeEffect(e, e?.enabled !== false))}`).join('<br/>');
+
+        dom.preview.innerHTML = [
+            `<div class="title">템플릿 미리보기</div>`,
+            `<div class="row"><strong>이름</strong>: ${this.escapeHtml(draft.name || '(미입력)')}</div>`,
+            `<div class="row"><strong>타입</strong>: ${this.escapeHtml((draft.allowedSkillTypes || []).join(', ') || '(미지정)')}</div>`,
+            `<div class="row"><strong>조건</strong>:<br/>${condText}</div>`,
+            `<div class="row"><strong>효과</strong>:<br/>${effText}</div>`
+        ].join('');
+    }
+
+    saveSkillTemplate() {
+        const dom = this.getTemplateEditorDom();
+        const draft = this._editingTemplateDraft;
+        if (!dom.name || !dom.types || !draft) return;
+
+        const name = dom.name.value.trim();
+        if (!name) {
+            this.showToast?.('템플릿 이름을 입력해주세요.', 'warning');
+            return;
+        }
+
+        const allowedSkillTypes = this.getTemplateSelectedSkillTypes();
+        if (!allowedSkillTypes || allowedSkillTypes.length !== 1) {
+            this.showToast?.('스킬 타입은 1개만 선택할 수 있습니다.', 'warning');
+            return;
+        }
+        const templates = this.dataManager?.loadSkillTemplates ? this.dataManager.loadSkillTemplates() : {};
+
+        const id = this._editingTemplateId || this.getDefaultTemplateId(name);
+        const normalized = {
+            id,
+            name,
+            description: dom.desc?.value?.trim() || '',
+            allowedSkillTypes,
+            conditions: Array.isArray(draft.conditions) ? draft.conditions : [],
+            effects: (Array.isArray(draft.effects) ? draft.effects : []).map((e, idx) => {
+                const optionKey = String(e?.optionKey || '').trim() || String(e?.optionKey) || `__effect_${idx}`;
+                const base = {
+                    ...e,
+                    optionKey,
+                    enabled: e?.enabled !== false
+                };
+
+                // 타입별 최소 필드 보정
+                if (base.type === 'DAMAGE_SKILL_ROLL') {
+                    return {
+                        ...base,
+                        targets: base.targets || 'SELECTED',
+                        split: base.split === 'none' ? 'none' : 'evenFloor',
+                        applyDefense: base.applyDefense !== false
+                    };
+                }
+                if (base.type === 'DAMAGE_FLAT') {
+                    return {
+                        ...base,
+                        targets: base.targets || 'SELECTED',
+                        amount: Math.max(0, Math.floor(Number(base.amount) || 0)),
+                        applyDefense: !!base.applyDefense
+                    };
+                }
+                if (base.type === 'APPLY_STATUS') {
+                    const status = base.status && typeof base.status === 'object' ? { ...base.status } : { kind: 'NO_HEAL' };
+                    status.kind = status.kind === 'STAT_MOD' ? 'STAT_MOD' : 'NO_HEAL';
+                    status.durationRounds = Math.max(1, Math.floor(Number(status.durationRounds) || 1));
+                    if (status.kind === 'NO_HEAL') {
+                        status.flags = { ...(status.flags || {}), noHeal: true };
+                        delete status.statMods;
+                    } else {
+                        status.statMods = { ...(status.statMods || {}) };
+                    }
+                    return { ...base, targets: base.targets || 'SELECTED', status };
+                }
+                return base;
+            })
+        };
+
+        templates[id] = normalized;
+        this.dataManager?.saveSkillTemplates?.(templates);
+
+        // UI 반영: 드롭다운/미리보기 갱신
+        this._skillTemplateUI?.rebuildOptions?.();
+        this._skillTemplateUI?.rerender?.();
+
+        this.showToast?.('템플릿을 저장했습니다.', 'success');
+        this.renderSkillTemplateLibrary();
+        this.editSkillTemplate(id);
+    }
+
+    deleteSkillTemplate(id) {
+        const templates = this.dataManager?.loadSkillTemplates ? this.dataManager.loadSkillTemplates() : {};
+        if (!templates[id]) return;
+        delete templates[id];
+        this.dataManager?.saveSkillTemplates?.(templates);
+        this._skillTemplateUI?.rebuildOptions?.();
+        this._skillTemplateUI?.rerender?.();
+        this.showToast?.('템플릿을 삭제했습니다.', 'info');
+        this.renderSkillTemplateLibrary();
     }
 
     /**
