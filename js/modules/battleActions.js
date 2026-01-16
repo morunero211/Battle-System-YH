@@ -243,14 +243,6 @@ class BattleActions {
 
         // 공격형: 단일/다수 모두 실제 적용
         if (ctx.skillType === '공격형') {
-            const useState = this.getSkillUseState(ctx.attacker);
-            if (!useState.canUse) {
-                this.hideSkillTargetModal();
-                this.app?.showToast?.('경고. 본 캐릭터의 스킬 횟수를 모두 사용하였습니다.', 'danger');
-                this.app.battleSystem.addLog('🔒 스킬 사용 불가: 사용 횟수 소진/잠금 상태');
-                return;
-            }
-
             const consumed = this.consumeSkillUse(ctx.attacker);
             if (!consumed.consumed) {
                 this.hideSkillTargetModal();
@@ -259,7 +251,8 @@ class BattleActions {
                 return;
             }
             if (consumed.exhaustedNow) {
-                this.app?.showToast?.('경고. 본 캐릭터의 스킬 횟수를 모두 사용하였습니다.', 'danger');
+                // 마지막 1회를 "성공적으로" 사용한 경우: 차단용 경고 대신 안내만
+                this.app?.showToast?.('스킬 사용 횟수를 모두 소진했습니다. (자동 잠금)', 'info');
                 this.app.battleSystem.addLog('🔒 스킬 사용 횟수 소진: 자동 잠금 처리');
             }
 
@@ -283,14 +276,6 @@ class BattleActions {
 
         // 방어형(쉴드): 단일/다수 모두 실제 적용
         if (ctx.skillType === '방어형') {
-            const useState = this.getSkillUseState(ctx.attacker);
-            if (!useState.canUse) {
-                this.hideSkillTargetModal();
-                this.app?.showToast?.('경고. 본 캐릭터의 스킬 횟수를 모두 사용하였습니다.', 'danger');
-                this.app.battleSystem.addLog('🔒 스킬 사용 불가: 사용 횟수 소진/잠금 상태');
-                return;
-            }
-
             const consumed = this.consumeSkillUse(ctx.attacker);
             if (!consumed.consumed) {
                 this.hideSkillTargetModal();
@@ -299,7 +284,7 @@ class BattleActions {
                 return;
             }
             if (consumed.exhaustedNow) {
-                this.app?.showToast?.('경고. 본 캐릭터의 스킬 횟수를 모두 사용하였습니다.', 'danger');
+                this.app?.showToast?.('스킬 사용 횟수를 모두 소진했습니다. (자동 잠금)', 'info');
                 this.app.battleSystem.addLog('🔒 스킬 사용 횟수 소진: 자동 잠금 처리');
             }
 
@@ -314,14 +299,6 @@ class BattleActions {
 
         // 치료형: 단일/다수 모두 실제 적용
         if (ctx.skillType === '치료형') {
-            const useState = this.getSkillUseState(ctx.attacker);
-            if (!useState.canUse) {
-                this.hideSkillTargetModal();
-                this.app?.showToast?.('경고. 본 캐릭터의 스킬 횟수를 모두 사용하였습니다.', 'danger');
-                this.app.battleSystem.addLog('🔒 스킬 사용 불가: 사용 횟수 소진/잠금 상태');
-                return;
-            }
-
             const consumed = this.consumeSkillUse(ctx.attacker);
             if (!consumed.consumed) {
                 this.hideSkillTargetModal();
@@ -330,7 +307,7 @@ class BattleActions {
                 return;
             }
             if (consumed.exhaustedNow) {
-                this.app?.showToast?.('경고. 본 캐릭터의 스킬 횟수를 모두 사용하였습니다.', 'danger');
+                this.app?.showToast?.('스킬 사용 횟수를 모두 소진했습니다. (자동 잠금)', 'info');
                 this.app.battleSystem.addLog('🔒 스킬 사용 횟수 소진: 자동 잠금 처리');
             }
 
