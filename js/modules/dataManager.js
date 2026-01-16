@@ -408,14 +408,20 @@ class DataManager {
             const remoteTeams = data.teams;
             const remoteHas = this.hasAnyCharacters(remoteTeams);
 
+            const localPresent = !!(local && Array.isArray(local.teams));
+
             const localTime = this.parseTime(local?.savedAt);
             const remoteTime = this.parseTime(data?.updatedAt || data?.savedAt);
             const remoteNewer = (localTime !== null && remoteTime !== null) ? (remoteTime >= localTime) : null;
 
+            // 원격 데이터 적용 규칙
+            // - 로컬에 저장 기록이 없으면(remote가 있으면) 원격을 적용
+            // - 로컬에 저장 기록이 있으면(비어있더라도), 원격이 더 최신일 때만 적용
+            //   => 사용자가 로컬에서 "삭제"했는데 원격이 예전 데이터로 되살리는 문제 방지
             const shouldApplyRemoteTeams = Array.isArray(remoteTeams)
                 && (
-                    (remoteHas && (!localHas || remoteNewer !== false))
-                    || (!remoteHas && !localHas)
+                    (remoteHas && (!localPresent || remoteNewer === true))
+                    || (!remoteHas && !localHas && !localPresent)
                 );
 
             if (shouldApplyRemoteTeams) {
