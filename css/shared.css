@@ -833,7 +833,7 @@ textarea:focus {
     display: flex;
     flex-direction: column;
     gap: 16px;
-    overflow: hidden;
+    overflow: visible;
 }
 
 .form-group label {
@@ -849,6 +849,55 @@ textarea:focus {
     border-radius: 10px;
     font-size: 1em;
     transition: all 0.2s ease;
+}
+
+/* 셀렉트(소속 등)도 입력 UI와 통일 */
+#custom-character-modal .form-group select {
+    width: 100%;
+    padding: 12px 44px 12px 14px; /* 우측 화살표 공간 */
+    border: 2px solid #e3e6f0;
+    border-radius: 10px;
+    font-size: 1em;
+    font-weight: 700;
+    color: #2c3e50;
+    background: linear-gradient(180deg, #ffffff 0%, #fbfcff 100%);
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.04);
+    transition: all 0.2s ease;
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    cursor: pointer;
+
+    /* 드롭다운 화살표 */
+    background-image:
+        linear-gradient(45deg, transparent 50%, #667eea 50%),
+        linear-gradient(135deg, #667eea 50%, transparent 50%),
+        linear-gradient(180deg, #ffffff 0%, #fbfcff 100%);
+    background-position:
+        calc(100% - 20px) 52%,
+        calc(100% - 14px) 52%,
+        0 0;
+    background-size:
+        6px 6px,
+        6px 6px,
+        100% 100%;
+    background-repeat: no-repeat;
+}
+
+#custom-character-modal .form-group select:hover {
+    border-color: #c7d2fe;
+    box-shadow: 0 10px 24px rgba(102, 126, 234, 0.12);
+}
+
+#custom-character-modal .form-group select:focus {
+    outline: none;
+    border-color: #667eea;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.12);
+}
+
+/* 소속 셀렉트는 조금 더 강조 */
+#custom-character-modal #char-team {
+    border-color: #dbe4ff;
 }
 
 .form-group input:focus {
