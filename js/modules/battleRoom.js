@@ -17,6 +17,22 @@ class BattleRoom {
     this.init();
   }
 
+  getUi() {
+    return window.app;
+  }
+
+  async uiAlert(message, title = '알림') {
+    const ui = this.getUi();
+    if (ui?.showAlert) return ui.showAlert({ title, message });
+    alert(message);
+  }
+
+  async uiConfirm(message, title = '확인', okText = '확인', cancelText = '취소') {
+    const ui = this.getUi();
+    if (ui?.showConfirm) return ui.showConfirm({ title, message, okText, cancelText });
+    return confirm(message);
+  }
+
   async init() {
     // 초기 전투 데이터 로드
     await this.fetchBattle();
@@ -48,7 +64,7 @@ class BattleRoom {
       if (this.errorCount >= this.MAX_ERRORS) {
         console.error('⚠️ 연속 에러 발생, 폴링 중지');
         this.stopPolling();
-        alert('서버 연결에 문제가 발생했습니다. 새로고침해주세요.');
+        await this.uiAlert('서버 연결에 문제가 발생했습니다. 새로고침해주세요.', '연결 오류');
       }
     }
   }
@@ -453,7 +469,7 @@ class BattleRoom {
       }
     } catch (error) {
       console.error('❌ 액션 실행 오류:', error);
-      alert('액션 실행에 실패했습니다: ' + error.message);
+      await this.uiAlert('액션 실행에 실패했습니다: ' + error.message, '오류');
     }
   }
 
@@ -486,7 +502,7 @@ class BattleRoom {
       this.render();
     } catch (error) {
       console.error('❌ 공격 오류:', error);
-      alert('공격 실패: ' + error.message);
+      await this.uiAlert('공격 실패: ' + error.message, '오류');
     }
   }
 
@@ -494,21 +510,21 @@ class BattleRoom {
    * 스킬 선택 (TO-DO)
    */
   async showSkillSelection(actorId) {
-    alert('스킬 선택 팝업 (준비 중)');
+    await this.uiAlert('스킬 선택 팝업 (준비 중)');
   }
 
   /**
    * 아이템 선택 (TO-DO)
    */
   async showItemSelection(actorId) {
-    alert('아이템 선택 팝업 (준비 중)');
+    await this.uiAlert('아이템 선택 팝업 (준비 중)');
   }
 
   /**
    * 방어 스킬 선택 (TO-DO)
    */
   async showDefenseSkillSelection(defenderId) {
-    alert('방어 스킬 선택 팝업 (준비 중)');
+    await this.uiAlert('방어 스킬 선택 팝업 (준비 중)');
   }
 
   /**
@@ -543,7 +559,7 @@ class BattleRoom {
       this.render();
     } catch (error) {
       console.error('❌ 응답 오류:', error);
-      alert('응답 실패: ' + error.message);
+      await this.uiAlert('응답 실패: ' + error.message, '오류');
     }
   }
 
@@ -552,7 +568,13 @@ class BattleRoom {
    */
   async requestTimeout() {
     try {
-      if (!confirm('정말 타임아웃으로 전투를 종료하시겠습니까?')) return;
+      const ok = await this.uiConfirm(
+        '정말 타임아웃으로 전투를 종료하시겠습니까?',
+        '타임아웃 종료',
+        '종료',
+        '취소'
+      );
+      if (!ok) return;
 
       const response = await fetch(`${this.apiBaseUrl}/battles/${this.battleId}/end`, {
         method: 'POST',
@@ -570,21 +592,21 @@ class BattleRoom {
       this.render();
       this.stopPolling();
       
-      alert('전투가 타임아웃으로 종료되었습니다.');
+      await this.uiAlert('전투가 타임아웃으로 종료되었습니다.', '안내');
     } catch (error) {
       console.error('❌ 타임아웃 오류:', error);
-      alert('타임아웃 요청 실패: ' + error.message);
+      await this.uiAlert('타임아웃 요청 실패: ' + error.message, '오류');
     }
   }
 
   /**
    * 전투 나가기
    */
-  exitBattle() {
-    if (confirm('전투를 나가시겠습니까?')) {
-      this.stopPolling();
-      window.location.href = '/';
-    }
+  async exitBattle() {
+    const ok = await this.uiConfirm('전투를 나가시겠습니까?', '전투 나가기', '나가기', '취소');
+    if (!ok) return;
+    this.stopPolling();
+    window.location.href = '/';
   }
 
   /**

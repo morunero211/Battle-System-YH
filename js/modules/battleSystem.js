@@ -399,31 +399,106 @@ class BattleSystem {
 
     /**
      * 우측 패널 슬롯 자동 채움
-     * 현재 차례 팀의 상위 3명 기준으로 표시
+     * 참여한 모든 캐릭터 기준으로 스킬 상세 표시
      */
     updateSkillSlots() {
         const panel = document.getElementById('skill-status');
         if (!panel) return;
-        const bodies = panel.querySelectorAll('.skill-block .skill-block-body');
-        const teamKeys = ['hero', 'gov', 'villain'];
-        const key = teamKeys[this.currentTeamTurn] || 'hero';
-        const chars = this.combatCharacters[key] || [];
+        const teamOrder = ['hero', 'gov', 'villain'];
+        const teamIcons = { hero: '🦸', gov: '🏛️', villain: '😈' };
+        const teamLabels = { hero: '히어로', gov: '정부', villain: '빌런' };
 
-        for (let i = 0; i < bodies.length; i++) {
-            const bodyEl = bodies[i];
-            const char = chars[i];
-            if (!bodyEl) continue;
-            if (char) {
-                bodyEl.classList.remove('placeholder');
-                const type = (char.skillTypes && char.skillTypes.length > 0) ? char.skillTypes[0] : '(비어있음)';
-                const name = char.name || '(비어있음)';
-                const desc = char.skillDescription || '(비어있음)';
-                bodyEl.textContent = `${type} · ${name} — ${desc}`;
-            } else {
-                bodyEl.classList.add('placeholder');
-                bodyEl.textContent = '(비어있음)';
-            }
+        const participants = teamOrder.flatMap((teamKey) => {
+            const list = Array.isArray(this.combatCharacters?.[teamKey]) ? this.combatCharacters[teamKey] : [];
+            return list.map((char) => ({ teamKey, char }));
+        });
+
+        if (participants.length === 0) {
+            panel.innerHTML = `
+                <div class="skill-block">
+                    <div class="skill-block-body placeholder">(참여 캐릭터 없음)</div>
+                </div>
+            `;
+            return;
         }
+
+        const getUseState = (char) => {
+            const actions = this.app?.battleActions;
+            if (actions?.getSkillUseState) return actions.getSkillUseState(char);
+            const max = Math.max(0, Math.min(99, Math.floor(Number(char?.skillUsesMax ?? 1) || 0)));
+            const used = Math.max(0, Math.floor(Number(char?.skillUsesUsed) || 0));
+            const locked = !!char?.skillUsesLocked;
+            const exhausted = max === 0 ? true : (used >= max);
+            const canUse = !(locked || exhausted);
+            const remaining = max === 0 ? 0 : Math.max(0, max - used);
+            return { max, used, remaining, locked, exhausted, canUse };
+        };
+
+        panel.innerHTML = participants
+            .map(({ teamKey, char }) => {
+                const name = this.escapeHtml(char?.name || '(이름 없음)');
+                const icon = teamIcons[teamKey] || '👤';
+                const team = teamLabels[teamKey] || teamKey;
+
+                const types = Array.isArray(char?.skillTypes) ? char.skillTypes : [];
+                const typesText = types.length > 0 ? this.escapeHtml(types.join(', ')) : '-';
+
+                const desc = this.escapeHtml(char?.skillDescription || '-');
+                const skillStat = Number.isFinite(Number(char?.skill)) ? String(Math.round(Number(char.skill))) : '-';
+
+                const mode = char?.skillTarget?.mode === 'multi' ? '다수' : '단일';
+                const includeSelf = !!char?.skillTarget?.includeSelf;
+                const targetText = (mode === '다수')
+                    ? (includeSelf ? '다수(자기 포함)' : '다수(자기 제외)')
+                    : '단일';
+
+                const maxHp = Number.isFinite(Number(char?.maxHp)) ? Math.max(1, Math.round(Number(char.maxHp))) : 100;
+                const totalHp = Math.max(0, Math.round(Number(char?.hp) || 0));
+                const baseHp = Math.min(maxHp, totalHp);
+                const shieldHp = Math.max(0, totalHp - maxHp);
+                const hpText = shieldHp > 0
+                    ? `HP ${baseHp}/${maxHp} · 🛡️+${shieldHp}`
+                    : `HP ${baseHp}/${maxHp}`;
+
+                const useState = getUseState(char);
+                const lockedNow = !!(useState.locked || useState.exhausted);
+                const useText = (useState.max === 0)
+                    ? '사용 불가'
+                    : `${useState.remaining}/${useState.max} (사용 ${useState.used})`;
+
+                const usedUltimate = !!this.usedUltimate?.[char?.id];
+                const ultimateText = usedUltimate ? '사용함' : '미사용';
+
+                return `
+                    <div class="skill-block">
+                        <div class="skill-block-title">${icon} ${name} <span style="color:#718096; font-weight:700;">· ${this.escapeHtml(team)}</span></div>
+                        <div class="skill-block-body">
+                            <div class="skill-detail-line">
+                                <span class="skill-detail-label">스킬</span>
+                                <span class="skill-detail-value">⭐ ${this.escapeHtml(skillStat)} · ${typesText}</span>
+                            </div>
+                            <div class="skill-detail-line">
+                                <span class="skill-detail-label">대상</span>
+                                <span class="skill-detail-value">${this.escapeHtml(targetText)}</span>
+                            </div>
+                            <div class="skill-detail-line">
+                                <span class="skill-detail-label">횟수</span>
+                                <span class="skill-detail-value skill-uses ${lockedNow ? 'is-locked' : ''}">${this.escapeHtml(useText)}${lockedNow ? ' 🔒' : ''}</span>
+                            </div>
+                            <div class="skill-detail-line">
+                                <span class="skill-detail-label">궁극기</span>
+                                <span class="skill-detail-value">${this.escapeHtml(ultimateText)}</span>
+                            </div>
+                            <div class="skill-detail-line">
+                                <span class="skill-detail-label">HP</span>
+                                <span class="skill-detail-value">${this.escapeHtml(hpText)}</span>
+                            </div>
+                            <div style="color:#4a5568; font-weight:700; line-height:1.5;">${desc}</div>
+                        </div>
+                    </div>
+                `;
+            })
+            .join('');
     }
 
     /**

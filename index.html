@@ -11,7 +11,7 @@
     <link rel="stylesheet" href="css/base.css?v=20260115i">
     <link rel="stylesheet" href="css/shared.css?v=20260115i">
     <link rel="stylesheet" href="css/main-screen.css?v=20260115">
-    <link rel="stylesheet" href="css/combat-screen.css?v=20260115d">
+    <link rel="stylesheet" href="css/combat-screen.css?v=20260116b">
     <link rel="stylesheet" href="css/battle-room.css?v=20260116a">
     <link rel="stylesheet" href="css/dark-theme.css?v=20260115d">
 </head>
@@ -576,7 +576,6 @@
                             <span class="badge badge-mode" id="battle-mode-badge">팀전</span>
                             <span class="badge badge-turn"><span id="turn-count">1</span>턴 · <span id="current-turn-text">현재 차례: -</span></span>
                         </div>
-                        <button id="back-home" class="btn btn-secondary">HOME</button>
                     </div>
 
                     <div class="combat-columns">
@@ -632,20 +631,7 @@
                                     <div id="combat-current-time" class="clock-time">00:00:00</div>
                                     <div id="combat-current-date" class="clock-date">2025년 12월 26일</div>
                                 </div>
-                                <div id="skill-status" class="realtime-body">
-                                    <div class="skill-block">
-                                        <div class="skill-block-title">슬롯 1</div>
-                                        <div class="skill-block-body placeholder">(비어있음)</div>
-                                    </div>
-                                    <div class="skill-block">
-                                        <div class="skill-block-title">슬롯 2</div>
-                                        <div class="skill-block-body placeholder">(비어있음)</div>
-                                    </div>
-                                    <div class="skill-block">
-                                        <div class="skill-block-title">슬롯 3</div>
-                                        <div class="skill-block-body placeholder">(비어있음)</div>
-                                    </div>
-                                </div>
+                                <div id="skill-status" class="realtime-body"></div>
                             </div>
                         </div>
                     </div>
@@ -767,15 +753,15 @@
     
     <!-- 모듈 로드 -->
     <script src="js/modules/dataManager.js?v=20260115e"></script>
-    <script src="js/modules/modalManager.js?v=20260115c"></script>
+    <script src="js/modules/modalManager.js?v=20260116c"></script>
     <script src="js/modules/characterManager.js?v=20260115c"></script>
     <script src="js/modules/pageManager.js?v=20260115c"></script>
-    <script src="js/modules/battleSystem.js?v=20260115e"></script>
-    <script src="js/modules/battleActions.js?v=20260115h"></script>
+    <script src="js/modules/battleSystem.js?v=20260116b"></script>
+    <script src="js/modules/battleActions.js?v=20260116c"></script>
     <script src="js/modules/battleManager.js?v=20260115c"></script>
-    <script src="js/modules/battleRoom.js?v=20260115c"></script>
+    <script src="js/modules/battleRoom.js?v=20260116c"></script>
     
     <!-- 메인 앱 로드 -->
-    <script src="js/app.js?v=20260115h"></script>
+    <script src="js/app.js?v=20260116c"></script>
 </body>
 </html>

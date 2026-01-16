@@ -337,11 +337,7 @@ main #combat-screen {
 #forfeit-button { background: #e53e3e; border-color: #e53e3e; color: #fff; }
 #forfeit-button:hover { background: #c53030; border-color: #c53030; }
 
-/* 헤더의 HOME 버튼 소형화 */
-#back-home {
-    padding: 6px 10px;
-    font-size: 0.85em;
-}
+/* (removed) 헤더 HOME 버튼 */
 
 .btn-action:disabled {
     opacity: 0.5;
@@ -588,6 +584,51 @@ main #combat-screen {
     font-size: 0.85em;
     color: #718096;
     margin-top: 4px;
+}
+
+/* 참여 캐릭터별 스킬 상태(우측 패널) */
+.realtime-body {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 12px;
+    max-height: 520px;
+    overflow: auto;
+    padding-right: 4px;
+}
+
+.skill-block-body {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.skill-detail-line {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+.skill-detail-label {
+    color: #718096;
+    font-weight: 700;
+    font-size: 0.85em;
+    flex-shrink: 0;
+}
+
+.skill-detail-value {
+    color: #2c3e50;
+    font-weight: 700;
+    text-align: right;
+}
+
+.skill-uses {
+    font-family: 'Courier New', monospace;
+}
+
+.skill-uses.is-locked {
+    color: #c53030;
 }
 
 /* 스킬 블록 */

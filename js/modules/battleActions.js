@@ -366,14 +366,29 @@ class BattleActions {
         });
 
         // 시간 종료 버튼(타임아웃 판정)
-        document.getElementById('forfeit-button')?.addEventListener('click', () => {
+        document.getElementById('forfeit-button')?.addEventListener('click', async () => {
             if (this.app?.battleSystem?.pendingDefenseResponse) {
-                alert('방어자 응답 선택 중에는 시간 종료할 수 없습니다.');
+                if (this.app?.showAlert) {
+                    await this.app.showAlert({
+                        title: '제한',
+                        message: '방어자 응답 선택 중에는 시간 종료할 수 없습니다.'
+                    });
+                } else {
+                    alert('방어자 응답 선택 중에는 시간 종료할 수 없습니다.');
+                }
                 return;
             }
-            if (confirm('시간 종료하시겠습니까? (현재 HP 상태로 승패를 판정합니다)')) {
-                this.handleTimeoutEnd();
-            }
+
+            const ok = this.app?.showConfirm
+                ? await this.app.showConfirm({
+                    title: '시간 종료',
+                    message: '시간 종료하시겠습니까? (현재 HP 상태로 승패를 판정합니다)',
+                    okText: '종료',
+                    cancelText: '취소'
+                })
+                : confirm('시간 종료하시겠습니까? (현재 HP 상태로 승패를 판정합니다)');
+
+            if (ok) this.handleTimeoutEnd();
         });
 
         // 전투 결과 모달 닫기
@@ -471,7 +486,14 @@ class BattleActions {
      */
     selectTargetForUltimate() {
         if (this.app?.battleSystem?.pendingDefenseResponse) {
-            alert('방어자 응답 선택 중에는 스킬을 사용할 수 없습니다.');
+            if (this.app?.showAlert) {
+                this.app.showAlert({
+                    title: '제한',
+                    message: '방어자 응답 선택 중에는 스킬을 사용할 수 없습니다.'
+                });
+            } else {
+                alert('방어자 응답 선택 중에는 스킬을 사용할 수 없습니다.');
+            }
             return;
         }
 
@@ -482,7 +504,11 @@ class BattleActions {
         const currentTeamChars = this.app.battleSystem.combatCharacters[teamKey];
         const attacker = currentTeamChars.find(c => (Number(c.hp) || 0) > 0);
         if (!attacker) {
-            alert('스킬을 사용할 수 있는 캐릭터가 없습니다!');
+            if (this.app?.showAlert) {
+                this.app.showAlert({ title: '불가', message: '스킬을 사용할 수 있는 캐릭터가 없습니다!' });
+            } else {
+                alert('스킬을 사용할 수 있는 캐릭터가 없습니다!');
+            }
             return;
         }
 
@@ -570,7 +596,11 @@ class BattleActions {
         const attacker = currentTeamChars.find(c => c.hp > 0);
         
         if (!attacker) {
-            alert('공격할 수 있는 캐릭터가 없습니다!');
+            if (this.app?.showAlert) {
+                this.app.showAlert({ title: '불가', message: '공격할 수 있는 캐릭터가 없습니다!' });
+            } else {
+                alert('공격할 수 있는 캐릭터가 없습니다!');
+            }
             return;
         }
         
@@ -579,7 +609,11 @@ class BattleActions {
         const target = targetChars.find(c => c.id === targetCharId);
         
         if (!target || target.hp <= 0) {
-            alert('유효한 대상이 아닙니다!');
+            if (this.app?.showAlert) {
+                this.app.showAlert({ title: '대상 오류', message: '유효한 대상이 아닙니다!' });
+            } else {
+                alert('유효한 대상이 아닙니다!');
+            }
             return;
         }
         
