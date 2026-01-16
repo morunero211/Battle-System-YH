@@ -474,12 +474,9 @@ class BattleActions {
             return;
         }
 
-        const currentTeamTurn = this.app.battleSystem.currentTeamTurn;
-        const teamKeys = ['hero', 'gov', 'villain'];
-        const teamKey = teamKeys[currentTeamTurn];
-
-        const currentTeamChars = this.app.battleSystem.combatCharacters[teamKey];
-        const attacker = currentTeamChars.find(c => (Number(c.hp) || 0) > 0);
+        const entry = this.app?.battleSystem?.getCurrentTurnEntry?.();
+        const teamKey = entry?.teamKey;
+        const attacker = entry?.char;
         if (!attacker) {
             if (this.app?.showAlert) {
                 this.app.showAlert({ title: '불가', message: '스킬을 사용할 수 있는 캐릭터가 없습니다!' });
@@ -510,11 +507,12 @@ class BattleActions {
      * 공격 대상 선택
      */
     selectTargetForAttack() {
-        const currentTeamTurn = this.app.battleSystem.currentTeamTurn;
-        const teamNames = ['hero', 'gov', 'villain'];
-        
-        // 적 팀 확인
-        const enemyTeams = teamNames.filter((_, idx) => idx !== currentTeamTurn);
+        const entry = this.app?.battleSystem?.getCurrentTurnEntry?.();
+        const teamKey = entry?.teamKey;
+        if (!teamKey) return;
+
+        const alliance = this.getAlliance(teamKey);
+        const enemyTeams = alliance.enemies;
         
         this.targetSelectionMode = true;
         this.currentAction = 'attack';
@@ -564,13 +562,10 @@ class BattleActions {
      */
     async performAction(targetTeam, targetCharId) {
         this.targetSelectionMode = false;
-        const currentTeamTurn = this.app.battleSystem.currentTeamTurn;
-        const teamNames = ['hero', 'gov', 'villain'];
-        
-        // 현재 팀의 캐릭터 중 가장 강한 캐릭터를 공격자로 선택
-        const currentTeamName = teamNames[currentTeamTurn];
-        const currentTeamChars = this.app.battleSystem.combatCharacters[currentTeamName];
-        const attacker = currentTeamChars.find(c => c.hp > 0);
+
+        const entry = this.app?.battleSystem?.getCurrentTurnEntry?.();
+        const currentTeamName = entry?.teamKey;
+        const attacker = entry?.char;
         
         if (!attacker) {
             if (this.app?.showAlert) {
@@ -612,12 +607,13 @@ class BattleActions {
         
         // 전투 종료 확인
         if (this.app.battleSystem.checkBattleEnd()) {
-            this.endBattle();
-        } else {
-            // 다음 턴
-            this.app.battleSystem.nextTurn();
             this.app.battleSystem.renderBattle();
+            return;
         }
+
+        // 다음 턴
+        this.app.battleSystem.nextTurn();
+        this.app.battleSystem.renderBattle();
     }
 
     /**

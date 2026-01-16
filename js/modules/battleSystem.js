@@ -9,6 +9,8 @@ class BattleSystem {
         this.currentBattle = null;
         this.currentTurn = 0;
         this.currentTeamTurn = 0; // 0: 히어로, 1: 정부, 2: 빌런
+        this.turnOrder = []; // [{ teamKey, char, agility }]
+        this.turnIndex = 0; // turnOrder index
         this.battleLog = [];
         this.combatCharacters = {
             hero: [],
@@ -33,6 +35,8 @@ class BattleSystem {
     initializeBattle() {
         this.currentTurn = 1;
         this.currentTeamTurn = 0;
+        this.turnOrder = [];
+        this.turnIndex = 0;
         this.battleLog = [];
         this.usedUltimate = {};
         this.pendingDefenseResponse = null;
@@ -53,6 +57,84 @@ class BattleSystem {
         this.addLog(`⚔️ 전투 시작! (${this.app.battleMode === 'team' ? '팀전' : '개인전'} 모드)`);
         this.addLog(`히어로: ${this.combatCharacters.hero.length}명 | 정부: ${this.combatCharacters.gov.length}명 | 빌런: ${this.combatCharacters.villain.length}명`);
         this.addLog('---');
+
+        this.rebuildTurnOrder({ log: true });
+    }
+
+    getAliveParticipants() {
+        const teamOrder = ['hero', 'gov', 'villain'];
+        return teamOrder.flatMap((teamKey) => {
+            const list = Array.isArray(this.combatCharacters?.[teamKey]) ? this.combatCharacters[teamKey] : [];
+            return list
+                .filter((c) => this.getTotalHp(c) > 0)
+                .map((char) => ({ teamKey, char }));
+        });
+    }
+
+    shuffleInPlace(list) {
+        for (let i = list.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [list[i], list[j]] = [list[j], list[i]];
+        }
+        return list;
+    }
+
+    rebuildTurnOrder({ log = false } = {}) {
+        const alive = this.getAliveParticipants();
+        const byAgi = new Map();
+
+        alive.forEach(({ teamKey, char }) => {
+            const agility = this.clampStat1to5(char?.agility);
+            const bucket = byAgi.get(agility) || [];
+            bucket.push({ teamKey, char, agility });
+            byAgi.set(agility, bucket);
+        });
+
+        const agilityValues = Array.from(byAgi.keys()).sort((a, b) => b - a);
+        const order = [];
+        agilityValues.forEach((agi) => {
+            const bucket = byAgi.get(agi) || [];
+            // 동률(같은 민첩)일 경우: 동률 그룹 안에서 균등 랜덤(모든 순열 동일 확률)
+            this.shuffleInPlace(bucket);
+            order.push(...bucket);
+        });
+
+        this.turnOrder = order;
+        this.turnIndex = 0;
+
+        // 현재팀(기존 UI 호환)도 현재 액터의 팀으로 동기화
+        const entry = this.getCurrentTurnEntry();
+        if (entry) {
+            const idx = ['hero', 'gov', 'villain'].indexOf(entry.teamKey);
+            this.currentTeamTurn = idx >= 0 ? idx : 0;
+        }
+
+        if (log) {
+            const text = this.turnOrder
+                .map((e, i) => `${i + 1}.${this.teamLabelKo(e.teamKey) || e.teamKey} ${e.char?.name || '-'}(민첩 ${e.agility})`)
+                .join(' → ');
+            this.addLog(`🎯 턴 순서(민첩): ${text}`);
+        }
+    }
+
+    getCurrentTurnEntry() {
+        if (!Array.isArray(this.turnOrder) || this.turnOrder.length === 0) return null;
+        // 죽은 캐릭터가 끼어있으면 스킵
+        for (let step = 0; step < this.turnOrder.length; step++) {
+            const idx = (this.turnIndex + step) % this.turnOrder.length;
+            const entry = this.turnOrder[idx];
+            if (entry?.char && this.getTotalHp(entry.char) > 0) {
+                this.turnIndex = idx;
+                return entry;
+            }
+        }
+        return null;
+    }
+
+    isCurrentActor(teamKey, charId) {
+        const entry = this.getCurrentTurnEntry();
+        if (!entry) return false;
+        return entry.teamKey === teamKey && String(entry.char?.id) === String(charId);
     }
 
     initDefenseResponseUi() {
@@ -282,8 +364,10 @@ class BattleSystem {
 
         const shieldText = shieldHp > 0 ? ` <span style="color:#2b6cb0; font-weight:800;">(🛡️ +${shieldHp})</span>` : '';
 
+        const isCurrent = this.isCurrentActor(team, char.id);
+
         return `
-            <div class="combat-char-card" data-char-id="${char.id}" data-team="${team}">
+            <div class="combat-char-card${isCurrent ? ' is-current' : ''}" data-char-id="${char.id}" data-team="${team}">
                 <div class="char-top">
                     <div class="char-name">${char.name}</div>
                     <div class="char-tags">${tags || '<span class="tag tag-empty">-</span>'}</div>
@@ -388,12 +472,36 @@ class BattleSystem {
     updateTurnInfo() {
         const turnCountEl = document.getElementById('turn-count');
         const turnTextEl = document.getElementById('current-turn-text');
+        const orderHintEl = document.getElementById('turn-order-hint');
         
         if (turnCountEl) turnCountEl.textContent = this.currentTurn;
-        
-        const teamNames = ['🦸 히어로', '🏛️ 정부', '😈 빌런'];
+
+        const entry = this.getCurrentTurnEntry();
+        const teamIcons = { hero: '🦸', gov: '🏛️', villain: '😈' };
+        const teamLabel = entry ? (this.teamLabelKo(entry.teamKey) || entry.teamKey) : '-';
+        const icon = entry ? (teamIcons[entry.teamKey] || '👤') : '👤';
+        const name = entry?.char?.name || '-';
+        const agi = entry ? entry.agility : '-';
+        const pos = entry ? (this.turnIndex + 1) : '-';
+        const total = Array.isArray(this.turnOrder) ? this.turnOrder.length : 0;
+
         if (turnTextEl) {
-            turnTextEl.textContent = `현재 차례: ${teamNames[this.currentTeamTurn]}`;
+            turnTextEl.textContent = `현재 차례: ${icon} ${teamLabel} ${name} (민첩 ${agi}) · ${pos}/${total}`;
+        }
+
+        if (orderHintEl) {
+            if (!this.turnOrder || this.turnOrder.length === 0) {
+                orderHintEl.textContent = '';
+            } else {
+                const items = this.turnOrder.map((e, i) => {
+                    const cur = (i === this.turnIndex);
+                    const tIcon = teamIcons[e.teamKey] || '👤';
+                    const label = this.escapeHtml(this.teamLabelKo(e.teamKey) || e.teamKey);
+                    const nm = this.escapeHtml(e.char?.name || '-');
+                    return `<span class="turn-order-item${cur ? ' is-current' : ''}"><span class="turn-order-idx">${i + 1}</span> ${tIcon} ${label} ${nm} <span class="turn-order-agi">💨${e.agility}</span></span>`;
+                }).join('');
+                orderHintEl.innerHTML = `<span class="turn-order-title">턴 순서(민첩):</span> ${items}`;
+            }
         }
     }
 
@@ -1148,11 +1256,28 @@ class BattleSystem {
      * 턴 진행
      */
     nextTurn() {
-        this.currentTeamTurn = (this.currentTeamTurn + 1) % 3;
-        
-        if (this.currentTeamTurn === 0) {
+        // 현재 턴 순서가 없으면(예: 모두 사망) 바로 종료 체크
+        if (!this.turnOrder || this.turnOrder.length === 0) {
+            this.checkBattleEnd();
+            this.renderBattle();
+            this.updateSkillSlots();
+            return;
+        }
+
+        this.turnIndex += 1;
+
+        // 한 라운드(참가자 수) 종료 시: 턴 증가 + 동률 랜덤 재추첨 포함해 순서 재생성
+        if (this.turnIndex >= this.turnOrder.length) {
             this.currentTurn++;
             this.addLog(`\n========== 턴 ${this.currentTurn} ==========`);
+            this.rebuildTurnOrder({ log: true });
+        } else {
+            // 현재팀(기존 UI 호환)도 현재 액터의 팀으로 동기화
+            const entry = this.getCurrentTurnEntry();
+            if (entry) {
+                const idx = ['hero', 'gov', 'villain'].indexOf(entry.teamKey);
+                this.currentTeamTurn = idx >= 0 ? idx : 0;
+            }
         }
 
         this.checkBattleEnd();
@@ -1164,15 +1289,18 @@ class BattleSystem {
      * 전투 종료 확인
      */
     checkBattleEnd() {
-        const heroAlive = this.combatCharacters.hero.some(c => c.hp > 0);
-        const govAlive = this.combatCharacters.gov.some(c => c.hp > 0);
-        const villainAlive = this.combatCharacters.villain.some(c => c.hp > 0);
+        const heroAlive = this.combatCharacters.hero.some(c => this.getTotalHp(c) > 0);
+        const govAlive = this.combatCharacters.gov.some(c => this.getTotalHp(c) > 0);
+        const villainAlive = this.combatCharacters.villain.some(c => this.getTotalHp(c) > 0);
 
-        const aliveTeams = [heroAlive, govAlive, villainAlive].filter(v => v).length;
-
-        if (aliveTeams === 1) {
+        // 규칙: 히어로+정부 연합 vs 빌런
+        const allyAlive = heroAlive || govAlive;
+        if ((allyAlive && !villainAlive) || (!allyAlive && villainAlive)) {
             this.endBattle();
+            return true;
         }
+
+        return false;
     }
 
     /**
@@ -1184,9 +1312,9 @@ class BattleSystem {
         const villainAlive = this.combatCharacters.villain.some(c => c.hp > 0);
 
         let winner = '미정';
-        if (heroAlive) winner = '히어로';
-        else if (govAlive) winner = '정부';
-        else if (villainAlive) winner = '빌런';
+        const allyAlive = heroAlive || govAlive;
+        if (allyAlive && !villainAlive) winner = '히어로/정부';
+        else if (!allyAlive && villainAlive) winner = '빌런';
 
         this.addLog(`\n🏆 전투 종료! 승자: ${winner}`);
 
