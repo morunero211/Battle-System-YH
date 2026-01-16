@@ -1203,8 +1203,9 @@ class BattleApp {
      * 샘플 캐릭터 로드
      */
     loadSampleCharacters() {
-        // 저장된 데이터가 없을 때만 샘플 로드
-        if (this.teams[0].characters.length === 0) {
+        // 저장된 데이터가 없을 때만 샘플 로드(팀 하나라도 있으면 덮어쓰지 않음)
+        const isAllEmpty = Array.isArray(this.teams) && this.teams.every(t => Array.isArray(t?.characters) && t.characters.length === 0);
+        if (isAllEmpty) {
             this.teams[0].characters = [
                 { 
                     name: '김철수', hp: 100, attack: 4, defense: 3, agility: 3, skill: 4, 

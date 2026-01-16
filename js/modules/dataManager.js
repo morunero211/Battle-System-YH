@@ -7,12 +7,60 @@ class DataManager {
     constructor(app) {
         this.app = app;
         this.localStorageKey = 'battleProgramData';
+        this.lastActiveKeyStorage = 'battleProgramData__lastKey';
         this.schemaVersion = 2;
         this.collection = 'battleApp';
         this.documentId = 'default';
         this.userId = null;
         this.skillTemplatesBaseKey = 'battleSkillTemplates';
         this.skillTemplatesKey = this.getSkillTemplatesKeyForUser(null);
+    }
+
+    setLastActiveKey(key) {
+        try {
+            if (!key) return;
+            localStorage.setItem(this.lastActiveKeyStorage, String(key));
+        } catch {
+            // ignore
+        }
+    }
+
+    getLastActiveKey() {
+        try {
+            const v = localStorage.getItem(this.lastActiveKeyStorage);
+            return v ? String(v) : null;
+        } catch {
+            return null;
+        }
+    }
+
+    findMostRecentLocalKey(prefix = 'battleProgramData') {
+        try {
+            const keys = [];
+            for (let i = 0; i < localStorage.length; i++) {
+                const k = localStorage.key(i);
+                if (!k) continue;
+                if (k === this.getBackupKey(prefix) || k === this.lastActiveKeyStorage) continue;
+                if (k === prefix || k.startsWith(`${prefix}_`)) keys.push(k);
+            }
+
+            let bestKey = null;
+            let bestTime = null;
+            for (const k of keys) {
+                const parsed = this.getLocalDataForKey(k);
+                if (!parsed || !Array.isArray(parsed.teams)) continue;
+                if (!this.hasAnyCharacters(parsed.teams)) continue;
+                const t = this.parseTime(parsed.savedAt);
+                if (t === null) continue;
+                if (bestTime === null || t > bestTime) {
+                    bestTime = t;
+                    bestKey = k;
+                }
+            }
+            return bestKey;
+        } catch {
+            return null;
+        }
     }
 
     getSkillTemplatesKeyForUser(userId) {
@@ -112,6 +160,7 @@ class DataManager {
         const prevSkillTemplatesKey = this.skillTemplatesKey;
         this.userId = userId || null;
         this.localStorageKey = userId ? `battleProgramData_${userId}` : 'battleProgramData';
+        this.setLastActiveKey(this.localStorageKey);
         this.skillTemplatesKey = this.getSkillTemplatesKeyForUser(this.userId);
         // 경로: users/{uid}/battle/default
         this.collection = userId ? 'users' : 'battleApp';
@@ -188,6 +237,7 @@ class DataManager {
      */
     saveToLocalStorage() {
         try {
+            this.setLastActiveKey(this.localStorageKey);
             // 백업(이전 스냅샷 보관): 새 버전 배포/파싱 이슈로 데이터가 "사라지는" 경우 대비
             const prevRaw = localStorage.getItem(this.localStorageKey);
             if (prevRaw) {
@@ -249,6 +299,33 @@ class DataManager {
                     this.app.normalizePersistedData({ save: true });
                 }
                 console.log('LocalStorage에서 로드됨');
+                this.setLastActiveKey(this.localStorageKey);
+                return;
+            }
+
+            // 현재 키에 데이터가 없으면, 마지막 사용 키 또는 가장 최신 키에서 복구
+            const lastKey = this.getLastActiveKey();
+            const tryKeys = [];
+            if (lastKey && lastKey !== this.localStorageKey) tryKeys.push(lastKey);
+            const newestKey = this.findMostRecentLocalKey('battleProgramData');
+            if (newestKey && newestKey !== this.localStorageKey && newestKey !== lastKey) tryKeys.push(newestKey);
+
+            for (const k of tryKeys) {
+                const fallback = this.getLocalDataForKey(k);
+                if (!fallback || !Array.isArray(fallback.teams)) continue;
+                if (!this.hasAnyCharacters(fallback.teams)) continue;
+
+                this.app.teams = fallback.teams;
+                if (fallback.selectedCharacters) this.app.selectedCharacters = fallback.selectedCharacters;
+                if (Array.isArray(fallback.battleHistory)) this.app.battleHistory = fallback.battleHistory;
+                if (typeof this.app.normalizePersistedData === 'function') {
+                    this.app.normalizePersistedData({ save: false });
+                }
+
+                // 현재 키로도 저장해서 다음 새로고침부터는 안정적으로 로드되게
+                this.saveToLocalStorage();
+                this.app?.showToast?.('캐릭터 데이터를 복구했습니다.', 'success');
+                return;
             }
         } catch (error) {
             console.error('LocalStorage 로드 실패:', error);
