@@ -13,6 +13,24 @@ class DataManager {
         this.userId = null;
     }
 
+    hasAnyCharacters(teams) {
+        return Array.isArray(teams) && teams.some((t) => Array.isArray(t?.characters) && t.characters.length > 0);
+    }
+
+    countCharacters(teams) {
+        if (!Array.isArray(teams)) return 0;
+        return teams.reduce((sum, t) => sum + (Array.isArray(t?.characters) ? t.characters.length : 0), 0);
+    }
+
+    parseTime(value) {
+        const t = Date.parse(String(value || ''));
+        return Number.isFinite(t) ? t : null;
+    }
+
+    getBackupKey(key) {
+        return `${key}__backup`;
+    }
+
     getLocalDataForKey(key) {
         try {
             const raw = localStorage.getItem(key);
@@ -50,16 +68,24 @@ class DataManager {
             const nextKey = this.localStorageKey;
             const switchingKey = prevKey && nextKey && prevKey !== nextKey;
 
-            // (마이그레이션) user 키에 데이터가 없고, 이전(익명) 키에만 데이터가 있으면 복사
-            if (migrate && switchingKey && this.userId && !this.hasLocalCacheForKey(nextKey) && this.hasLocalCacheForKey(prevKey)) {
+            // (마이그레이션)
+            // - user 키가 비어있거나(캐릭터 0명) 아직 없고,
+            // - 이전(익명) 키에 캐릭터가 있으면
+            // => 익명 데이터를 user 키로 복사(배포/로그인 타이밍 이슈로 "사라짐" 방지)
+            if (migrate && switchingKey && this.userId) {
                 const prevData = this.getLocalDataForKey(prevKey);
-                if (prevData) {
+                const nextData = this.getLocalDataForKey(nextKey);
+                const prevHas = this.hasAnyCharacters(prevData?.teams);
+                const nextHas = this.hasAnyCharacters(nextData?.teams);
+
+                if (prevHas && !nextHas) {
                     localStorage.setItem(nextKey, JSON.stringify({
                         ...prevData,
                         migratedFrom: prevKey,
                         migratedAt: new Date().toISOString(),
                         migratedByUser: this.userId
                     }));
+                    this.app?.showToast?.('로컬 캐릭터 데이터를 복구/이관했습니다.', 'success');
                 }
             }
 
@@ -78,6 +104,12 @@ class DataManager {
      */
     saveToLocalStorage() {
         try {
+            // 백업(이전 스냅샷 보관): 새 버전 배포/파싱 이슈로 데이터가 "사라지는" 경우 대비
+            const prevRaw = localStorage.getItem(this.localStorageKey);
+            if (prevRaw) {
+                localStorage.setItem(this.getBackupKey(this.localStorageKey), prevRaw);
+            }
+
             const data = {
                 schemaVersion: this.schemaVersion,
                 savedAt: new Date().toISOString(),
@@ -100,7 +132,32 @@ class DataManager {
             const raw = localStorage.getItem(this.localStorageKey);
             if (raw) {
                 const parsed = JSON.parse(raw);
-                this.app.teams = parsed.teams || this.app.teams;
+
+                const incomingTeams = parsed.teams;
+                const incomingHas = this.hasAnyCharacters(incomingTeams);
+                const currentHas = this.hasAnyCharacters(this.app.teams);
+
+                // 빈 데이터로 덮어쓰기 방지
+                if (Array.isArray(incomingTeams) && (incomingHas || !currentHas)) {
+                    this.app.teams = incomingTeams;
+                } else if (!incomingHas && currentHas) {
+                    // 현재 키가 빈 상태라면, 백업 키로 자동 복구 시도
+                    const backupRaw = localStorage.getItem(this.getBackupKey(this.localStorageKey));
+                    if (backupRaw) {
+                        try {
+                            const backup = JSON.parse(backupRaw);
+                            if (this.hasAnyCharacters(backup?.teams)) {
+                                this.app.teams = backup.teams;
+                                if (backup.selectedCharacters) this.app.selectedCharacters = backup.selectedCharacters;
+                                if (Array.isArray(backup.battleHistory)) this.app.battleHistory = backup.battleHistory;
+                                this.saveToLocalStorage();
+                                this.app?.showToast?.('로컬 캐릭터 데이터를 백업에서 복구했습니다.', 'warning');
+                            }
+                        } catch {
+                            // ignore
+                        }
+                    }
+                }
                 this.app.selectedCharacters = parsed.selectedCharacters || this.app.selectedCharacters;
                 this.app.battleHistory = parsed.battleHistory || this.app.battleHistory;
                 // 스키마/누락 필드 보정
@@ -183,8 +240,29 @@ class DataManager {
 
             const data = snapshot.data() || {};
 
-            if (Array.isArray(data.teams)) {
-                this.app.teams = data.teams;
+            // 원격이 비어있을 때 로컬을 덮어쓰지 않도록 안전장치
+            const local = this.getLocalDataForKey(this.localStorageKey);
+            const localTeams = local?.teams;
+            const localHas = this.hasAnyCharacters(localTeams);
+            const remoteTeams = data.teams;
+            const remoteHas = this.hasAnyCharacters(remoteTeams);
+
+            const localTime = this.parseTime(local?.savedAt);
+            const remoteTime = this.parseTime(data?.updatedAt || data?.savedAt);
+            const remoteNewer = (localTime !== null && remoteTime !== null) ? (remoteTime >= localTime) : null;
+
+            const shouldApplyRemoteTeams = Array.isArray(remoteTeams)
+                && (
+                    (remoteHas && (!localHas || remoteNewer !== false))
+                    || (!remoteHas && !localHas)
+                );
+
+            if (shouldApplyRemoteTeams) {
+                this.app.teams = remoteTeams;
+            } else {
+                if (!remoteHas && localHas) {
+                    console.warn('Firestore teams가 비어있어 로컬 데이터를 유지합니다.');
+                }
             }
             if (data.selectedCharacters && typeof data.selectedCharacters === 'object') {
                 this.app.selectedCharacters = data.selectedCharacters;

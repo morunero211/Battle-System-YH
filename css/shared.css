@@ -731,18 +731,65 @@ textarea:focus {
 .skill-template-options {
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: 10px;
     margin: 10px 0;
 }
 
 .skill-template-option {
     display: flex;
     align-items: center;
-    gap: 10px;
-    padding: 10px 12px;
-    border-radius: 10px;
-    border: 1px solid #e3e6f0;
+    gap: 12px;
+    padding: 12px 14px;
+    border-radius: 14px;
+    border: 2px solid #e3e6f0;
+    background: linear-gradient(180deg, #ffffff 0%, #fbfcff 100%);
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.05);
+    transition: transform 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease;
+}
+
+.skill-template-option:hover {
+    border-color: #c7d2fe;
+    box-shadow: 0 10px 24px rgba(102, 126, 234, 0.12);
+    transform: translateY(-1px);
+}
+
+.skill-template-option input[type="checkbox"] {
+    appearance: none;
+    width: 44px;
+    height: 26px;
+    border-radius: 999px;
+    background: #e2e8f0;
+    border: 2px solid #cbd5e0;
+    position: relative;
+    cursor: pointer;
+    flex: 0 0 auto;
+    transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.skill-template-option input[type="checkbox"]::after {
+    content: "";
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
     background: #ffffff;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    transition: transform 0.15s ease;
+}
+
+.skill-template-option input[type="checkbox"]:checked {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-color: #667eea;
+}
+
+.skill-template-option input[type="checkbox"]:checked::after {
+    transform: translateX(18px);
+}
+
+.skill-template-option:has(input[type="checkbox"]:checked) {
+    border-color: #667eea;
 }
 
 .skill-template-option .desc {
