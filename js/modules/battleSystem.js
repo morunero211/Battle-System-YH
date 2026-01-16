@@ -36,6 +36,7 @@ class BattleSystem {
             // 실제 적용은 캐릭터에 skillTemplateId: 'AOE_CRACKING_STRIKE' 를 설정하면 됩니다.
             AOE_CRACKING_STRIKE: {
                 name: '균열 강타(광역)',
+                allowedSkillTypes: ['공격형'],
                 conditions: [
                     // 각 대상 기준으로 HP가 완전하지 않은 대상만 유효 대상으로 취급
                     // (즉, 피가 꽉 찬 대상은 조건에서 탈락 → 효과 적용 제외)
@@ -127,6 +128,15 @@ class BattleSystem {
         const id = attacker?.skillTemplateId;
         if (!id) return null;
         return this.skillTemplates?.[id] || null;
+    }
+
+    getEffectEnabled(attacker, effect, effectIndex) {
+        if (!effect) return false;
+        const options = attacker && typeof attacker.skillTemplateOptions === 'object' ? attacker.skillTemplateOptions : null;
+        const key = String(effect.optionKey || `__effect_${effectIndex}`);
+        const defaultEnabled = effect.enabled !== false;
+        if (options && typeof options[key] === 'boolean') return options[key];
+        return defaultEnabled;
     }
 
     isPerTargetCondition(cond) {
@@ -250,9 +260,10 @@ class BattleSystem {
         }
 
         const effects = Array.isArray(template.effects) ? template.effects : [];
-        for (const ef of effects) {
+        for (let i = 0; i < effects.length; i++) {
+            const ef = effects[i];
             if (!ef || !ef.type) continue;
-            if (ef.enabled === false) continue;
+            if (!this.getEffectEnabled(attacker, ef, i)) continue;
 
             if (ef.type === 'DAMAGE_SKILL_ROLL') {
                 const list = this.resolveEffectTargets(ef.targets, ctx).filter((c) => this.getTotalHp(c) > 0);

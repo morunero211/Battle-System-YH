@@ -368,10 +368,15 @@ class BattleApp {
         const select = this.elements.skillTemplateId;
         if (!select) return;
 
+        const getSelectedSkillType = () => {
+            return document.querySelector('input[name="skillType"]:checked')?.value || '';
+        };
+
         const rebuildOptions = () => {
             // 템플릿 목록을 최신 상태로 채움
             const templates = this.battleSystem?.skillTemplates || {};
             const current = String(select.value || '');
+            const selectedSkillType = getSelectedSkillType();
 
             // 기존 option 유지: 첫 번째(기본)만 남기고 재구성
             const keepFirst = select.querySelector('option[value=""]');
@@ -387,6 +392,8 @@ class BattleApp {
 
             Object.keys(templates).sort().forEach((id) => {
                 const t = templates[id];
+                const allowed = Array.isArray(t?.allowedSkillTypes) ? t.allowedSkillTypes : null;
+                if (allowed && selectedSkillType && !allowed.includes(selectedSkillType)) return;
                 const opt = document.createElement('option');
                 opt.value = id;
                 opt.textContent = `${t?.name || id} (${id})`;
@@ -406,6 +413,13 @@ class BattleApp {
 
         // 리스너
         select.addEventListener('change', rerender);
+
+        document.querySelectorAll('input[name="skillType"]').forEach((el) => {
+            el.addEventListener('change', () => {
+                rebuildOptions();
+                rerender();
+            });
+        });
 
         // 옵션 체크박스 변경은 이벤트 위임
         this.elements.skillTemplateOptions?.addEventListener('change', (e) => {
@@ -489,10 +503,10 @@ class BattleApp {
         }
 
         const effects = Array.isArray(template.effects) ? template.effects : [];
-        const optionEffects = effects.filter((e) => e && e.optionKey);
-        if (optionEffects.length > 0) {
-            optionEffects.forEach((e) => {
-                const key = String(e.optionKey);
+        if (effects.length > 0) {
+            effects.forEach((e, idx) => {
+                if (!e || !e.type) return;
+                const key = String(e.optionKey || `__effect_${idx}`);
                 const defaultEnabled = e.enabled !== false;
                 const enabled = (typeof effectiveOptions[key] === 'boolean') ? effectiveOptions[key] : defaultEnabled;
 
@@ -516,15 +530,12 @@ class BattleApp {
 
         // 미리보기 렌더
         const conds = Array.isArray(template.conditions) ? template.conditions : [];
-        const enabledFor = (e) => {
+        const enabledFor = (e, idx) => {
             if (!e) return false;
-            if (e.optionKey) {
-                const key = String(e.optionKey);
-                const defaultEnabled = e.enabled !== false;
-                const override = effectiveOptions[key];
-                return typeof override === 'boolean' ? override : defaultEnabled;
-            }
-            return e.enabled !== false;
+            const key = String(e.optionKey || `__effect_${idx}`);
+            const defaultEnabled = e.enabled !== false;
+            const override = effectiveOptions[key];
+            return typeof override === 'boolean' ? override : defaultEnabled;
         };
 
         const condText = conds.length === 0
@@ -533,7 +544,7 @@ class BattleApp {
 
         const effText = effects.length === 0
             ? '없음'
-            : effects.map((e) => `- ${this.escapeHtml(this.describeEffect(e, enabledFor(e)))}`).join('<br/>');
+            : effects.map((e, idx) => `- ${this.escapeHtml(this.describeEffect(e, enabledFor(e, idx)))}`).join('<br/>');
 
         preview.innerHTML = [
             `<div class="title">조건/효과 미리보기</div>`,
