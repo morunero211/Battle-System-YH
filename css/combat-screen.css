@@ -715,6 +715,11 @@ main #combat-screen {
     padding: 12px;
 }
 
+/* (레거시) 타겟 선택 안내 문구는 UI에서 제거 */
+#target-selection > p {
+    display: none;
+}
+
 .turn-order-hint {
     margin-top: 6px;
     font-size: 12px;
