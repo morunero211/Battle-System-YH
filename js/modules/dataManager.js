@@ -31,9 +31,8 @@ class DataManager {
     /**
      * 현재 로그인한 사용자 설정 (로컬 키/경로 분리)
      */
-    setUser(userId) {
+    setUser(userId, { applyLocalCache = true, migrate = true, render = true } = {}) {
         const prevKey = this.localStorageKey;
-        const prevUserId = this.userId;
         this.userId = userId || null;
         this.localStorageKey = userId ? `battleProgramData_${userId}` : 'battleProgramData';
         // 경로: users/{uid}/battle/default
@@ -43,14 +42,16 @@ class DataManager {
             this.app.currentUserId = this.userId;
         }
 
+        if (!applyLocalCache) return;
+
         // 로그인 직후(또는 로그아웃 직후) 키가 바뀌면, 해당 키의 로컬 캐시를 즉시 적용
         // - 문제: 앱 init 시점에는 userId가 아직 없어서 기본 키로 로드됨 → 로그인 후에도 user 키 캐시를 못 읽어 Default로 보일 수 있음
         try {
             const nextKey = this.localStorageKey;
             const switchingKey = prevKey && nextKey && prevKey !== nextKey;
 
-            // (마이그레이션) user 키에 데이터가 없고, 이전 키에만 데이터가 있으면 복사
-            if (switchingKey && this.userId && !this.hasLocalCacheForKey(nextKey) && this.hasLocalCacheForKey(prevKey)) {
+            // (마이그레이션) user 키에 데이터가 없고, 이전(익명) 키에만 데이터가 있으면 복사
+            if (migrate && switchingKey && this.userId && !this.hasLocalCacheForKey(nextKey) && this.hasLocalCacheForKey(prevKey)) {
                 const prevData = this.getLocalDataForKey(prevKey);
                 if (prevData) {
                     localStorage.setItem(nextKey, JSON.stringify({
@@ -64,7 +65,7 @@ class DataManager {
 
             // 새 키(현재 사용자)에 해당하는 로컬 데이터를 다시 로드
             this.loadFromLocalStorage();
-            if (typeof this.app?.renderAllTeams === 'function') {
+            if (render && typeof this.app?.renderAllTeams === 'function') {
                 this.app.renderAllTeams();
             }
         } catch (e) {

@@ -160,15 +160,35 @@ class BattleApp {
         this.battleSystem = new BattleSystem(this);
     this.battleActions = new BattleActions(this);
 
-        this.loadSampleCharacters();
+        // Auth 상태가 이미 확정된(로그인된) 경우: 유저 키를 먼저 세팅해서
+        // "기본 키 로드 → Default 표시" 깜빡임을 방지
+        try {
+            const uid = window.firebaseAuth?.currentUser?.uid
+                || (window.firebase && typeof firebase.auth === 'function' ? firebase.auth().currentUser?.uid : null)
+                || null;
+            if (this.dataManager?.setUser) {
+                this.dataManager.setUser(uid, { applyLocalCache: false, migrate: false, render: false });
+            }
+        } catch (e) {
+            console.warn('초기 Auth 사용자 감지 실패:', e);
+        }
+
         this.dataManager.loadFromLocalStorage(); // 저장된 데이터 자동 불러오기
         this.normalizePersistedData({ save: true });
+
+        // 로컬에 아무 것도 없으면 그때만 샘플 로드
+        this.loadSampleCharacters();
+        this.normalizePersistedData({ save: true });
+
         this.renderAllTeams();
-        // Firestore 원격 데이터가 있으면 가져와서 최신 상태로 덮어씀
-        this.dataManager.loadFromFirestore();
+
+        // Firestore 원격 데이터가 있으면 가져와서 최신 상태로 덮어씀 (로그인 사용자만)
+        if (this.dataManager?.userId) {
+            this.dataManager.loadFromFirestore();
+            this.startRemoteSyncPolling();
+        }
         this.updateClock();
         setInterval(() => this.updateClock(), 1000);
-        this.startRemoteSyncPolling();
         this.initEventListeners();
         this.initStatSelectors();
         this.initSkillConfigUI();
