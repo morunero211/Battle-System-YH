@@ -206,145 +206,168 @@
                         </div>
                     </div>
                     <div class="modal-body">
-                        <div class="form-group">
-                            <label for="char-name">캐릭터 이름:</label>
-                            <input type="text" id="char-name" placeholder="예: 아이언맨" maxlength="30">
+                        <div class="char-modal-grid">
+                            <div class="char-modal-col">
+                                <div class="form-group">
+                                    <div class="char-modal-section-title">기본 정보</div>
 
-                            <label for="char-hp">체력 (HP) - 최대 100:</label>
-                            <input type="number" id="char-hp" min="10" max="100" value="100">
+                                    <label for="char-name">캐릭터 이름:</label>
+                                    <input type="text" id="char-name" placeholder="예: 아이언맨" maxlength="30">
 
-                            <label>공격력 (1-5):</label>
-                            <div class="stat-selector">
-                                <div class="stat-circles">
-                                    <label class="stat-circle"><input type="radio" name="attack" value="1"><span>1</span></label>
-                                    <label class="stat-circle"><input type="radio" name="attack" value="2"><span>2</span></label>
-                                    <label class="stat-circle"><input type="radio" name="attack" value="3" checked><span>3</span></label>
-                                    <label class="stat-circle"><input type="radio" name="attack" value="4"><span>4</span></label>
-                                    <label class="stat-circle"><input type="radio" name="attack" value="5"><span>5</span></label>
-                                </div>
-                                <div class="stat-display"> <span id="attack-value">3</span></div>
-                            </div>
+                                    <label for="char-hp">체력 (HP) - 최대 100:</label>
+                                    <input type="number" id="char-hp" min="10" max="100" value="100">
 
-                            <label>방어력 (1-5):</label>
-                            <div class="stat-selector">
-                                <div class="stat-circles">
-                                    <label class="stat-circle"><input type="radio" name="defense" value="1"><span>1</span></label>
-                                    <label class="stat-circle"><input type="radio" name="defense" value="2"><span>2</span></label>
-                                    <label class="stat-circle"><input type="radio" name="defense" value="3" checked><span>3</span></label>
-                                    <label class="stat-circle"><input type="radio" name="defense" value="4"><span>4</span></label>
-                                    <label class="stat-circle"><input type="radio" name="defense" value="5"><span>5</span></label>
-                                </div>
-                                <div class="stat-display"> <span id="defense-value">3</span></div>
-                            </div>
+                                    <div class="char-modal-section-title">스탯</div>
 
-                            <label>민첩 (1-5):</label>
-                            <div class="stat-selector">
-                                <div class="stat-circles">
-                                    <label class="stat-circle"><input type="radio" name="agility" value="1"><span>1</span></label>
-                                    <label class="stat-circle"><input type="radio" name="agility" value="2"><span>2</span></label>
-                                    <label class="stat-circle"><input type="radio" name="agility" value="3" checked><span>3</span></label>
-                                    <label class="stat-circle"><input type="radio" name="agility" value="4"><span>4</span></label>
-                                    <label class="stat-circle"><input type="radio" name="agility" value="5"><span>5</span></label>
-                                </div>
-                                <div class="stat-display"> <span id="agility-value">3</span></div>
-                            </div>
+                                    <label>공격력 (1-5):</label>
+                                    <div class="stat-selector">
+                                        <div class="stat-circles">
+                                            <label class="stat-circle"><input type="radio" name="attack" value="1"><span>1</span></label>
+                                            <label class="stat-circle"><input type="radio" name="attack" value="2"><span>2</span></label>
+                                            <label class="stat-circle"><input type="radio" name="attack" value="3" checked><span>3</span></label>
+                                            <label class="stat-circle"><input type="radio" name="attack" value="4"><span>4</span></label>
+                                            <label class="stat-circle"><input type="radio" name="attack" value="5"><span>5</span></label>
+                                        </div>
+                                        <div class="stat-display"> <span id="attack-value">3</span></div>
+                                    </div>
 
-                            <label>스킬 (1-5):</label>
-                            <div class="stat-selector">
-                                <div class="stat-circles">
-                                    <label class="stat-circle"><input type="radio" name="skill" value="1"><span>1</span></label>
-                                    <label class="stat-circle"><input type="radio" name="skill" value="2"><span>2</span></label>
-                                    <label class="stat-circle"><input type="radio" name="skill" value="3" checked><span>3</span></label>
-                                    <label class="stat-circle"><input type="radio" name="skill" value="4"><span>4</span></label>
-                                    <label class="stat-circle"><input type="radio" name="skill" value="5"><span>5</span></label>
-                                </div>
-                                <div class="stat-display"> <span id="skill-value">3</span></div>
-                            </div>
+                                    <label>방어력 (1-5):</label>
+                                    <div class="stat-selector">
+                                        <div class="stat-circles">
+                                            <label class="stat-circle"><input type="radio" name="defense" value="1"><span>1</span></label>
+                                            <label class="stat-circle"><input type="radio" name="defense" value="2"><span>2</span></label>
+                                            <label class="stat-circle"><input type="radio" name="defense" value="3" checked><span>3</span></label>
+                                            <label class="stat-circle"><input type="radio" name="defense" value="4"><span>4</span></label>
+                                            <label class="stat-circle"><input type="radio" name="defense" value="5"><span>5</span></label>
+                                        </div>
+                                        <div class="stat-display"> <span id="defense-value">3</span></div>
+                                    </div>
 
-                            <label>스킬 타입:</label>
-                            <div class="skill-type-selector">
-                                <label class="skill-type-option">
-                                    <input type="radio" name="skillType" value="공격형" checked>
-                                    <span>⚔️ 공격형</span>
-                                </label>
-                                <label class="skill-type-option">
-                                    <input type="radio" name="skillType" value="방어형">
-                                    <span>🛡️ 방어형</span>
-                                </label>
-                                <label class="skill-type-option">
-                                    <input type="radio" name="skillType" value="지원형">
-                                    <span>🤝 지원형</span>
-                                </label>
-                                <label class="skill-type-option">
-                                    <input type="radio" name="skillType" value="치료형">
-                                    <span>💚 치료형</span>
-                                </label>
-                            </div>
+                                    <label>민첩 (1-5):</label>
+                                    <div class="stat-selector">
+                                        <div class="stat-circles">
+                                            <label class="stat-circle"><input type="radio" name="agility" value="1"><span>1</span></label>
+                                            <label class="stat-circle"><input type="radio" name="agility" value="2"><span>2</span></label>
+                                            <label class="stat-circle"><input type="radio" name="agility" value="3" checked><span>3</span></label>
+                                            <label class="stat-circle"><input type="radio" name="agility" value="4"><span>4</span></label>
+                                            <label class="stat-circle"><input type="radio" name="agility" value="5"><span>5</span></label>
+                                        </div>
+                                        <div class="stat-display"> <span id="agility-value">3</span></div>
+                                    </div>
 
-                            <label>스킬 대상:</label>
-                            <div class="skill-target-selector">
-                                <label class="skill-target-option">
-                                    <input type="radio" name="skillTargetMode" value="single" checked>
-                                    <span>🎯 단일</span>
-                                </label>
-                                <label class="skill-target-option">
-                                    <input type="radio" name="skillTargetMode" value="multi">
-                                    <span>🧩 다수</span>
-                                </label>
-                            </div>
+                                    <label>스킬 (1-5):</label>
+                                    <div class="stat-selector">
+                                        <div class="stat-circles">
+                                            <label class="stat-circle"><input type="radio" name="skill" value="1"><span>1</span></label>
+                                            <label class="stat-circle"><input type="radio" name="skill" value="2"><span>2</span></label>
+                                            <label class="stat-circle"><input type="radio" name="skill" value="3" checked><span>3</span></label>
+                                            <label class="stat-circle"><input type="radio" name="skill" value="4"><span>4</span></label>
+                                            <label class="stat-circle"><input type="radio" name="skill" value="5"><span>5</span></label>
+                                        </div>
+                                        <div class="stat-display"> <span id="skill-value">3</span></div>
+                                    </div>
 
-                            <label class="skill-include-self">
-                                <input type="checkbox" name="skillIncludeSelf" value="true" disabled>
-                                <span>✅ 본인 포함</span>
-                            </label>
-
-                            <div class="skill-config-note">※ 스킬 수치/효과 적용은 추후 업데이트됩니다(현재는 UI 설정만).</div>
-
-                            <label>스킬 사용 횟수:</label>
-                            <div class="skill-uses-grid">
-                                <div class="skill-uses-field">
-                                    <div class="skill-uses-label">총 사용 가능 횟수</div>
-                                    <input id="skill-uses-max" type="number" min="0" max="99" step="1" value="1" />
-                                </div>
-                                <div class="skill-uses-field">
-                                    <div class="skill-uses-label">사용한 횟수</div>
-                                    <div id="skill-uses-used" class="skill-uses-readonly">0</div>
-                                </div>
-                                <div class="skill-uses-field">
-                                    <div class="skill-uses-label">남은 횟수</div>
-                                    <div id="skill-uses-remaining" class="skill-uses-readonly">1</div>
+                                    <label>상태:</label>
+                                    <div class="status-selector">
+                                        <label class="status-option">
+                                            <input type="radio" name="status" value="active" checked>
+                                            <span>✅ 활동 중</span>
+                                        </label>
+                                        <label class="status-option">
+                                            <input type="radio" name="status" value="dead">
+                                            <span>💀 사망</span>
+                                        </label>
+                                        <label class="status-option">
+                                            <input type="radio" name="status" value="missing">
+                                            <span>❓ 실종</span>
+                                        </label>
+                                    </div>
                                 </div>
                             </div>
 
-                            <div id="skill-uses-status" class="skill-uses-status"></div>
+                            <div class="char-modal-col">
+                                <div class="form-group">
+                                    <div class="char-modal-section-title">능력(스킬) 설정</div>
 
-                            <div class="skill-uses-note">
-                                ※ 총 사용 가능 횟수가 0이면 전투에서 스킬을 사용할 수 없습니다. “잠금 해제”는 해제와 동시에 추가 기회(남은 횟수)를 물어봅니다.
-                            </div>
+                                    <label for="skill-template-id">스킬 템플릿:</label>
+                                    <select id="skill-template-id">
+                                        <option value="">(기본) 기존 스킬 로직 사용</option>
+                                    </select>
 
-                            <div class="skill-uses-actions">
-                                <button id="skill-uses-reset" type="button" class="btn btn-secondary">사용 기록 초기화</button>
-                                <button id="skill-uses-unlock" type="button" class="btn btn-secondary">잠금 해제(+기회 추가)</button>
-                                <button id="skill-uses-lock" type="button" class="btn btn-danger">잠금</button>
-                            </div>
+                                    <div class="skill-config-note">※ 템플릿은 “조건 + 이펙트” 조합으로 구성됩니다.</div>
 
-                            <label for="skill-description">스킬 설명:</label>
-                            <textarea id="skill-description" rows="4" placeholder="스킬에 대한 설명을 입력하세요..." maxlength="200"></textarea>
+                                    <div id="skill-template-options" class="skill-template-options"></div>
 
-                            <label>상태:</label>
-                            <div class="status-selector">
-                                <label class="status-option">
-                                    <input type="radio" name="status" value="active" checked>
-                                    <span>✅ 활동 중</span>
-                                </label>
-                                <label class="status-option">
-                                    <input type="radio" name="status" value="dead">
-                                    <span>💀 사망</span>
-                                </label>
-                                <label class="status-option">
-                                    <input type="radio" name="status" value="missing">
-                                    <span>❓ 실종</span>
-                                </label>
+                                    <div id="skill-template-preview" class="skill-template-preview"></div>
+
+                                    <label>스킬 타입:</label>
+                                    <div class="skill-type-selector">
+                                        <label class="skill-type-option">
+                                            <input type="radio" name="skillType" value="공격형" checked>
+                                            <span>⚔️ 공격형</span>
+                                        </label>
+                                        <label class="skill-type-option">
+                                            <input type="radio" name="skillType" value="방어형">
+                                            <span>🛡️ 방어형</span>
+                                        </label>
+                                        <label class="skill-type-option">
+                                            <input type="radio" name="skillType" value="지원형">
+                                            <span>🤝 지원형</span>
+                                        </label>
+                                        <label class="skill-type-option">
+                                            <input type="radio" name="skillType" value="치료형">
+                                            <span>💚 치료형</span>
+                                        </label>
+                                    </div>
+
+                                    <label>스킬 대상:</label>
+                                    <div class="skill-target-selector">
+                                        <label class="skill-target-option">
+                                            <input type="radio" name="skillTargetMode" value="single" checked>
+                                            <span>🎯 단일</span>
+                                        </label>
+                                        <label class="skill-target-option">
+                                            <input type="radio" name="skillTargetMode" value="multi">
+                                            <span>🧩 다수</span>
+                                        </label>
+                                    </div>
+
+                                    <label class="skill-include-self">
+                                        <input type="checkbox" name="skillIncludeSelf" value="true" disabled>
+                                        <span>✅ 본인 포함</span>
+                                    </label>
+
+                                    <label>스킬 사용 횟수:</label>
+                                    <div class="skill-uses-grid">
+                                        <div class="skill-uses-field">
+                                            <div class="skill-uses-label">총 사용 가능 횟수</div>
+                                            <input id="skill-uses-max" type="number" min="0" max="99" step="1" value="1" />
+                                        </div>
+                                        <div class="skill-uses-field">
+                                            <div class="skill-uses-label">사용한 횟수</div>
+                                            <div id="skill-uses-used" class="skill-uses-readonly">0</div>
+                                        </div>
+                                        <div class="skill-uses-field">
+                                            <div class="skill-uses-label">남은 횟수</div>
+                                            <div id="skill-uses-remaining" class="skill-uses-readonly">1</div>
+                                        </div>
+                                    </div>
+
+                                    <div id="skill-uses-status" class="skill-uses-status"></div>
+
+                                    <div class="skill-uses-note">
+                                        ※ 총 사용 가능 횟수가 0이면 전투에서 스킬을 사용할 수 없습니다. “잠금 해제”는 해제와 동시에 추가 기회(남은 횟수)를 물어봅니다.
+                                    </div>
+
+                                    <div class="skill-uses-actions">
+                                        <button id="skill-uses-reset" type="button" class="btn btn-secondary">사용 기록 초기화</button>
+                                        <button id="skill-uses-unlock" type="button" class="btn btn-secondary">잠금 해제(+기회 추가)</button>
+                                        <button id="skill-uses-lock" type="button" class="btn btn-danger">잠금</button>
+                                    </div>
+
+                                    <label for="skill-description">스킬 설명:</label>
+                                    <textarea id="skill-description" rows="4" placeholder="스킬에 대한 설명을 입력하세요..." maxlength="200"></textarea>
+                                </div>
                             </div>
                         </div>
 

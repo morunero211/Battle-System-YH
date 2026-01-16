@@ -686,6 +686,87 @@ textarea:focus {
     overflow-y: auto;
     overflow-x: hidden;
     max-height: calc(80vh - 90px);
+
+    /* ===== 캐릭터 상세 모달(2단 레이아웃) ===== */
+    #custom-character-modal .modal-content {
+        max-width: 980px;
+        width: min(980px, 96vw);
+    }
+
+    .char-modal-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 18px;
+        align-items: start;
+    }
+
+    .char-modal-col {
+        min-width: 0;
+    }
+
+    .char-modal-section-title {
+        font-weight: 900;
+        color: #2c3e50;
+        margin: 0 0 10px;
+        padding: 10px 12px;
+        border-radius: 10px;
+        background: #f3f6ff;
+        border: 1px solid #e3e6f0;
+    }
+
+    .skill-template-options {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        margin: 10px 0;
+    }
+
+    .skill-template-option {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 10px 12px;
+        border-radius: 10px;
+        border: 1px solid #e3e6f0;
+        background: #ffffff;
+    }
+
+    .skill-template-option .desc {
+        font-size: 13px;
+        color: #4a5568;
+        line-height: 1.35;
+    }
+
+    .skill-template-preview {
+        border: 1px solid #e3e6f0;
+        border-radius: 12px;
+        background: #f8f9fc;
+        padding: 12px;
+        margin: 10px 0 14px;
+        color: #2c3e50;
+        font-size: 13px;
+        line-height: 1.45;
+    }
+
+    .skill-template-preview .title {
+        font-weight: 900;
+        margin-bottom: 8px;
+    }
+
+    .skill-template-preview .row {
+        margin: 6px 0;
+        color: #4a5568;
+    }
+
+    .skill-template-preview .row strong {
+        color: #2c3e50;
+    }
+
+    @media (max-width: 920px) {
+        .char-modal-grid {
+            grid-template-columns: 1fr;
+        }
+    }
 }
 
 .form-group {
