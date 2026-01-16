@@ -208,7 +208,8 @@ class ChaseEvent {
 
     agilityTargetFromStat(stat1to5) {
         const s = Math.max(1, Math.min(5, Math.round(Number(stat1to5) || 3)));
-        return s * 20;
+        // 스탯→목표치: 1=50, 2=55, 3=60, 4=65, 5=70
+        return 45 + (s * 5);
     }
 
     classifyAgility(roll, target) {
@@ -383,7 +384,7 @@ class ChaseEvent {
 
         for (let i = 0; i < 2; i++) {
             const atkStat = Math.max(1, Math.min(5, Math.round(this.getAttackStat(winner.char) || 1)));
-            const target = this.agilityTargetFromStat(atkStat); // 1~5 → 20~100
+            const target = this.agilityTargetFromStat(atkStat); // 1~5 → 50~70
             const roll = this.rollD100();
 
             const extreme = Math.max(1, Math.floor(target / 5));
