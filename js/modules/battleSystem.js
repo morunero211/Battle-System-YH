@@ -37,8 +37,9 @@ class BattleSystem {
             AOE_CRACKING_STRIKE: {
                 name: '균열 강타(광역)',
                 conditions: [
-                    // 대상 중 최소 1명은 HP가 완전하지 않아야 함
-                    { type: 'TARGET_HP_NOT_FULL', mode: 'any' }
+                    // 각 대상 기준으로 HP가 완전하지 않은 대상만 유효 대상으로 취급
+                    // (즉, 피가 꽉 찬 대상은 조건에서 탈락 → 효과 적용 제외)
+                    { type: 'TARGET_HP_NOT_FULL', scope: 'perTarget' }
                 ],
                 effects: [
                     // 공격 대상(선택한 대상들)에게 스킬 데미지(대상 수로 1/n 분배)
@@ -128,23 +129,45 @@ class BattleSystem {
         return this.skillTemplates?.[id] || null;
     }
 
+    isPerTargetCondition(cond) {
+        if (!cond) return false;
+        const scope = String(cond.scope || '').toLowerCase();
+        return cond.perTarget === true || scope === 'pertarget' || scope === 'each' || scope === 'eachtarget' || scope === 'target';
+    }
+
+    evalCondition(cond, ctx) {
+        if (!cond || !cond.type) return { ok: true };
+
+        if (cond.type === 'TARGET_HP_NOT_FULL') {
+            if (this.isPerTargetCondition(cond)) {
+                const t = ctx?.target;
+                if (!t) return { ok: false, reason: '조건 불충족: 유효한 대상이 없습니다.' };
+                const pass = this.getBaseHp(t) < this.getMaxHp(t);
+                return pass ? { ok: true } : { ok: false, reason: '조건 불충족: 대상 HP가 완전한 상태입니다.' };
+            }
+
+            const targets = Array.isArray(ctx?.targets) ? ctx.targets : [];
+            const mode = cond.mode === 'all' ? 'all' : 'any';
+            const pass = mode === 'all'
+                ? targets.length > 0 && targets.every((t) => this.getBaseHp(t) < this.getMaxHp(t))
+                : targets.some((t) => this.getBaseHp(t) < this.getMaxHp(t));
+            return pass ? { ok: true } : { ok: false, reason: '조건 불충족: 대상 HP가 완전한 상태가 아니어야 합니다.' };
+        }
+
+        return { ok: false, reason: `알 수 없는 조건: ${cond.type}` };
+    }
+
     evalSkillConditions(template, ctx) {
         const conditions = Array.isArray(template?.conditions) ? template.conditions : [];
         if (conditions.length === 0) return { ok: true };
 
         for (const cond of conditions) {
             if (!cond || !cond.type) continue;
-            if (cond.type === 'TARGET_HP_NOT_FULL') {
-                const targets = Array.isArray(ctx?.targets) ? ctx.targets : [];
-                const mode = cond.mode === 'all' ? 'all' : 'any';
-                const pass = mode === 'all'
-                    ? targets.length > 0 && targets.every((t) => this.getBaseHp(t) < this.getMaxHp(t))
-                    : targets.some((t) => this.getBaseHp(t) < this.getMaxHp(t));
-                if (!pass) return { ok: false, reason: '조건 불충족: 대상 HP가 완전한 상태가 아니어야 합니다.' };
-                continue;
-            }
+            // perTarget 조건은 executeSkillTemplate에서 대상 필터링으로 처리
+            if (this.isPerTargetCondition(cond)) continue;
 
-            return { ok: false, reason: `알 수 없는 조건: ${cond.type}` };
+            const r = this.evalCondition(cond, ctx);
+            if (!r.ok) return r;
         }
 
         return { ok: true };
@@ -195,8 +218,29 @@ class BattleSystem {
         const template = this.getSkillTemplate(attacker);
         if (!template) return { handled: false };
 
-        const ctx = { attacker, teamKey, targets };
+        const ctx = { attacker, teamKey, targets: Array.isArray(targets) ? targets.slice() : [] };
         this.addLog(`\n⭐ ${attacker?.name || '사용자'} 스킬(템플릿) 사용: ${template.name || attacker.skillTemplateId}`);
+
+        // ===== perTarget 조건: 선택 대상 자체를 필터링(조건 불만족 대상은 효과 적용 제외) =====
+        const conditions = Array.isArray(template?.conditions) ? template.conditions : [];
+        const perTargetConds = conditions.filter((c) => this.isPerTargetCondition(c));
+        if (perTargetConds.length > 0) {
+            const before = ctx.targets.length;
+            ctx.targets = ctx.targets.filter((t) => {
+                if (!t) return false;
+                return perTargetConds.every((c) => this.evalCondition(c, { ...ctx, target: t }).ok);
+            });
+            const after = ctx.targets.length;
+            if (before > 0 && after !== before) {
+                this.addLog(`  🔎 조건으로 대상 필터링: ${before}명 → ${after}명`);
+            }
+            if (after === 0) {
+                const msg = '조건 불충족: 조건을 만족하는 대상이 없습니다.';
+                this.addLog(`  ❌ ${msg}`);
+                this.app?.showToast?.(msg, 'warning');
+                return { handled: true, ok: false };
+            }
+        }
 
         const cond = this.evalSkillConditions(template, ctx);
         if (!cond.ok) {

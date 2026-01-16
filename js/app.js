@@ -421,8 +421,11 @@ class BattleApp {
     describeCondition(cond) {
         if (!cond || !cond.type) return '알 수 없는 조건';
         if (cond.type === 'TARGET_HP_NOT_FULL') {
+            const scope = String(cond.scope || '').toLowerCase();
+            const isPerTarget = cond.perTarget === true || scope === 'pertarget' || scope === 'each' || scope === 'eachtarget' || scope === 'target';
+            if (isPerTarget) return '각 대상: HP가 최대가 아님(조건 만족 대상만 적용)';
             const mode = cond.mode === 'all' ? '모든' : '최소 1명';
-            return `대상 중 ${mode}은(는) HP가 최대가 아님`; 
+            return `대상 중 ${mode}은(는) HP가 최대가 아님`;
         }
         return cond.type;
     }
