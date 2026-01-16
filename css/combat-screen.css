@@ -146,10 +146,11 @@ main #combat-screen {
     margin-bottom: 6px;
     transition: all 0.2s ease;
 
+}
+
 .combat-char-card.is-current {
     border-color: rgba(49, 130, 206, 0.65);
     box-shadow: 0 6px 18px rgba(49, 130, 206, 0.18);
-}
 }
 
 .combat-char-card:hover {

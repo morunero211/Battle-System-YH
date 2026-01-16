@@ -1266,18 +1266,18 @@ class BattleSystem {
 
         this.turnIndex += 1;
 
-        // 한 라운드(참가자 수) 종료 시: 턴 증가 + 동률 랜덤 재추첨 포함해 순서 재생성
+        // 한 라운드(턴 오더 1회 순회) 종료 시: 턴만 증가 (전투 시작 시 정한 순서는 유지)
         if (this.turnIndex >= this.turnOrder.length) {
+            this.turnIndex = 0;
             this.currentTurn++;
             this.addLog(`\n========== 턴 ${this.currentTurn} ==========`);
-            this.rebuildTurnOrder({ log: true });
-        } else {
-            // 현재팀(기존 UI 호환)도 현재 액터의 팀으로 동기화
-            const entry = this.getCurrentTurnEntry();
-            if (entry) {
-                const idx = ['hero', 'gov', 'villain'].indexOf(entry.teamKey);
-                this.currentTeamTurn = idx >= 0 ? idx : 0;
-            }
+        }
+
+        // 현재팀(기존 UI 호환)도 현재 액터의 팀으로 동기화
+        const entry = this.getCurrentTurnEntry();
+        if (entry) {
+            const idx = ['hero', 'gov', 'villain'].indexOf(entry.teamKey);
+            this.currentTeamTurn = idx >= 0 ? idx : 0;
         }
 
         this.checkBattleEnd();
@@ -1318,33 +1318,20 @@ class BattleSystem {
 
         this.addLog(`\n🏆 전투 종료! 승자: ${winner}`);
 
-        // 마지막 전투 기록 업데이트 + 최종 HP/스킬 사용 기록 + 스탯 변화 저장
-        if (this.app.battleHistory.length > 0) {
-            const rec = this.app.battleHistory[this.app.battleHistory.length - 1];
-            rec.winner = winner;
-
-            // 최종 HP 맵(id -> hp)
-            const finalHp = {};
-            const finalStats = {};
-            ['hero','gov','villain'].forEach(teamKey => {
-                (this.combatCharacters[teamKey] || []).forEach(c => {
-                    if (c && c.id) {
-                        finalHp[c.id] = c.hp;
-                        finalStats[c.id] = {
-                            attack: c.attack,
-                            defense: c.defense,
-                            agility: c.agility,
-                            skill: c.skill,
-                            status: c.status
-                        };
-                    }
-                });
-            });
-            rec.finalHp = finalHp;
-            rec.finalStats = finalStats;
-            rec.usedUltimate = { ...this.usedUltimate };
-            this.app.saveToLocalStorage();
+        // 전투 종료 시: 관련 기록은 저장/유지하지 않음
+        // (App에서 startBattle() 시 push된 최신 전투 기록이 있으면 제거)
+        if (Array.isArray(this.app?.battleHistory) && this.app.battleHistory.length > 0) {
+            const last = this.app.battleHistory[this.app.battleHistory.length - 1];
+            if (last && typeof last.id === 'string' && last.id.startsWith('battle_')) {
+                this.app.battleHistory.pop();
+                this.app.saveToLocalStorage?.();
+            }
         }
+
+        // UI(전투 로그/턴 순서 등)도 종료 시점에 정리
+        this.pendingDefenseResponse = null;
+        this.turnOrder = [];
+        this.turnIndex = 0;
 
         this.showBattleEnd(winner);
     }

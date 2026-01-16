@@ -620,21 +620,22 @@ class BattleActions {
      * 항복 액션
      */
     handleForfeit() {
-        const currentTeamTurn = this.app.battleSystem.currentTeamTurn;
-        const teamNames = ['히어로', '정부', '빌런'];
-        const forfeittingTeam = teamNames[currentTeamTurn];
-        
+        const entry = this.app?.battleSystem?.getCurrentTurnEntry?.();
+        const teamKey = entry?.teamKey;
+        if (!teamKey) return;
+
+        const teamLabel = teamKey === 'hero' ? '히어로' : (teamKey === 'gov' ? '정부' : '빌런');
+
         // 항복 팀의 모든 캐릭터 HP를 0으로 설정
-        const teamNameKeys = ['hero', 'gov', 'villain'];
-        this.app.battleSystem.combatCharacters[teamNameKeys[currentTeamTurn]].forEach(char => {
+        (this.app.battleSystem.combatCharacters?.[teamKey] || []).forEach(char => {
             char.hp = 0;
         });
-        
-        this.app.battleSystem.addLog(`💀 ${forfeittingTeam} 팀이 항복했습니다!`);
+
+        this.app.battleSystem.addLog(`💀 ${teamLabel} 팀이 항복했습니다!`);
         this.app.battleSystem.renderBattle();
-        
-        // 전투 종료
-        this.endBattle();
+
+        // 전투 종료(승자 판정/기록 정리 포함)
+        this.app.battleSystem.checkBattleEnd();
     }
 
     /**
