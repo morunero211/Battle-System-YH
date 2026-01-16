@@ -27,6 +27,244 @@ class BattleSystem {
         // ===== 2-step 방어자 응답 =====
         this.pendingDefenseResponse = null; // { pendingId, attackerRef, defenderRef, targetTeam, attackerTeam, expiresAt }
         this.defenseUiInitialized = false;
+
+        // ===== 스킬 템플릿(조건+이펙트) =====
+        // 캐릭터에 `skillTemplateId`를 넣으면 이 템플릿을 사용합니다.
+        // (없으면 기존 스킬 로직/분기 그대로 사용)
+        this.skillTemplates = {
+            // 예시: 광역 공격 + 자기 방어 -1(1턴) + (선택) 힐 금지 디버프
+            // 실제 적용은 캐릭터에 skillTemplateId: 'AOE_CRACKING_STRIKE' 를 설정하면 됩니다.
+            AOE_CRACKING_STRIKE: {
+                name: '균열 강타(광역)',
+                conditions: [
+                    // 대상 중 최소 1명은 HP가 완전하지 않아야 함
+                    { type: 'TARGET_HP_NOT_FULL', mode: 'any' }
+                ],
+                effects: [
+                    // 공격 대상(선택한 대상들)에게 스킬 데미지(대상 수로 1/n 분배)
+                    { type: 'DAMAGE_SKILL_ROLL', targets: 'SELECTED', split: 'evenFloor', applyDefense: true },
+
+                    // 광범위 공격 패널티: 아군+자신에게 미미한 피해(고정)
+                    { type: 'DAMAGE_FLAT', targets: 'ALLIES_INCLUDING_SELF', amount: 1, applyDefense: false },
+
+                    // 능력 패널티: 자신 방어력 -1, 1턴
+                    { type: 'APPLY_STATUS', targets: 'SELF', status: { kind: 'STAT_MOD', durationRounds: 1, statMods: { defense: -1 } } },
+
+                    // (옵션) 맞은 대상은 1턴간 치유 불가
+                    // 필요 시 enabled:false로 꺼두고 캐릭터별로 커스텀 가능
+                    { type: 'APPLY_STATUS', targets: 'SELECTED', enabled: false, status: { kind: 'NO_HEAL', durationRounds: 1, flags: { noHeal: true } } }
+                ]
+            }
+        };
+    }
+
+    // ===== 상태이상/스킬 템플릿 공용 =====
+    getOrInitStatusEffects(char) {
+        if (!char) return [];
+        if (!Array.isArray(char.statusEffects)) char.statusEffects = [];
+        return char.statusEffects;
+    }
+
+    getActiveStatusEffects(char) {
+        const list = this.getOrInitStatusEffects(char);
+        return list.filter((e) => e && (typeof e.durationRounds !== 'number' || e.durationRounds > 0));
+    }
+
+    hasStatusFlag(char, flagKey) {
+        return this.getActiveStatusEffects(char).some((e) => !!e?.flags?.[flagKey]);
+    }
+
+    getStatModSum(char, statKey) {
+        return this.getActiveStatusEffects(char).reduce((sum, e) => {
+            const v = Number(e?.statMods?.[statKey] || 0);
+            return sum + (Number.isFinite(v) ? v : 0);
+        }, 0);
+    }
+
+    getEffectiveStat(char, statKey) {
+        const base = this.clampStat1to5(char?.[statKey]);
+        const delta = this.getStatModSum(char, statKey);
+        return this.clampStat1to5(base + delta);
+    }
+
+    canHealTarget(target) {
+        return !this.hasStatusFlag(target, 'noHeal');
+    }
+
+    tickStatusEffectsOnRoundAdvance() {
+        const participants = this.getAliveParticipants().map((p) => p.char);
+        const all = new Set(participants);
+        // 사망자도 디버프 유지할 필요 없지만, 안전하게 전원 기준으로 처리
+        ['hero', 'gov', 'villain'].forEach((teamKey) => {
+            (this.combatCharacters?.[teamKey] || []).forEach((c) => all.add(c));
+        });
+
+        all.forEach((char) => {
+            const list = this.getOrInitStatusEffects(char);
+            list.forEach((e) => {
+                if (!e) return;
+                if (typeof e.durationRounds === 'number') e.durationRounds -= 1;
+            });
+            char.statusEffects = list.filter((e) => e && (typeof e.durationRounds !== 'number' || e.durationRounds > 0));
+        });
+    }
+
+    findTeamKeyByCharId(charId) {
+        const id = String(charId);
+        if ((this.combatCharacters.hero || []).some((c) => String(c.id) === id)) return 'hero';
+        if ((this.combatCharacters.gov || []).some((c) => String(c.id) === id)) return 'gov';
+        if ((this.combatCharacters.villain || []).some((c) => String(c.id) === id)) return 'villain';
+        return null;
+    }
+
+    getAlliance(teamKey) {
+        if (teamKey === 'villain') return { allies: ['villain'], enemies: ['hero', 'gov'] };
+        return { allies: ['hero', 'gov'], enemies: ['villain'] };
+    }
+
+    getSkillTemplate(attacker) {
+        const id = attacker?.skillTemplateId;
+        if (!id) return null;
+        return this.skillTemplates?.[id] || null;
+    }
+
+    evalSkillConditions(template, ctx) {
+        const conditions = Array.isArray(template?.conditions) ? template.conditions : [];
+        if (conditions.length === 0) return { ok: true };
+
+        for (const cond of conditions) {
+            if (!cond || !cond.type) continue;
+            if (cond.type === 'TARGET_HP_NOT_FULL') {
+                const targets = Array.isArray(ctx?.targets) ? ctx.targets : [];
+                const mode = cond.mode === 'all' ? 'all' : 'any';
+                const pass = mode === 'all'
+                    ? targets.length > 0 && targets.every((t) => this.getBaseHp(t) < this.getMaxHp(t))
+                    : targets.some((t) => this.getBaseHp(t) < this.getMaxHp(t));
+                if (!pass) return { ok: false, reason: '조건 불충족: 대상 HP가 완전한 상태가 아니어야 합니다.' };
+                continue;
+            }
+
+            return { ok: false, reason: `알 수 없는 조건: ${cond.type}` };
+        }
+
+        return { ok: true };
+    }
+
+    resolveEffectTargets(targetSpec, ctx) {
+        const { attacker, teamKey } = ctx || {};
+        if (targetSpec === 'SELF') return attacker ? [attacker] : [];
+        if (targetSpec === 'SELECTED') return Array.isArray(ctx?.targets) ? ctx.targets : [];
+        if (targetSpec === 'ALLIES_INCLUDING_SELF') {
+            if (!teamKey || !attacker) return [];
+            const alliance = this.getAlliance(teamKey);
+            const allies = alliance.allies;
+            const list = allies.flatMap((t) => (this.combatCharacters?.[t] || [])).filter((c) => this.getTotalHp(c) > 0);
+            const uniq = new Map();
+            list.forEach((c) => uniq.set(String(c.id), c));
+            uniq.set(String(attacker.id), attacker);
+            return Array.from(uniq.values());
+        }
+        return [];
+    }
+
+    applyStatusToTarget(target, status, ctx) {
+        if (!target || !status) return;
+        const effect = {
+            id: `se_${Date.now()}_${Math.random().toString(16).slice(2)}`,
+            kind: status.kind,
+            durationRounds: typeof status.durationRounds === 'number' ? status.durationRounds : 1,
+            flags: status.flags || {},
+            statMods: status.statMods || {},
+            sourceId: ctx?.attacker?.id || null,
+            createdTurn: this.currentTurn
+        };
+        const list = this.getOrInitStatusEffects(target);
+        list.push(effect);
+        if (effect.flags?.noHeal) {
+            this.addLog(`  🚫 ${target.name} 치유 불가(${effect.durationRounds}턴)`);
+        }
+        if (effect.kind === 'STAT_MOD') {
+            const mods = Object.entries(effect.statMods || {})
+                .map(([k, v]) => `${k}${Number(v) >= 0 ? '+' : ''}${v}`)
+                .join(', ');
+            this.addLog(`  🧷 ${target.name} 스탯 변화(${effect.durationRounds}턴): ${mods || '-'}`);
+        }
+    }
+
+    executeSkillTemplate({ attacker, teamKey, targets }) {
+        const template = this.getSkillTemplate(attacker);
+        if (!template) return { handled: false };
+
+        const ctx = { attacker, teamKey, targets };
+        this.addLog(`\n⭐ ${attacker?.name || '사용자'} 스킬(템플릿) 사용: ${template.name || attacker.skillTemplateId}`);
+
+        const cond = this.evalSkillConditions(template, ctx);
+        if (!cond.ok) {
+            this.addLog(`  ❌ ${cond.reason}`);
+            this.app?.showToast?.(cond.reason, 'warning');
+            return { handled: true, ok: false };
+        }
+
+        const effects = Array.isArray(template.effects) ? template.effects : [];
+        for (const ef of effects) {
+            if (!ef || !ef.type) continue;
+            if (ef.enabled === false) continue;
+
+            if (ef.type === 'DAMAGE_SKILL_ROLL') {
+                const list = this.resolveEffectTargets(ef.targets, ctx).filter((c) => this.getTotalHp(c) > 0);
+                const n = list.length;
+                if (n === 0) continue;
+
+                const skillStat = this.getEffectiveStat(attacker, 'skill');
+                const rolled = this.rollAttackSkillRawDamage(skillStat);
+                const perTargetRaw = ef.split === 'evenFloor' ? Math.floor((Number(rolled.raw) || 0) / n) : Number(rolled.raw) || 0;
+
+                this.addLog(`  🎲 스킬 데미지: ${rolled.min} + (1~${rolled.extraMax})[${rolled.bonus}] = ${rolled.raw} (최대 ${rolled.max})`);
+                if (ef.split === 'evenFloor') this.addLog(`  👥 다수 분배: floor(${rolled.raw} / ${n}) = ${perTargetRaw} (각 대상 원데미지)`);
+
+                list.forEach((defender) => {
+                    if (perTargetRaw <= 0) return;
+                    const defStat = ef.applyDefense ? this.getEffectiveStat(defender, 'defense') : 1;
+                    const defensePercent = ef.applyDefense ? this.getDefenseReductionPercent(defStat) : 0;
+                    const damage = ef.applyDefense ? this.applyDefenseReduction(perTargetRaw, defensePercent) : perTargetRaw;
+
+                    this.addLog(`  🎯 대상: ${defender.name}`);
+                    if (ef.applyDefense) this.addLog(`    🛡️ 방어력: ${defensePercent}% (원데미지 ${perTargetRaw} → 실제 ${damage})`);
+
+                    const beforeShield = this.getShieldHp(defender);
+                    const applied = this.applyDamageWithShield(defender, damage);
+                    if (beforeShield > 0 || applied.shieldAbsorbed > 0) {
+                        this.addLog(`    🧱 쉴드: ${beforeShield} → ${this.getShieldHp(defender)} (흡수 ${applied.shieldAbsorbed})`);
+                    }
+                    if (defender.hp <= 0) this.addLog(`    💀 ${defender.name}이(가) 쓰러졌습니다!`);
+                });
+                continue;
+            }
+
+            if (ef.type === 'DAMAGE_FLAT') {
+                const list = this.resolveEffectTargets(ef.targets, ctx).filter((c) => this.getTotalHp(c) > 0);
+                const raw = Math.max(0, Math.floor(Number(ef.amount) || 0));
+                if (raw <= 0 || list.length === 0) continue;
+
+                this.addLog(`  🌊 부수 피해: ${raw} (대상 ${list.length}명)`);
+                list.forEach((t) => {
+                    const damage = raw;
+                    this.applyDamageWithShield(t, damage);
+                });
+                continue;
+            }
+
+            if (ef.type === 'APPLY_STATUS') {
+                const list = this.resolveEffectTargets(ef.targets, ctx).filter(Boolean);
+                list.forEach((t) => this.applyStatusToTarget(t, ef.status, ctx));
+                continue;
+            }
+
+            this.addLog(`  ⚠️ 알 수 없는 이펙트: ${ef.type}`);
+        }
+
+        if (attacker && attacker.id) this.usedUltimate[attacker.id] = true;
+        return { handled: true, ok: true };
     }
 
     /**
@@ -40,6 +278,13 @@ class BattleSystem {
         this.battleLog = [];
         this.usedUltimate = {};
         this.pendingDefenseResponse = null;
+
+        // 전투 시작 시 상태이상 초기화(전투 내 효과는 전투 종료 시 사라짐)
+        ['hero', 'gov', 'villain'].forEach((k) => {
+            (this.combatCharacters?.[k] || []).forEach((c) => {
+                if (c) c.statusEffects = [];
+            });
+        });
         
         // 선택된 캐릭터들로 전투 캐릭터 설정
         this.combatCharacters = {
@@ -377,10 +622,10 @@ class BattleSystem {
                     <div class="hp-bar"><span style="width: ${hpPercent}%;"></span></div>
                 </div>
                 <div class="stat-row">
-                    <span>⚔️ ${char.attack}</span>
-                    <span>🛡️ ${char.defense}</span>
-                    <span>💨 ${char.agility}</span>
-                    <span>⭐ ${char.skill}</span>
+                    <span>⚔️ ${this.getEffectiveStat(char, 'attack')}</span>
+                    <span>🛡️ ${this.getEffectiveStat(char, 'defense')}</span>
+                    <span>💨 ${this.getEffectiveStat(char, 'agility')}</span>
+                    <span>⭐ ${this.getEffectiveStat(char, 'skill')}</span>
                 </div>
             </div>
         `;
@@ -434,6 +679,11 @@ class BattleSystem {
     applyHealToBaseHp(target, amount) {
         const heal = Math.max(0, Math.floor(Number(amount) || 0));
         if (heal === 0) return 0;
+
+        if (!this.canHealTarget(target)) {
+            this.addLog(`  🚫 ${target?.name || '대상'}은(는) 치유 불가 상태입니다.`);
+            return 0;
+        }
 
         const maxHp = this.getMaxHp(target);
         const beforeTotal = this.getTotalHp(target);
@@ -1089,10 +1339,10 @@ class BattleSystem {
         this.addLog('  💫 궁극기는 100% 명중합니다!');
 
         // 공격형 스킬 데미지(이미지 테이블): 최소 + 추가(1~N)
-        const skillStat = attacker.skill ?? attacker.skillStat ?? 1;
+        const skillStat = this.getEffectiveStat(attacker, 'skill');
         const rolled = this.rollAttackSkillRawDamage(skillStat);
 
-        const defStat = Math.max(1, Math.min(5, Math.round(Number(defender.defense ?? defender.def ?? 1))));
+        const defStat = this.getEffectiveStat(defender, 'defense');
         const defensePercent = this.getDefenseReductionPercent(defStat);
         const damage = this.applyDefenseReduction(rolled.raw, defensePercent);
 
@@ -1144,7 +1394,7 @@ class BattleSystem {
 
         this.addLog('  💫 궁극기는 100% 명중합니다!');
 
-        const skillStat = attacker.skill ?? attacker.skillStat ?? 1;
+        const skillStat = this.getEffectiveStat(attacker, 'skill');
         const rolled = this.rollAttackSkillRawDamage(skillStat);
 
         const perTargetRaw = Math.floor((Number(rolled.raw) || 0) / n);
@@ -1152,7 +1402,7 @@ class BattleSystem {
         this.addLog(`  👥 다수 분배: floor(${rolled.raw} / ${n}) = ${perTargetRaw} (각 대상 원데미지)`);
 
         targets.forEach((defender) => {
-            const defStat = Math.max(1, Math.min(5, Math.round(Number(defender.defense ?? defender.def ?? 1))));
+            const defStat = this.getEffectiveStat(defender, 'defense');
             const defensePercent = this.getDefenseReductionPercent(defStat);
             const damage = this.applyDefenseReduction(perTargetRaw, defensePercent);
 
@@ -1200,7 +1450,7 @@ class BattleSystem {
 
         this.addLog(`\n🛡️ ${attacker.name} 방어형 스킬(쉴드) 사용! (대상 ${n}명)`);
 
-        const skillStat = attacker.skill ?? attacker.skillStat ?? 1;
+        const skillStat = this.getEffectiveStat(attacker, 'skill');
         const shieldBase = this.getShieldAmountBySkillStat(skillStat);
         const perTarget = Math.floor(shieldBase / n);
 
@@ -1233,7 +1483,7 @@ class BattleSystem {
 
         this.addLog(`\n💚 ${attacker.name} 치료형 스킬 사용! (대상 ${n}명)`);
 
-        const skillStat = attacker.skill ?? attacker.skillStat ?? 1;
+        const skillStat = this.getEffectiveStat(attacker, 'skill');
         const healBase = this.getHealAmountBySkillStat(skillStat);
         const perTarget = Math.floor(healBase / n);
 
@@ -1270,6 +1520,7 @@ class BattleSystem {
         if (this.turnIndex >= this.turnOrder.length) {
             this.turnIndex = 0;
             this.currentTurn++;
+            this.tickStatusEffectsOnRoundAdvance();
             this.addLog(`\n========== 턴 ${this.currentTurn} ==========`);
         }
 

@@ -241,6 +241,23 @@ class BattleActions {
         const names = targets.map(t => t.char.name).join(', ');
         this.app.battleSystem.addLog(`🎯 스킬 대상 선택: ${names}`);
 
+        // 템플릿 스킬(조건+이펙트) 우선 처리
+        const tmpl = this.app?.battleSystem?.getSkillTemplate?.(ctx.attacker);
+        if (tmpl) {
+            const res = this.app.battleSystem.executeSkillTemplate({ attacker: ctx.attacker, teamKey: ctx.teamKey, targets: targets.map(t => t.char) });
+            this.hideSkillTargetModal();
+            if (res?.ok) {
+                this.app.battleSystem.renderBattle();
+                if (this.app.battleSystem.checkBattleEnd()) {
+                    this.app.battleSystem.renderBattle();
+                    return;
+                }
+                this.app.battleSystem.nextTurn();
+                this.app.battleSystem.renderBattle();
+            }
+            return;
+        }
+
         // 공격형: 단일/다수 모두 실제 적용
         if (ctx.skillType === '공격형') {
             const consumed = this.consumeSkillUse(ctx.attacker);
