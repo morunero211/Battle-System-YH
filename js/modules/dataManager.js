@@ -237,6 +237,15 @@ class DataManager {
      */
     saveToLocalStorage() {
         try {
+            // 수동 저장 모드에서는 버튼으로 강제 저장할 때만 저장
+            // (기본 동작: 자동 저장/동기화가 사용자 데이터를 되살리거나 덮어쓰는 문제 방지)
+            const manual = !!this.app?.manualPersistenceMode;
+            const force = arguments?.[0]?.force === true; // 기존 호출부 호환(인자 없이 호출되는 경우가 많음)
+            if (manual && !force) {
+                this.app._unsavedChanges = true;
+                return false;
+            }
+
             this.setLastActiveKey(this.localStorageKey);
             // 백업(이전 스냅샷 보관): 새 버전 배포/파싱 이슈로 데이터가 "사라지는" 경우 대비
             const prevRaw = localStorage.getItem(this.localStorageKey);
@@ -253,16 +262,25 @@ class DataManager {
             };
             localStorage.setItem(this.localStorageKey, JSON.stringify(data));
             console.log('LocalStorage에 저장됨');
+            return true;
         } catch (error) {
             console.error('LocalStorage 저장 실패:', error);
+            return false;
         }
     }
 
     /**
      * LocalStorage에서 불러오기 (기본 캐시)
      */
-    loadFromLocalStorage() {
+    loadFromLocalStorage(options = {}) {
         try {
+            const manual = !!this.app?.manualPersistenceMode;
+            const force = options?.force === true;
+            if (manual && !force) {
+                console.warn('수동 저장/불러오기 모드: 자동 로드를 건너뜁니다.');
+                return false;
+            }
+
             const raw = localStorage.getItem(this.localStorageKey);
             if (raw) {
                 const parsed = JSON.parse(raw);
@@ -300,7 +318,7 @@ class DataManager {
                 }
                 console.log('LocalStorage에서 로드됨');
                 this.setLastActiveKey(this.localStorageKey);
-                return;
+                return true;
             }
 
             // 현재 키에 데이터가 없으면, 마지막 사용 키 또는 가장 최신 키에서 복구
@@ -325,10 +343,12 @@ class DataManager {
                 // 현재 키로도 저장해서 다음 새로고침부터는 안정적으로 로드되게
                 this.saveToLocalStorage();
                 this.app?.showToast?.('캐릭터 데이터를 복구했습니다.', 'success');
-                return;
+                return true;
             }
+            return false;
         } catch (error) {
             console.error('LocalStorage 로드 실패:', error);
+            return false;
         }
     }
 
@@ -377,7 +397,14 @@ class DataManager {
     /**
      * Firestore에서 최신 상태 불러오기 (있으면 적용 후 렌더)
      */
-    async loadFromFirestore() {
+    async loadFromFirestore(options = {}) {
+        const manual = !!this.app?.manualPersistenceMode;
+        const force = options?.force === true;
+        if (manual && !force) {
+            console.warn('수동 저장/불러오기 모드: 자동 원격 로드를 건너뜁니다.');
+            return false;
+        }
+
         const db = this.getFirestore();
         if (!db) {
             console.warn('Firestore가 초기화되지 않아 원격 로드를 건너뜁니다.');
@@ -460,7 +487,13 @@ class DataManager {
     /**
      * Firestore에 저장 (병합)
      */
-    async saveToFirestore() {
+    async saveToFirestore(options = {}) {
+        const manual = !!this.app?.manualPersistenceMode;
+        const force = options?.force === true;
+        if (manual && !force) {
+            return;
+        }
+
         const db = this.getFirestore();
         if (!db) {
             return;

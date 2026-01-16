@@ -30,6 +30,11 @@ class BattleApp {
         this.remoteSyncInterval = null; // Firestore 주기적 동기화 타이머
         this.currentUserId = null; // 로그인 사용자 ID
         this.currentUsername = null; // 현재 사용자 닉네임
+
+        // 저장/불러오기 정책
+        // - true: 자동 저장/자동 로드/자동 원격 동기화 OFF (버튼으로만 저장/불러오기)
+        this.manualPersistenceMode = true;
+        this._unsavedChanges = false;
         
         // DOM 요소
         this.initElements();
@@ -184,24 +189,34 @@ class BattleApp {
             console.warn('초기 Auth 사용자 감지 실패:', e);
         }
 
-        this.dataManager.loadFromLocalStorage(); // 저장된 데이터 자동 불러오기
-        this.normalizePersistedData({ save: true });
+        if (!this.manualPersistenceMode) {
+            this.dataManager.loadFromLocalStorage(); // 저장된 데이터 자동 불러오기
+            this.normalizePersistedData({ save: true });
+        }
 
         // 스킬 템플릿 로드/동기화(내장 템플릿 + 로컬 저장 템플릿 병합)
         if (this.dataManager?.syncSkillTemplates) {
             this.dataManager.syncSkillTemplates();
         }
 
-        // 로컬에 아무 것도 없으면 그때만 샘플 로드
-        this.loadSampleCharacters();
-        this.normalizePersistedData({ save: true });
+        // 수동 모드에서는 샘플/자동 로드로 덮어쓰지 않음
+        if (!this.manualPersistenceMode) {
+            // 로컬에 아무 것도 없으면 그때만 샘플 로드
+            this.loadSampleCharacters();
+            this.normalizePersistedData({ save: true });
+        } else {
+            this.showToast?.('자동 저장/불러오기 OFF: 필요 시 “불러오기”를 눌러주세요.', 'info');
+        }
 
         this.renderAllTeams();
 
-        // Firestore 원격 데이터가 있으면 가져와서 최신 상태로 덮어씀 (로그인 사용자만)
-        if (this.dataManager?.userId) {
-            this.dataManager.loadFromFirestore();
-            this.startRemoteSyncPolling();
+        // 수동 모드에서는 원격 자동 로드/폴링을 하지 않음
+        if (!this.manualPersistenceMode) {
+            // Firestore 원격 데이터가 있으면 가져와서 최신 상태로 덮어씀 (로그인 사용자만)
+            if (this.dataManager?.userId) {
+                this.dataManager.loadFromFirestore();
+                this.startRemoteSyncPolling();
+            }
         }
         this.updateClock();
         setInterval(() => this.updateClock(), 1000);
@@ -1349,13 +1364,13 @@ class BattleApp {
     this.elements.modeTeamH?.addEventListener('click', () => this.setMode('team'));
     this.elements.mode1v1H?.addEventListener('click', () => this.startBattle());
 
-        // 저장/불러오기
-        this.elements.saveCharacters?.addEventListener('click', () => this.downloadJSON());
-        this.elements.loadCharacters?.addEventListener('click', () => this.elements.fileInput.click());
+        // 저장/불러오기 (수동 모드: 로컬/원격 저장소에 저장/불러오기)
+        this.elements.saveCharacters?.addEventListener('click', () => this.manualSaveNow());
+        this.elements.loadCharacters?.addEventListener('click', () => this.manualLoadNow());
             this.elements.copyCharacters?.addEventListener('click', () => this.copyJSONToClipboard());
-            this.elements.saveCharactersH?.addEventListener('click', () => this.downloadJSON());
+            this.elements.saveCharactersH?.addEventListener('click', () => this.manualSaveNow());
             this.elements.copyCharactersH?.addEventListener('click', () => this.copyJSONToClipboard());
-            this.elements.loadCharactersH?.addEventListener('click', () => this.elements.fileInput.click());
+            this.elements.loadCharactersH?.addEventListener('click', () => this.manualLoadNow());
         this.elements.fileInput?.addEventListener('change', (e) => this.loadJSON(e));
 
         // 페이지 전환
@@ -2489,7 +2504,7 @@ class BattleApp {
 
         try {
             if (this.dataManager?.saveToLocalStorage) {
-                this.dataManager.saveToLocalStorage();
+                this.dataManager.saveToLocalStorage({ force: !this.manualPersistenceMode ? true : false });
             } else {
                 const key = this.dataManager?.localStorageKey || 'battleProgramData';
                 const data = {
@@ -2505,11 +2520,62 @@ class BattleApp {
             console.error('로컬 스토리지 저장 실패:', error);
         }
 
-        // Firestore 동기화 (비동기, 실패해도 앱 동작에는 영향 없음)
-        if (this.dataManager && typeof this.dataManager.saveToFirestore === 'function' && !this.skipRemoteSave) {
-            this.dataManager.saveToFirestore().catch((err) => {
-                console.error('원격 저장 실패:', err);
-            });
+        // Firestore 동기화 (수동 모드에서는 버튼으로만)
+        if (!this.manualPersistenceMode) {
+            if (this.dataManager && typeof this.dataManager.saveToFirestore === 'function' && !this.skipRemoteSave) {
+                this.dataManager.saveToFirestore().catch((err) => {
+                    console.error('원격 저장 실패:', err);
+                });
+            }
+        } else {
+            this._unsavedChanges = true;
+        }
+    }
+
+    async manualSaveNow() {
+        // 수동 저장: 로컬 + (로그인 상태면) 원격 저장
+        this.normalizePersistedData({ save: false });
+        try {
+            this.dataManager?.saveToLocalStorage?.({ force: true });
+            if (this.dataManager?.userId && typeof this.dataManager.saveToFirestore === 'function' && !this.skipRemoteSave) {
+                await this.dataManager.saveToFirestore({ force: true });
+            }
+            this._unsavedChanges = false;
+            this.showToast?.('저장 완료', 'success');
+        } catch (e) {
+            console.error('수동 저장 실패:', e);
+            this.showToast?.('저장 실패', 'error');
+        }
+    }
+
+    async manualLoadNow() {
+        // 수동 불러오기: 기본은 로컬에서만
+        try {
+            if (this._unsavedChanges) {
+                const ok = this.showConfirm
+                    ? await this.showConfirm({
+                        title: '불러오기',
+                        message: '저장되지 않은 변경사항이 있습니다. 불러오면 현재 내용이 덮어써집니다. 계속할까요?',
+                        okText: '불러오기',
+                        cancelText: '취소'
+                    })
+                    : confirm('저장되지 않은 변경사항이 있습니다. 불러오면 현재 내용이 덮어써집니다. 계속할까요?');
+                if (!ok) return;
+            }
+
+            const loaded = this.dataManager?.loadFromLocalStorage?.({ force: true });
+            if (loaded) {
+                this.normalizePersistedData({ save: false });
+                this.renderAllTeams?.();
+                this.updateCharacterListPage?.();
+                this._unsavedChanges = false;
+                this.showToast?.('불러오기 완료', 'success');
+            } else {
+                this.showToast?.('저장된 데이터가 없습니다.', 'warning');
+            }
+        } catch (e) {
+            console.error('수동 불러오기 실패:', e);
+            this.showToast?.('불러오기 실패', 'error');
         }
     }
 

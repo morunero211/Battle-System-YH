@@ -48,21 +48,15 @@ if (window.firebaseAuth) {
             
             // 앱이 로드되었으면 사용자 정보 설정
             if (window.app && window.app.dataManager) {
-                window.app.dataManager.setUser(user.uid);
-                
-                // Firestore에서 최신 데이터 로드
-                window.app.dataManager.loadFromFirestore().then(() => {
-                    if (window.app.renderAllTeams) {
-                        window.app.renderAllTeams();
-                    }
-                });
+                // 수동 저장/불러오기 모드: 자동 로드/동기화 금지
+                window.app.dataManager.setUser(user.uid, { applyLocalCache: false, migrate: false, render: false });
             }
         } else {
             console.log('👤 사용자 로그아웃');
             
             // 앱이 로드되었으면 익명 모드로 설정
             if (window.app && window.app.dataManager) {
-                window.app.dataManager.setUser(null);
+                window.app.dataManager.setUser(null, { applyLocalCache: false, migrate: false, render: false });
             }
         }
     });
