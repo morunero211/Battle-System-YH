@@ -53,8 +53,8 @@ class PageManager {
             <div class="char-table-cell">이름</div>
             <div class="char-table-cell">HP</div>
             <div class="char-table-cell">공격</div>
-            <div class="char-table-cell">방어</div>
             <div class="char-table-cell">민첩</div>
+            <div class="char-table-cell">방어</div>
             <div class="char-table-cell">스킬</div>
             <div class="char-table-cell">스킬타입</div>
             <div class="char-table-cell">상태</div>
@@ -88,8 +88,8 @@ class PageManager {
                     <div class="char-table-cell">${char.name}</div>
                     <div class="char-table-cell">${char.hp}</div>
                     <div class="char-table-cell">${char.attack || 3}</div>
-                    <div class="char-table-cell">${char.defense || 3}</div>
                     <div class="char-table-cell">${char.agility || 3}</div>
+                    <div class="char-table-cell">${char.defense || 3}</div>
                     <div class="char-table-cell">${char.skill || 3}</div>
                     <div class="char-table-cell char-skill-tags">${skillTags || '-'}</div>
                     <div class="char-table-cell"><span class="char-status ${statusClass}">${statusText}</span></div>

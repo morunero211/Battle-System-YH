@@ -1357,7 +1357,7 @@ class BattleSystem {
             const defStat = Math.max(1, Math.min(5, Math.round(Number(defender.defense ?? defender.def ?? 1))));
 
             // 기본공격 rawDamage: 3~10 (회의안: 필요 시 3~13으로 변경)
-            const rawDamage = isGreatSuccess ? 10 : this.rollInt(3, 10);
+            const rawDamage = this.rollInt(3, 10);
             const defensePercent = this.getDefenseReductionPercent(defStat);
             const finalDamage = this.applyDefenseReduction(rawDamage, defensePercent);
 
