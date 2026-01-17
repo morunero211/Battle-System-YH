@@ -25,18 +25,26 @@ const STAT_THRESHOLDS = {
   5: 70
 };
 
-// 판정 등급 계산 (하드 ≤50%, 익스트림 ≤20%)
+// 판정 등급 계산
+// - 대성공(EXTREME): 주사위 1일 때만
+// - 하드(HARD): 기준치의 50% 이하
 function getJudgmentGrade(roll, threshold) {
   if (roll > threshold) {
     return 'FAIL';
   }
-  if (roll <= threshold * 0.2) {
+  if (roll === 1) {
     return 'EXTREME';
   }
   if (roll <= threshold * 0.5) {
     return 'HARD';
   }
   return 'SUCCESS';
+}
+
+function pickBasicRawDamageForJudgment(judgment) {
+  const grade = judgment?.grade;
+  if (grade === 'EXTREME') return BASIC_RAW_DAMAGE.max;
+  return rollRawDamage(BASIC_RAW_DAMAGE);
 }
 
 // d100 롤 (1~100)
@@ -352,7 +360,7 @@ function executeBasicAttack({
   
   // 3. 데미지 계산
   // 기본 데미지는 공격자 atk만으로 산출(방어는 %감소로만 처리)
-  const rawDamage = rollRawDamage(BASIC_RAW_DAMAGE);
+  const rawDamage = pickBasicRawDamageForJudgment(attackJudgment);
   const defensePercent = counterFailedPenalty ? 0 : getDefenseReductionPercent(defenderChar.def);
   damage = counterFailedPenalty ? rawDamage : applyDefenseReduction(rawDamage, defensePercent);
   blocked = defensePercent > 0;
@@ -450,7 +458,7 @@ function resolveBasicAttack({
     const counterAgiOk = compareGrades(counterAgiJudgment.grade, attackJudgment.grade) >= 0;
     if (counterAtkOk && counterAgiOk) {
       // 반격 데미지 계산: 기본데미지(반격자 atk) -> 원래 공격자 방어력%로 감소
-      const rawCounterDamage = rollRawDamage(BASIC_RAW_DAMAGE);
+      const rawCounterDamage = pickBasicRawDamageForJudgment(counterJudgment);
       const counterDefensePercent = getDefenseReductionPercent(attackerChar.def);
       counterDamage = applyDefenseReduction(rawCounterDamage, counterDefensePercent);
 
@@ -476,7 +484,7 @@ function resolveBasicAttack({
 
   // 3. 데미지 계산
   // 기본 데미지는 공격자 atk만으로 산출(방어는 %감소로만 처리)
-  const rawDamage = rollRawDamage(BASIC_RAW_DAMAGE);
+  const rawDamage = pickBasicRawDamageForJudgment(attackJudgment);
   const defensePercent = counterFailedPenalty ? 0 : getDefenseReductionPercent(defenderChar.def);
   damage = counterFailedPenalty ? rawDamage : applyDefenseReduction(rawDamage, defensePercent);
   blocked = defensePercent > 0;

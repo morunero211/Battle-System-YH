@@ -31,7 +31,7 @@ function prunePendingReactions(now = Date.now()) {
 function gradeLabel(grade) {
   switch (grade) {
     case 'EXTREME':
-      return '익스트림';
+      return '대성공';
     case 'HARD':
       return '하드';
     case 'SUCCESS':

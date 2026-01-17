@@ -479,7 +479,7 @@ class BattleSystem {
     gradeLabelKo(grade) {
         switch (grade) {
             case 'EXTREME':
-                return '극단적 성공';
+                return '대성공';
             case 'HARD':
                 return '어려운 성공';
             case 'SUCCESS':
@@ -1343,6 +1343,11 @@ class BattleSystem {
             const attackPower = (attacker.attack ?? attacker.atk ?? 1) * 10 + (attacker.skill ?? attacker.skillStat ?? 1) * 5;
             this.addLog(`  🎲 공격 판정: ${attackRoll} (필요: ${attackPower})`);
 
+            const isGreatSuccess = attackRoll === 1;
+            if (isGreatSuccess) {
+                this.addLog('  🌟 대성공! (주사위 1)');
+            }
+
             if (attackRoll > attackPower) {
                 this.addLog(`  ❌ 공격 실패!`);
                 return { awaitingResponse: false };
@@ -1352,7 +1357,7 @@ class BattleSystem {
             const defStat = Math.max(1, Math.min(5, Math.round(Number(defender.defense ?? defender.def ?? 1))));
 
             // 기본공격 rawDamage: 3~10 (회의안: 필요 시 3~13으로 변경)
-            const rawDamage = this.rollInt(3, 10);
+            const rawDamage = isGreatSuccess ? 10 : this.rollInt(3, 10);
             const defensePercent = this.getDefenseReductionPercent(defStat);
             const finalDamage = this.applyDefenseReduction(rawDamage, defensePercent);
 

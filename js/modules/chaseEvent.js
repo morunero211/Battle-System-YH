@@ -214,13 +214,11 @@ class ChaseEvent {
 
     classifyAgility(roll, target) {
         // CoC-ish: 대성공(극단) / 성공 / 실패 / 대실패
-        // - 대성공: 1 또는 target/5 이하
+        // - 대성공: 1
         // - 성공: target 이하
         // - 대실패: 100 또는 (target < 50 이면서 96~100)
         // - 나머지: 실패
         if (roll === 1) return 'GREAT_SUCCESS';
-        const extreme = Math.max(1, Math.floor(target / 5));
-        if (roll <= extreme) return 'GREAT_SUCCESS';
 
         const fumble = (roll === 100) || (target < 50 && roll >= 96);
         if (fumble) return 'FUMBLE';
@@ -387,9 +385,8 @@ class ChaseEvent {
             const target = this.agilityTargetFromStat(atkStat); // 1~5 → 50~70
             const roll = this.rollD100();
 
-            const extreme = Math.max(1, Math.floor(target / 5));
             const isHit = roll <= target;
-            const isGreat = roll === 1 || roll <= extreme;
+            const isGreat = roll === 1;
 
             if (!isHit) {
                 this.pushLog(`🎯 미니 공격 ${i + 1}/2: 판정 ${roll}/${target} → 빗나감`);
