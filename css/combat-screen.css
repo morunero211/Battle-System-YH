@@ -851,7 +851,7 @@ main #combat-screen {
 
 .defense-response-modal .defense-response-buttons {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 12px;
     margin-bottom: 10px;
 }
@@ -865,6 +865,11 @@ main #combat-screen {
     font-weight: 900;
     cursor: pointer;
     color: #ffffff;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    line-height: 1.1;
     transition: transform 0.08s ease, filter 0.15s ease;
 }
 
@@ -879,12 +884,13 @@ main #combat-screen {
 
 .defense-response-modal .dr-btn:focus-visible {
     outline: none;
-    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.25);
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.45);
 }
 
 .defense-response-modal .dr-btn--counter {
     background: linear-gradient(90deg, #f2e85e, #f1a33c);
-    color: #ffffff;
+    color: #111827;
+    text-shadow: 0 1px 0 rgba(255, 255, 255, 0.28);
 }
 
 .defense-response-modal .dr-btn--dodge {
@@ -893,6 +899,10 @@ main #combat-screen {
 
 .defense-response-modal .dr-btn--pass {
     background: linear-gradient(90deg, #ff3b3b, #ff2d86);
+}
+
+.defense-response-modal .dr-btn--defense-skill {
+    background: linear-gradient(90deg, #22c55e, #2bb6a4);
 }
 
 .defense-response-modal .defense-response-footnote {
@@ -915,6 +925,12 @@ main #combat-screen {
     }
 
     .defense-response-modal .defense-response-buttons {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 460px) {
+    .defense-response-modal .defense-response-buttons {
         grid-template-columns: 1fr;
     }
 }
@@ -932,6 +948,32 @@ main #combat-screen {
     color: #4a5568;
     font-size: 15px;
     line-height: 1.5;
+}
+
+.skill-target-support-mode {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+    padding: 10px 12px;
+    border: 1px solid #e3e6f0;
+    border-radius: 10px;
+    background: #f8f9fc;
+    margin: 0 0 12px 0;
+}
+
+.skill-target-support-title {
+    font-weight: 900;
+    color: #2c3e50;
+    margin-right: 6px;
+}
+
+.skill-target-support-option {
+    display: inline-flex;
+    gap: 8px;
+    align-items: center;
+    font-weight: 800;
+    color: #4a5568;
 }
 
 .skill-target-list {

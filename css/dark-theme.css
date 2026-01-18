@@ -605,6 +605,8 @@ body.dark-theme .defense-response-modal .defense-response-banner__grade {
 
 body.dark-theme .defense-response-modal .dr-btn--counter {
     background: linear-gradient(90deg, #c9bf2c, #b56e1d);
+    color: #111827;
+    text-shadow: 0 1px 0 rgba(255, 255, 255, 0.25);
 }
 
 body.dark-theme .defense-response-modal .dr-btn--dodge {
@@ -613,6 +615,10 @@ body.dark-theme .defense-response-modal .dr-btn--dodge {
 
 body.dark-theme .defense-response-modal .dr-btn--pass {
     background: linear-gradient(90deg, #ff2d2d, #ff1f7a);
+}
+
+body.dark-theme .defense-response-modal .dr-btn--defense-skill {
+    background: linear-gradient(90deg, #16a34a, #15997f);
 }
 
 body.dark-theme .defense-response-modal .defense-response-footnote {

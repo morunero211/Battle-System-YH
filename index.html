@@ -9,11 +9,11 @@
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;600;700;800;900&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Gaegu:wght@700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="css/base.css?v=20260115i">
-    <link rel="stylesheet" href="css/shared.css?v=20260116p">
+    <link rel="stylesheet" href="css/shared.css?v=20260119a">
     <link rel="stylesheet" href="css/main-screen.css?v=20260115">
-    <link rel="stylesheet" href="css/combat-screen.css?v=20260116i">
+    <link rel="stylesheet" href="css/combat-screen.css?v=20260119a">
     <link rel="stylesheet" href="css/battle-room.css?v=20260116a">
-    <link rel="stylesheet" href="css/dark-theme.css?v=20260115d">
+    <link rel="stylesheet" href="css/dark-theme.css?v=20260119a">
 </head>
 <body>
     <div class="container">
@@ -188,9 +188,6 @@
                                 </button>
                                 <button id="paste-json" class="btn-management">
                                     <span>📝</span> 붙여넣기
-                                </button>
-                                <button id="open-skill-template-library" class="btn-management" style="background:linear-gradient(90deg,#667eea,#764ba2);color:#fff;">
-                                    <span>🛠️</span> 스킬 템플릿 라이브러리
                                 </button>
                             </div>
                         </div>
@@ -698,7 +695,7 @@
         <div id="defense-response-modal" class="modal centered defense-response-modal" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="defense-response-title" aria-describedby="defense-response-text">
             <div class="modal-content">
                 <div class="modal-header defense-response-header">
-                    <h2 id="defense-response-title" class="defense-response-title">반격 / 회피 / PASS</h2>
+                    <h2 id="defense-response-title" class="defense-response-title">방어자 반응</h2>
                     <div class="modal-actions">
                         <button id="defense-response-close" class="modal-close" aria-label="닫기(=PASS)">&times;</button>
                     </div>
@@ -716,11 +713,13 @@
                     <div class="defense-response-buttons" role="group" aria-label="방어자 응답 선택">
                         <button id="defense-response-counter" type="button" class="dr-btn dr-btn--counter">반격</button>
                         <button id="defense-response-dodge" type="button" class="dr-btn dr-btn--dodge">회피</button>
+                        <button id="defense-response-defense-skill" type="button" class="dr-btn dr-btn--defense-skill" style="display:none;">🛡️ 방어 스킬</button>
                         <button id="defense-response-pass" type="button" class="dr-btn dr-btn--pass">PASS</button>
                     </div>
 
                     <div class="defense-response-footnote">
                         <div class="defense-response-footnote__hint">※ 공격 성공 후 방어자가 응답하는 단계입니다(턴 수치 증가는 없음).</div>
+                        <div class="defense-response-footnote__hint">※ 🛡️ 방어 스킬: 방어형 캐릭터만 사용 가능하며, 사용 시 쉴드를 부여한 뒤 공격을 받습니다.</div>
                         <div id="defense-response-hint" class="defense-response-footnote__hint">ESC 또는 바깥 클릭은 PASS로 처리됩니다.</div>
                     </div>
                 </div>
@@ -736,6 +735,21 @@
                 </div>
                 <div class="modal-body">
                     <div id="skill-target-subtitle" class="skill-target-subtitle">대상을 선택하세요.</div>
+                    <div id="skill-target-support-mode" class="skill-target-support-mode" style="display:none;" aria-label="지원형 모드 선택">
+                        <div class="skill-target-support-title">지원형 모드</div>
+                        <label class="skill-target-support-option">
+                            <input type="radio" name="supportMode" value="BUFF" checked>
+                            <span>버프(아군 강화)</span>
+                        </label>
+                        <label class="skill-target-support-option">
+                            <input type="radio" name="supportMode" value="DEBUFF">
+                            <span>디버프(적 약화)</span>
+                        </label>
+                        <label class="skill-target-support-option">
+                            <input type="radio" name="supportMode" value="DISPEL">
+                            <span>버프 제거(적 버프 해제)</span>
+                        </label>
+                    </div>
                     <div id="skill-target-list" class="skill-target-list"></div>
                     <div class="skill-target-actions">
                         <button id="skill-target-confirm" class="btn btn-primary">확인</button>
@@ -811,81 +825,6 @@
                             <div id="chase-board-view" class="chase-board" aria-label="도주 보드"></div>
                             <textarea id="chase-log" class="chase-log" readonly placeholder="진행 로그가 여기에 표시됩니다."></textarea>
                         </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- 스킬 템플릿 라이브러리/에디터 모달 -->
-        <div id="skill-template-library-modal" class="modal centered" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="skill-template-library-title">
-            <div class="modal-content skill-template-library-content">
-                <div class="modal-header">
-                    <h2 id="skill-template-library-title">스킬 템플릿 라이브러리</h2>
-                    <button id="skill-template-library-close" class="modal-close" aria-label="닫기">&times;</button>
-                </div>
-                <div class="modal-body">
-                    <div class="skill-template-library-stack">
-                        <aside class="skill-template-library-sidebar" aria-label="템플릿 목록">
-                            <div class="skill-template-library-sidebar-head">
-                                <div class="char-modal-section-title" style="margin:0;">템플릿 목록</div>
-                                <button id="skill-template-add" class="btn btn-primary">+ 새 템플릿</button>
-                            </div>
-                            <ul id="skill-template-list" class="skill-template-list"></ul>
-                        </aside>
-
-                        <section class="skill-template-library-editor" aria-label="템플릿 편집">
-                            <div class="char-modal-section-title" style="margin:0 0 12px;">템플릿 편집</div>
-                            <form id="skill-template-editor" autocomplete="off">
-                                <div class="form-group">
-                                    <label>이름
-                                        <input id="template-name" type="text" maxlength="30" required>
-                                    </label>
-                                    <label>설명
-                                        <textarea id="template-desc" maxlength="120"></textarea>
-                                    </label>
-
-                                    <label>스킬 타입</label>
-                                    <div id="template-types" class="skill-type-selector template-skill-type-selector" aria-label="스킬 타입 선택">
-                                        <label class="skill-type-option">
-                                            <input type="radio" name="templateSkillType" value="공격형" checked>
-                                            <span>⚔️ 공격형</span>
-                                        </label>
-                                        <label class="skill-type-option">
-                                            <input type="radio" name="templateSkillType" value="방어형">
-                                            <span>🛡️ 방어형</span>
-                                        </label>
-                                        <label class="skill-type-option">
-                                            <input type="radio" name="templateSkillType" value="지원형">
-                                            <span>🤝 지원형</span>
-                                        </label>
-                                        <label class="skill-type-option">
-                                            <input type="radio" name="templateSkillType" value="치료형">
-                                            <span>💚 치료형</span>
-                                        </label>
-                                    </div>
-                                </div>
-
-                                <div id="template-conditions" class="skill-template-editor-block">
-                                    <h4 class="skill-template-editor-title">조건</h4>
-                                    <div id="template-conditions-list"></div>
-                                    <button id="template-condition-add" type="button" class="btn btn-secondary">+ 조건 추가</button>
-                                </div>
-
-                                <div id="template-effects" class="skill-template-editor-block" style="margin-top:14px;">
-                                    <h4 class="skill-template-editor-title">효과</h4>
-                                    <div id="template-effects-list"></div>
-                                    <button id="template-effect-add" type="button" class="btn btn-secondary">+ 효과 추가</button>
-                                </div>
-
-                                <div id="template-preview" class="skill-template-preview"></div>
-
-                                <div class="skill-template-actions">
-                                    <button id="template-save" type="submit" class="btn btn-primary">저장</button>
-                                    <button id="template-delete" type="button" class="btn btn-danger">삭제</button>
-                                    <button id="template-cancel" type="button" class="btn btn-secondary">취소</button>
-                                </div>
-                            </form>
-                        </section>
                     </div>
                 </div>
             </div>

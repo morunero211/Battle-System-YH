@@ -43,8 +43,29 @@ function gradeLabel(grade) {
 }
 
 function normalizeResponse(value) {
-  if (value === 'DODGE' || value === 'COUNTER' || value === 'PASS') return value;
+  if (value === 'DODGE' || value === 'COUNTER' || value === 'PASS' || value === 'DEFENSE_SKILL') return value;
   return 'PASS';
+}
+
+function clampStat(stat) {
+  const n = Number(stat);
+  if (!Number.isFinite(n)) return 1;
+  return Math.max(1, Math.min(5, Math.round(n)));
+}
+
+function rollShieldBySkillStat(skillStat) {
+  const stat = clampStat(skillStat);
+  const table = {
+    1: { min: 8, extraMax: 3 },
+    2: { min: 11, extraMax: 3 },
+    3: { min: 13, extraMax: 4 },
+    4: { min: 16, extraMax: 4 },
+    5: { min: 18, extraMax: 5 }
+  };
+  const profile = table[stat] || table[1];
+  const bonus = Math.floor(Math.random() * profile.extraMax) + 1;
+  const raw = Math.floor(profile.min + bonus);
+  return { stat, min: profile.min, extraMax: profile.extraMax, bonus, raw, max: profile.min + profile.extraMax };
 }
 
 module.exports = async function handler(req, res) {
@@ -103,6 +124,14 @@ module.exports = async function handler(req, res) {
     const ruleSet = await battleEngine.getActiveRuleSetOrDefault();
     const battle = { ruleSet };
 
+    const normalizedForEngine = response === 'DEFENSE_SKILL' ? 'PASS' : response;
+
+    // DEFENSE_SKILL: 방어 스킬(쉴드)을 먼저 적용한 뒤 PASS와 동일하게 공격을 맞습니다.
+    // - 쉴드는 defenderHp를 maxHp 초과로 만들 수 있는 "추가 HP" 취급
+    const shieldRoll = response === 'DEFENSE_SKILL' ? rollShieldBySkillStat(defenderChar.skillStat) : null;
+    const shieldAmount = shieldRoll ? Math.max(0, Math.round(Number(shieldRoll.raw) || 0)) : 0;
+    const effectiveDefenderHp = shieldAmount > 0 ? (defenderHp + shieldAmount) : defenderHp;
+
     const result = battleEngine.resolveBasicAttack({
       battle,
       attacker: { id: 'sim_attacker' },
@@ -111,11 +140,16 @@ module.exports = async function handler(req, res) {
       defenderChar,
       defenderHp,
       attackJudgment,
-      response
+      response: normalizedForEngine
     });
 
     const log = [];
     log.push(`\n🧩 방어자 반응 처리: ${defenderName} 선택 = ${response}`);
+
+    if (response === 'DEFENSE_SKILL' && shieldRoll) {
+      log.push(`  🛡️ 방어 스킬(쉴드) 발동: ${shieldRoll.min} + (1~${shieldRoll.extraMax})[${shieldRoll.bonus}] = ${shieldRoll.raw} (최대 ${shieldRoll.max})`);
+      log.push(`  🧱 쉴드 적용: ${defenderHp} → ${effectiveDefenderHp} (maxHP 초과분은 쉴드)`);
+    }
 
     if (response === 'COUNTER') {
       if (result.counterJudgment) {
@@ -170,7 +204,7 @@ module.exports = async function handler(req, res) {
       return;
     }
 
-    const nextHp = Math.max(0, defenderHp - result.damage);
+    const nextHp = Math.max(0, effectiveDefenderHp - result.damage);
     const defensePercent = Number.isFinite(Number(result.defensePercent)) ? Math.round(Number(result.defensePercent)) : null;
 
     if (defensePercent !== null) {
@@ -182,12 +216,13 @@ module.exports = async function handler(req, res) {
     }
 
     log.push(`  💥 데미지: ${Math.round(result.damage)}`);
-    log.push(`  💚 ${defenderName} HP: ${defenderHp} → ${nextHp}`);
+    log.push(`  💚 ${defenderName} HP: ${effectiveDefenderHp} → ${nextHp}`);
 
     res.status(200).json({
       phase: 'RESOLVED',
       log,
-      defenderHp: nextHp
+      defenderHp: nextHp,
+      shieldAmount
     });
   } catch (error) {
     console.error('2-step 시뮬레이션(react) 오류:', error);

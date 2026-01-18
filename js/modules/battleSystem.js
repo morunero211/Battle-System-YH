@@ -56,6 +56,15 @@ class BattleSystem {
                     // 필요 시 enabled:false로 꺼두고 캐릭터별로 커스텀 가능
                     { type: 'APPLY_STATUS', targets: 'SELECTED', enabled: false, status: { kind: 'NO_HEAL', durationRounds: 1, flags: { noHeal: true } } }
                 ]
+            },
+
+            SUPPORT_TURN_SKIP: {
+                name: '턴 스킵(지원형)',
+                allowedSkillTypes: ['지원형'],
+                conditions: [],
+                effects: [
+                    { type: 'SKIP_TURN', targets: 'SELECTED' }
+                ]
             }
         };
     }
@@ -87,6 +96,105 @@ class BattleSystem {
         const base = this.clampStat1to5(char?.[statKey]);
         const delta = this.getStatModSum(char, statKey);
         return this.clampStat1to5(base + delta);
+    }
+
+    statKeyToConsumeOn(statKey) {
+        const key = String(statKey || '').toLowerCase();
+        if (key === 'attack' || key === 'atk') return 'ON_ATTACK';
+        if (key === 'defense' || key === 'def') return 'ON_DEFEND';
+        if (key === 'agility' || key === 'agi') return 'ON_AGI_CHECK';
+        if (key === 'skill' || key === 'skillstat') return 'ON_SKILL';
+        return null;
+    }
+
+    /**
+     * 단일/소모형 스탯 버프/디버프 부여
+     * - durationRounds는 길게 주고(기본 999), 실제로는 consumeOn 트리거에서 1회 소모
+     */
+    applyConsumableStatMod(target, statKey, delta, ctx, { durationRounds = 999 } = {}) {
+        if (!target) return;
+        const key = String(statKey);
+        const consumeOn = this.statKeyToConsumeOn(key);
+        this.applyStatusToTarget(
+            target,
+            {
+                kind: 'STAT_MOD',
+                durationRounds,
+                statMods: { [key]: Math.floor(Number(delta) || 0) },
+                flags: { consumeOn }
+            },
+            ctx
+        );
+    }
+
+    /**
+     * 특정 트리거(공격/피격/민첩판정/스킬사용) 후 해당 스탯 변화(버프/디버프/패널티)를 1회 소모
+     */
+    consumeStatMods(target, consumeOn, { statKey = null } = {}) {
+        if (!target) return 0;
+        const list = this.getOrInitStatusEffects(target);
+        const key = statKey ? String(statKey) : null;
+        let consumed = 0;
+
+        list.forEach((e) => {
+            if (!e || e.kind !== 'STAT_MOD') return;
+            if (!e.flags || e.flags.consumeOn !== consumeOn) return;
+
+            const mods = e.statMods || {};
+            if (key) {
+                if (Object.prototype.hasOwnProperty.call(mods, key) && Number(mods[key]) !== 0) {
+                    mods[key] = 0;
+                    consumed += 1;
+                }
+            } else {
+                Object.keys(mods).forEach((k) => {
+                    if (Number(mods[k]) !== 0) {
+                        mods[k] = 0;
+                        consumed += 1;
+                    }
+                });
+            }
+
+            e.statMods = mods;
+
+            const remaining = Object.values(e.statMods || {}).some((v) => Number(v) !== 0);
+            if (!remaining && typeof e.durationRounds === 'number') {
+                e.durationRounds = 0;
+            }
+        });
+
+        target.statusEffects = list.filter((e) => e && (typeof e.durationRounds !== 'number' || e.durationRounds > 0));
+        return consumed;
+    }
+
+    /**
+     * 디스펠: 대상의 (+) 스탯 버프(attack/defense/agility/skill)를 제거
+     */
+    dispelPositiveStatBuffs(target) {
+        if (!target) return 0;
+        const list = this.getOrInitStatusEffects(target);
+        let removed = 0;
+
+        list.forEach((e) => {
+            if (!e || e.kind !== 'STAT_MOD') return;
+            const mods = e.statMods || {};
+            Object.keys(mods).forEach((k) => {
+                const v = Number(mods[k] || 0);
+                if (v > 0) {
+                    mods[k] = 0;
+                    removed += 1;
+                }
+            });
+            e.statMods = mods;
+
+            const remaining = Object.values(e.statMods || {}).some((v) => Number(v) !== 0);
+            if (!remaining && typeof e.durationRounds === 'number') {
+                e.durationRounds = 0;
+            }
+        });
+
+        target.statusEffects = list.filter((e) => e && (typeof e.durationRounds !== 'number' || e.durationRounds > 0));
+        return removed;
     }
 
     canHealTarget(target) {
@@ -213,14 +321,22 @@ class BattleSystem {
         };
         const list = this.getOrInitStatusEffects(target);
         list.push(effect);
+        if (Number.isFinite(Number(effect.flags?.skipTurns)) && Number(effect.flags.skipTurns) > 0) {
+            this.addLog(`  ⏭️ ${target.name} 턴 스킵 ${Math.round(Number(effect.flags.skipTurns))}회`);
+        }
         if (effect.flags?.noHeal) {
             this.addLog(`  🚫 ${target.name} 치유 불가(${effect.durationRounds}턴)`);
         }
         if (effect.kind === 'STAT_MOD') {
+            const consumeOn = effect.flags?.consumeOn;
             const mods = Object.entries(effect.statMods || {})
                 .map(([k, v]) => `${k}${Number(v) >= 0 ? '+' : ''}${v}`)
                 .join(', ');
-            this.addLog(`  🧷 ${target.name} 스탯 변화(${effect.durationRounds}턴): ${mods || '-'}`);
+            if (consumeOn) {
+                this.addLog(`  🧷 ${target.name} 스탯 변화(1회 소모): ${mods || '-'}`);
+            } else {
+                this.addLog(`  🧷 ${target.name} 스탯 변화(${effect.durationRounds}턴): ${mods || '-'}`);
+            }
         }
     }
 
@@ -321,10 +437,27 @@ class BattleSystem {
                 continue;
             }
 
+            if (ef.type === 'SKIP_TURN') {
+                const list = this.resolveEffectTargets(ef.targets, ctx).filter(Boolean);
+                if (list.length === 0) continue;
+
+                const skillStat = this.getEffectiveStat(attacker, 'skill');
+                const count = skillStat >= 5 ? 2 : (skillStat >= 4 ? 1 : 0);
+                if (count <= 0) {
+                    this.addLog('  ❌ 턴 스킵: 스킬 스탯 4~5만 사용할 수 있습니다.');
+                    continue;
+                }
+
+                list.forEach((t) => this.applyStatusToTarget(t, { kind: 'SKIP_TURN', durationRounds: 999, flags: { skipTurns: count } }, ctx));
+                continue;
+            }
+
             this.addLog(`  ⚠️ 알 수 없는 이펙트: ${ef.type}`);
         }
 
         if (attacker && attacker.id) this.usedUltimate[attacker.id] = true;
+
+        this.applyUnifiedSkillPenalty(attacker);
         return { handled: true, ok: true };
     }
 
@@ -449,6 +582,7 @@ class BattleSystem {
         const modal = document.getElementById('defense-response-modal');
         const dodgeBtn = document.getElementById('defense-response-dodge');
         const counterBtn = document.getElementById('defense-response-counter');
+        const defenseSkillBtn = document.getElementById('defense-response-defense-skill');
         const passBtn = document.getElementById('defense-response-pass');
         const closeBtn = document.getElementById('defense-response-close');
 
@@ -456,6 +590,7 @@ class BattleSystem {
 
         dodgeBtn.addEventListener('click', () => this.submitDefenseResponse('DODGE'));
         counterBtn.addEventListener('click', () => this.submitDefenseResponse('COUNTER'));
+        if (defenseSkillBtn) defenseSkillBtn.addEventListener('click', () => this.submitDefenseResponse('DEFENSE_SKILL'));
         passBtn.addEventListener('click', () => this.submitDefenseResponse('PASS'));
         closeBtn.addEventListener('click', () => this.submitDefenseResponse('PASS'));
 
@@ -474,6 +609,16 @@ class BattleSystem {
         });
 
         this.defenseUiInitialized = true;
+    }
+
+    canUseDefenseSkillAsReaction(defenderChar) {
+        if (!defenderChar) return false;
+        const types = Array.isArray(defenderChar.skillTypes) ? defenderChar.skillTypes : [];
+        if (!types.includes('방어형')) return false;
+        const actions = this.app?.battleActions;
+        if (!actions?.getSkillUseState) return true;
+        const st = actions.getSkillUseState(defenderChar);
+        return !!st?.canUse;
     }
 
     gradeLabelKo(grade) {
@@ -534,6 +679,14 @@ class BattleSystem {
             modal.style.display = 'flex';
         }
 
+        // 방어 스킬 버튼은 "방어형" + "스킬 횟수 남음"일 때만 노출
+        const defenseSkillBtn = document.getElementById('defense-response-defense-skill');
+        if (defenseSkillBtn) {
+            const defenderRef = this.pendingDefenseResponse?.defenderRef;
+            const canUse = this.canUseDefenseSkillAsReaction(defenderRef);
+            defenseSkillBtn.style.display = canUse ? 'inline-flex' : 'none';
+        }
+
         const hint = document.getElementById('defense-response-hint');
         if (hint) {
             const expiresAt = this.pendingDefenseResponse?.expiresAt;
@@ -571,6 +724,28 @@ class BattleSystem {
             const apiUrl = window.CONFIG?.API_BASE_URL;
             if (!pending || !apiUrl) return;
 
+            // 방어 스킬(쉴드) 반응: 방어자가 스킬 사용(횟수 차감/패널티) 후 서버에 DEFENSE_SKILL로 전달
+            if (responseKind === 'DEFENSE_SKILL') {
+                const defender = pending.defenderRef;
+                const actions = this.app?.battleActions;
+                if (!this.canUseDefenseSkillAsReaction(defender)) {
+                    this.addLog('ℹ️ 방어 스킬을 사용할 수 없습니다(방어형이 아니거나 횟수 소진).');
+                    return;
+                }
+
+                if (actions?.consumeSkillUse) {
+                    const consumed = actions.consumeSkillUse(defender);
+                    if (!consumed?.consumed) {
+                        this.addLog('ℹ️ 방어 스킬 사용 불가: 사용 횟수 소진/잠금 상태');
+                        return;
+                    }
+                }
+
+                // 스킬 사용으로 간주: 스킬 스탯 1회 소모 + 공통 패널티
+                this.consumeStatMods(defender, 'ON_SKILL');
+                this.applyUnifiedSkillPenalty(defender);
+            }
+
             const response = await fetch(`${apiUrl}/battles/simulate-react`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -600,6 +775,16 @@ class BattleSystem {
 
             if (typeof result.defenderHp === 'number' && pending.defenderRef) {
                 pending.defenderRef.hp = result.defenderHp;
+            }
+
+            // 피격/방어 처리 후 방어 관련 스탯 변화 1회 소모
+            if ((responseKind === 'PASS' || responseKind === 'DEFENSE_SKILL') && pending.defenderRef) {
+                this.consumeStatMods(pending.defenderRef, 'ON_DEFEND');
+            }
+
+            // 민첩(회피/반격) 판정을 사용한 뒤에는 민첩 관련 버프/디버프/패널티를 1회 소모
+            if ((responseKind === 'DODGE' || responseKind === 'COUNTER') && pending.defenderRef) {
+                this.consumeStatMods(pending.defenderRef, 'ON_AGI_CHECK');
             }
 
             this.pendingDefenseResponse = null;
@@ -764,17 +949,143 @@ class BattleSystem {
         return add;
     }
 
-    getHealAmountBySkillStat(skillStat) {
+    pickUnifiedSkillPenaltyStatKey() {
+        const keys = ['attack', 'defense', 'agility'];
+        const idx = Math.max(0, Math.min(keys.length - 1, Math.floor(Math.random() * keys.length)));
+        return keys[idx];
+    }
+
+    applyUnifiedSkillPenalty(attacker) {
+        if (!attacker) return;
+        const preferred = attacker?.skillPenaltyStatKey;
+        const allowed = new Set(['attack', 'defense', 'agility']);
+        const key = (preferred && allowed.has(String(preferred))) ? String(preferred) : this.pickUnifiedSkillPenaltyStatKey();
+        const label = key === 'attack' ? '공격력' : (key === 'defense' ? '방어력' : '민첩');
+        // 패널티는 "해당 스탯을 실제로 사용/트리거 후 1회 소모" 방식
+        this.applyConsumableStatMod(attacker, key, -1, { attacker }, { durationRounds: 999 });
+        this.addLog(`  ⚠️ 스킬 패널티: ${label} -1 (해당 스탯 1회 사용 후 소멸)`);
+    }
+
+    rollHealSkillAmountByStat(skillStat) {
         const stat = this.clampStat1to5(skillStat);
-        const table = { 1: 5, 2: 7, 3: 9, 4: 12, 5: 15 };
+        const table = {
+            1: { min: 4, extraMax: 3 },
+            2: { min: 9, extraMax: 3 },
+            3: { min: 11, extraMax: 4 },
+            4: { min: 14, extraMax: 4 },
+            5: { min: 16, extraMax: 5 }
+        };
+        const profile = table[stat] || table[1];
+        const bonus = this.rollInt(1, profile.extraMax);
+        const raw = Math.floor(profile.min + bonus);
+        return { stat, min: profile.min, extraMax: profile.extraMax, bonus, raw, max: profile.min + profile.extraMax };
+    }
+
+    rollShieldSkillAmountByStat(skillStat) {
+        const stat = this.clampStat1to5(skillStat);
+        const table = {
+            1: { min: 8, extraMax: 3 },
+            2: { min: 11, extraMax: 3 },
+            3: { min: 13, extraMax: 4 },
+            4: { min: 16, extraMax: 4 },
+            5: { min: 18, extraMax: 5 }
+        };
+        const profile = table[stat] || table[1];
+        const bonus = this.rollInt(1, profile.extraMax);
+        const raw = Math.floor(profile.min + bonus);
+        return { stat, min: profile.min, extraMax: profile.extraMax, bonus, raw, max: profile.min + profile.extraMax };
+    }
+
+    getSupportDebuffAmountBySkillStat(skillStat) {
+        const stat = this.clampStat1to5(skillStat);
+        const table = { 1: 6, 2: 7, 3: 8, 4: 9, 5: 10 };
         return table[stat] ?? table[1];
     }
 
-    getShieldAmountBySkillStat(skillStat) {
-        // NOTE: 방어형(쉴드) 수치는 밸런스 조정 포인트. 필요 시 이 테이블만 변경.
-        const stat = this.clampStat1to5(skillStat);
-        const table = { 1: 6, 2: 8, 3: 10, 4: 13, 5: 16 };
-        return table[stat] ?? table[1];
+    supportAmountToStatDelta(amount) {
+        const v = Math.max(0, Math.floor(Number(amount) || 0));
+        // 사용자가 정한 기준: 10 정도면 스탯 +2
+        return Math.max(0, Math.floor(v / 5));
+    }
+
+    consumeSkipTurnIfAny(char) {
+        if (!char) return false;
+        const effects = this.getActiveStatusEffects(char);
+        const entry = effects.find((e) => Number.isFinite(Number(e?.flags?.skipTurns)) && Number(e.flags.skipTurns) > 0);
+        if (!entry) return false;
+
+        const next = Math.max(0, Math.floor(Number(entry.flags.skipTurns) - 1));
+        entry.flags.skipTurns = next;
+        if (next <= 0 && typeof entry.durationRounds === 'number') {
+            entry.durationRounds = 0;
+        }
+        return true;
+    }
+
+    executeSupportSkillMulti(attacker, targets, attackerTeamKey, supportMode = 'AUTO') {
+        const list = Array.isArray(targets) ? targets.filter(Boolean) : [];
+        const n = list.length;
+        if (n === 0) {
+            this.addLog('❌ 지원형 스킬: 대상이 없습니다.');
+            return;
+        }
+
+        this.addLog(`\n🤝 ${attacker.name} 지원형 스킬 사용! (대상 ${n}명)`);
+
+        const skillStat = this.getEffectiveStat(attacker, 'skill');
+        const amount = this.getSupportDebuffAmountBySkillStat(skillStat);
+        const delta = this.supportAmountToStatDelta(amount);
+        this.addLog(`  📎 총 디버프량: ±${amount} (스탯 환산 ±${delta})`);
+
+        const alliance = this.getAlliance(attackerTeamKey);
+        const allies = new Set(alliance.allies);
+
+        const mode = String(supportMode || 'AUTO').toUpperCase();
+
+        // DISPEL: 적의 (+) 버프 제거(강한 제거형)
+        if (mode === 'DISPEL') {
+            list.forEach((t) => {
+                const removed = this.dispelPositiveStatBuffs(t);
+                this.addLog(`  🎯 대상: ${t.name} (버프 제거: +버프 ${removed}개 해제)`);
+            });
+
+            if (attacker && attacker.id) {
+                this.usedUltimate[attacker.id] = true;
+            }
+
+            // 지원형도 스킬 사용이므로 스킬스탯 소모(1회) + 공통 패널티
+            this.consumeStatMods(attacker, 'ON_SKILL');
+            this.applyUnifiedSkillPenalty(attacker);
+            return;
+        }
+
+        list.forEach((t) => {
+            const tTeam = this.findTeamKeyByCharId(t.id);
+            const isAlly = tTeam && allies.has(tTeam);
+            const sign = (mode === 'BUFF') ? 1 : ((mode === 'DEBUFF') ? -1 : (isAlly ? 1 : -1));
+            const signed = sign * delta;
+
+            if (signed === 0) {
+                this.addLog(`  🎯 대상: ${t.name} (변화 없음)`);
+                return;
+            }
+
+            // 스탯별로 "사용/트리거 시 1회 소모"되도록 분리 적용
+            const ctx = { attacker, teamKey: attackerTeamKey, targets: list };
+            this.applyConsumableStatMod(t, 'attack', signed, ctx, { durationRounds: 999 });
+            this.applyConsumableStatMod(t, 'agility', signed, ctx, { durationRounds: 999 });
+            this.applyConsumableStatMod(t, 'defense', signed, ctx, { durationRounds: 999 });
+            this.applyConsumableStatMod(t, 'skill', signed, ctx, { durationRounds: 999 });
+            this.addLog(`  🎯 대상: ${t.name} (${isAlly ? '버프' : '디버프'}: 공격/민첩/방어/스킬 ${signed >= 0 ? '+' : ''}${signed}, 해당 스탯 1회 사용 후 소멸)`);
+        });
+
+        if (attacker && attacker.id) {
+            this.usedUltimate[attacker.id] = true;
+        }
+
+        // 지원형도 스킬 사용이므로 스킬스탯 소모(1회) + 공통 패널티
+        this.consumeStatMods(attacker, 'ON_SKILL');
+        this.applyUnifiedSkillPenalty(attacker);
     }
 
     /**
@@ -1263,6 +1574,10 @@ class BattleSystem {
 
             if (apiUrl) {
                 try {
+                    // 공격 시도 자체가 공격/스킬 스탯을 "사용"하는 행위이므로(명중/실패 무관) 1회 소모
+                    this.consumeStatMods(attacker, 'ON_ATTACK');
+                    this.consumeStatMods(attacker, 'ON_SKILL');
+
                     // 2-step begin: 공격 판정만 수행
                     const response = await fetch(`${apiUrl}/battles/simulate-begin`, {
                         method: 'POST',
@@ -1343,6 +1658,10 @@ class BattleSystem {
             const attackPower = (attacker.attack ?? attacker.atk ?? 1) * 10 + (attacker.skill ?? attacker.skillStat ?? 1) * 5;
             this.addLog(`  🎲 공격 판정: ${attackRoll} (필요: ${attackPower})`);
 
+            // 공격 판정(공격/스킬 스탯)을 사용했으므로 1회 소모
+            this.consumeStatMods(attacker, 'ON_ATTACK');
+            this.consumeStatMods(attacker, 'ON_SKILL');
+
             const isGreatSuccess = attackRoll === 1;
             if (isGreatSuccess) {
                 this.addLog('  🌟 대성공! (주사위 1)');
@@ -1365,6 +1684,9 @@ class BattleSystem {
             const beforeShield = this.getShieldHp(defender);
             const applied = this.applyDamageWithShield(defender, finalDamage);
             const afterTotal = this.getTotalHp(defender);
+
+            // 피격(방어 스탯)을 사용했으므로 1회 소모
+            this.consumeStatMods(defender, 'ON_DEFEND');
 
             this.addLog(`  🛡️ 방어력: ${defensePercent}% (원데미지 ${rawDamage} → 실제 ${finalDamage})`);
             this.addLog(`  💥 데미지: ${finalDamage}`);
@@ -1421,6 +1743,9 @@ class BattleSystem {
         const beforeShield = this.getShieldHp(defender);
         const applied = this.applyDamageWithShield(defender, damage);
         const afterTotal = this.getTotalHp(defender);
+
+        // 피격(방어 스탯) 사용 후 1회 소모
+        this.consumeStatMods(defender, 'ON_DEFEND');
         if (beforeShield > 0 || applied.shieldAbsorbed > 0) {
             this.addLog(`  🧱 쉴드: ${beforeShield} → ${this.getShieldHp(defender)} (흡수 ${applied.shieldAbsorbed})`);
         }
@@ -1429,6 +1754,11 @@ class BattleSystem {
         if (attacker && attacker.id) {
             this.usedUltimate[attacker.id] = true;
         }
+
+        // 궁극기는 스킬 스탯을 사용하므로 1회 소모
+        this.consumeStatMods(attacker, 'ON_SKILL');
+
+        this.applyUnifiedSkillPenalty(attacker);
         
         if (defender.hp <= 0) {
             this.addLog(`  💀 ${defender.name}이(가) 쓰러졌습니다!`);
@@ -1485,6 +1815,9 @@ class BattleSystem {
             const applied = this.applyDamageWithShield(defender, damage);
             const afterTotal = this.getTotalHp(defender);
 
+            // 피격(방어 스탯) 사용 후 1회 소모
+            this.consumeStatMods(defender, 'ON_DEFEND');
+
             this.addLog(`    💥 데미지: ${damage}`);
             if (beforeShield > 0 || applied.shieldAbsorbed > 0) {
                 this.addLog(`    🧱 쉴드: ${beforeShield} → ${this.getShieldHp(defender)} (흡수 ${applied.shieldAbsorbed})`);
@@ -1499,6 +1832,11 @@ class BattleSystem {
         if (attacker && attacker.id) {
             this.usedUltimate[attacker.id] = true;
         }
+
+        // 궁극기(다수)도 스킬 스탯을 사용하므로 1회 소모
+        this.consumeStatMods(attacker, 'ON_SKILL');
+
+        this.applyUnifiedSkillPenalty(attacker);
     }
 
     /**
@@ -1517,10 +1855,11 @@ class BattleSystem {
         this.addLog(`\n🛡️ ${attacker.name} 방어형 스킬(쉴드) 사용! (대상 ${n}명)`);
 
         const skillStat = this.getEffectiveStat(attacker, 'skill');
-        const shieldBase = this.getShieldAmountBySkillStat(skillStat);
+        const rolled = this.rollShieldSkillAmountByStat(skillStat);
+        const shieldBase = rolled.raw;
         const perTarget = Math.floor(shieldBase / n);
 
-        this.addLog(`  🧱 쉴드량(단일): ${shieldBase}`);
+        this.addLog(`  🎲 쉴드량: ${rolled.min} + (1~${rolled.extraMax})[${rolled.bonus}] = ${rolled.raw} (최대 ${rolled.max})`);
         this.addLog(`  👥 다수 분배: floor(${shieldBase} / ${n}) = ${perTarget} (각 대상)`);
 
         list.forEach((t) => {
@@ -1532,6 +1871,11 @@ class BattleSystem {
         if (attacker && attacker.id) {
             this.usedUltimate[attacker.id] = true;
         }
+
+        // 방어형 스킬도 스킬 스탯을 사용하므로 1회 소모
+        this.consumeStatMods(attacker, 'ON_SKILL');
+
+        this.applyUnifiedSkillPenalty(attacker);
     }
 
     /**
@@ -1550,10 +1894,11 @@ class BattleSystem {
         this.addLog(`\n💚 ${attacker.name} 치료형 스킬 사용! (대상 ${n}명)`);
 
         const skillStat = this.getEffectiveStat(attacker, 'skill');
-        const healBase = this.getHealAmountBySkillStat(skillStat);
+        const rolled = this.rollHealSkillAmountByStat(skillStat);
+        const healBase = rolled.raw;
         const perTarget = Math.floor(healBase / n);
 
-        this.addLog(`  💊 회복량(단일): ${healBase}`);
+        this.addLog(`  🎲 회복량: ${rolled.min} + (1~${rolled.extraMax})[${rolled.bonus}] = ${rolled.raw} (최대 ${rolled.max})`);
         this.addLog(`  👥 다수 분배: floor(${healBase} / ${n}) = ${perTarget} (각 대상)`);
 
         list.forEach((t) => {
@@ -1566,6 +1911,11 @@ class BattleSystem {
         if (attacker && attacker.id) {
             this.usedUltimate[attacker.id] = true;
         }
+
+        // 치료형 스킬도 스킬 스탯을 사용하므로 1회 소모
+        this.consumeStatMods(attacker, 'ON_SKILL');
+
+        this.applyUnifiedSkillPenalty(attacker);
     }
 
     /**
@@ -1591,10 +1941,36 @@ class BattleSystem {
         }
 
         // 현재팀(기존 UI 호환)도 현재 액터의 팀으로 동기화
-        const entry = this.getCurrentTurnEntry();
+        let entry = this.getCurrentTurnEntry();
         if (entry) {
             const idx = ['hero', 'gov', 'villain'].indexOf(entry.teamKey);
             this.currentTeamTurn = idx >= 0 ? idx : 0;
+        }
+
+        // 턴 스킵 효과(지원형) 처리: 재귀 없이 반복 + 안전 가드
+        let skipGuard = 0;
+        while (entry && this.consumeSkipTurnIfAny(entry.char)) {
+            this.addLog(`⏭️ ${entry.char?.name || '대상'}의 턴이 스킵되었습니다.`);
+
+            this.turnIndex += 1;
+            if (this.turnIndex >= this.turnOrder.length) {
+                this.turnIndex = 0;
+                this.currentTurn++;
+                this.tickStatusEffectsOnRoundAdvance();
+                this.addLog(`\n========== 턴 ${this.currentTurn} ==========`);
+            }
+
+            entry = this.getCurrentTurnEntry();
+            if (entry) {
+                const idx = ['hero', 'gov', 'villain'].indexOf(entry.teamKey);
+                this.currentTeamTurn = idx >= 0 ? idx : 0;
+            }
+
+            skipGuard += 1;
+            if (skipGuard >= Math.max(10, this.turnOrder.length * 2)) {
+                this.addLog('⚠️ 연속 턴 스킵이 감지되어 안전 상한으로 중단했습니다.');
+                break;
+            }
         }
 
         this.checkBattleEnd();
