@@ -64,7 +64,6 @@ class BattleRoom {
       // 전투 종료 감지
       if (this.battle.status === 'FINISHED') {
         this.stopPolling();
-        console.log('✅ 전투 종료:', this.battle);
       }
     } catch (error) {
       console.error('❌ 전투 조회 오류:', error);
@@ -89,8 +88,6 @@ class BattleRoom {
       await this.fetchBattle();
       this.render();
     }, this.POLL_INTERVAL);
-    
-    console.log('🔄 전투 폴링 시작 (간격: ' + this.POLL_INTERVAL + 'ms)');
   }
 
   /**
@@ -514,7 +511,6 @@ class BattleRoom {
         throw new Error(error.error || '공격 실패');
       }
 
-      console.log('⚔️ 공격 성공');
       await this.fetchBattle();
       this.render();
     } catch (error) {
@@ -524,21 +520,21 @@ class BattleRoom {
   }
 
   /**
-   * 스킬 선택 (TO-DO)
+   * 스킬 선택 (준비 중)
    */
   async showSkillSelection(actorId) {
     await this.uiAlert('스킬 선택 팝업 (준비 중)');
   }
 
   /**
-   * 아이템 선택 (TO-DO)
+   * 아이템 선택 (준비 중)
    */
   async showItemSelection(actorId) {
     await this.uiAlert('아이템 선택 팝업 (준비 중)');
   }
 
   /**
-   * 방어 스킬 선택 (TO-DO)
+   * 방어 스킬 선택 (준비 중)
    */
   async showDefenseSkillSelection(defenderId) {
     await this.uiAlert('방어 스킬 선택 팝업 (준비 중)');
@@ -578,7 +574,6 @@ class BattleRoom {
         throw new Error(error.error || '응답 전송 실패');
       }
 
-      console.log('✅ 응답 전송 성공:', response);
       await this.fetchBattle();
       this.render();
     } catch (error) {
@@ -611,7 +606,6 @@ class BattleRoom {
         throw new Error(error.error || '타임아웃 요청 실패');
       }
 
-      console.log('⌛ 타임아웃으로 전투 종료');
       await this.fetchBattle();
       this.render();
       this.stopPolling();

@@ -261,7 +261,6 @@ class DataManager {
                 battleHistory: this.app.battleHistory
             };
             localStorage.setItem(this.localStorageKey, JSON.stringify(data));
-            console.log('LocalStorage에 저장됨');
             return true;
         } catch (error) {
             console.error('LocalStorage 저장 실패:', error);
@@ -316,7 +315,6 @@ class DataManager {
                 if (typeof this.app.normalizePersistedData === 'function') {
                     this.app.normalizePersistedData({ save: true });
                 }
-                console.log('LocalStorage에서 로드됨');
                 this.setLastActiveKey(this.localStorageKey);
                 return true;
             }
@@ -422,7 +420,6 @@ class DataManager {
             const snapshot = await docRef.get();
 
             if (!snapshot.exists) {
-                console.log('Firestore에 아직 데이터가 없습니다.');
                 return false;
             }
 
@@ -476,7 +473,6 @@ class DataManager {
             if (typeof this.app.renderAllTeams === 'function') {
                 this.app.renderAllTeams();
             }
-            console.log('Firestore에서 데이터 로드 완료');
             return true;
         } catch (error) {
             console.error('Firestore 로드 실패:', error);
@@ -515,7 +511,6 @@ class DataManager {
             const docRef = this.getDocRef(db);
             if (!docRef) return;
             await docRef.set(payload, { merge: true });
-            console.log('Firestore에 저장됨');
         } catch (error) {
             console.error('Firestore 저장 실패:', error);
         }

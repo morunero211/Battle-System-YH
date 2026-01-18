@@ -1396,7 +1396,6 @@ class BattleApp {
         // 새 전투 생성 버튼 (⚔️ 팀전) - 캐릭터 선택 페이지 유지
         document.getElementById('new-battle-btn')?.addEventListener('click', () => {
             // 이미 캐릭터 선택 화면이므로 아무것도 하지 않음
-            console.log('팀전 모드');
         });
 
         // 전투 시작 버튼 (▶ 전투 시작) - 선택된 캐릭터로 바로 전투 시작
@@ -1922,7 +1921,6 @@ class BattleApp {
             return;
         }
 
-        console.log('openEditCharacterModal 호출됨:', teamIndex, charId);
         this.currentEditTeam = teamIndex;
         this.currentEditCharId = charId;
         
@@ -2001,10 +1999,8 @@ class BattleApp {
         if (this.elements.modalTitle) this.elements.modalTitle.textContent = '캐릭터 수정';
         if (this.elements.modalDelete) this.elements.modalDelete.classList.remove('hidden');
         
-        console.log('모달 열기 시도, 모달 요소:', this.elements.modal);
         if (this.elements.modal) {
             this.elements.modal.style.display = 'block';
-            console.log('모달 display:', this.elements.modal.style.display);
         }
         this.enforceSingleSkillType();
         // 스킬 템플릿/조건/옵션 미리보기
@@ -2836,18 +2832,14 @@ document.addEventListener('DOMContentLoaded', () => {
      * 자동 저장 타이머 시작/재설정
      */
     startAutoSaveTimer() {
-        console.log('[DEBUG] startAutoSaveTimer 호출');
         if (this.autoSaveInterval) {
             clearInterval(this.autoSaveInterval);
             this.autoSaveInterval = null;
         }
 
         this.autoSaveInterval = setInterval(async () => {
-            console.log('[DEBUG] 30초 주기 자동 저장 실행');
             await this.saveToFile();
         }, 30000); // 30초
-
-        console.log('[DEBUG] autoSaveInterval 설정 완료:', this.autoSaveInterval);
     }
 
     /**
@@ -2855,8 +2847,6 @@ document.addEventListener('DOMContentLoaded', () => {
      */
     async setupAutoSaveToFile() {
         try {
-            console.log('[DEBUG] setupAutoSaveToFile 시작');
-            
             // File System Access API 지원 확인
             if (!('showOpenFilePicker' in window)) {
                 await this.showAlert({
@@ -2866,7 +2856,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
 
-            console.log('[DEBUG] 파일 선택 다이얼로그 열기...');
             // 사용자에게 자동 저장 대상 파일 선택 (열기 방식)
             const fileHandles = await window.showOpenFilePicker({
                 multiple: false,
@@ -2877,18 +2866,15 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             const handle = fileHandles?.[0];
             if (!handle) {
-                console.log('[INFO] 파일을 선택하지 않았습니다.');
                 return;
             }
 
-            console.log('[DEBUG] 파일 선택됨:', handle.name);
             this.autoSaveFileHandle = handle;
             this.autoSaveEnabled = true;
 
             // 명시적으로 쓰기 권한 요청 (거부되면 중단)
             if (this.autoSaveFileHandle.requestPermission) {
                 const permission = await this.autoSaveFileHandle.requestPermission({ mode: 'readwrite' });
-                console.log('[DEBUG] 파일 권한 상태:', permission);
                 if (permission !== 'granted') {
                     await this.showAlert({ title: '권한 필요', message: '파일 쓰기 권한이 거부되었습니다. 다시 시도해주세요.' });
                     this.autoSaveEnabled = false;
@@ -2899,22 +2885,17 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             // 즉시 한 번 저장
-            console.log('[DEBUG] 즉시 저장 시작...');
             await this.saveToFile();
-            console.log('[DEBUG] 즉시 저장 완료');
 
             // 30초마다 자동 저장 (원하시면 시간 조정 가능)
             this.startAutoSaveTimer();
 
-            console.log('[DEBUG] setupAutoSaveToFile 끝 - updateAutoSaveDisplay 호출');
             this.updateAutoSaveDisplay();
             await this.showAlert({ title: '자동 저장', message: '파일 자동 저장이 활성화되었습니다!\n30초마다 자동으로 저장됩니다.' });
         } catch (error) {
             if (error.name !== 'AbortError') {
                 console.error('❌ 파일 자동 저장 설정 실패:', error);
                 await this.showAlert({ title: '실패', message: '파일 자동 저장 설정에 실패했습니다.' });
-            } else {
-                console.log('[INFO] 사용자가 파일 선택을 취소했습니다.');
             }
         }
     }
@@ -2923,16 +2904,12 @@ document.addEventListener('DOMContentLoaded', () => {
      * 파일로 저장
      */
     async saveToFile() {
-        console.log('[DEBUG] saveToFile 시작');
-        console.log('[DEBUG] autoSaveFileHandle:', this.autoSaveFileHandle);
-        
         if (!this.autoSaveFileHandle) {
             console.error('[ERROR] autoSaveFileHandle이 없습니다!');
             return;
         }
 
         try {
-            console.log('[DEBUG] 데이터 준비 중...');
             const data = {
                 teams: this.teams,
                 selectedCharacters: this.selectedCharacters,
@@ -2940,22 +2917,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 savedAt: new Date().toISOString()
             };
 
-            console.log('[DEBUG] 파일 쓰기 시작...');
             const writable = await this.autoSaveFileHandle.createWritable();
             await writable.write(JSON.stringify(data, null, 2));
             await writable.close();
-            console.log('[DEBUG] 파일 쓰기 완료');
 
             this.lastSaveTime = new Date();
             this.nextSaveTime = new Date(this.lastSaveTime.getTime() + 30000); // 30초 후
-            console.log('[DEBUG] lastSaveTime 설정:', this.lastSaveTime);
-            console.log('[DEBUG] nextSaveTime 설정:', this.nextSaveTime);
-            
-            console.log('[DEBUG] updateAutoSaveDisplay 호출 전');
+
             this.updateAutoSaveDisplay();
-            console.log('[DEBUG] updateAutoSaveDisplay 호출 후');
-            
-            console.log('✅ 파일 자동 저장 완료:', this.lastSaveTime.toLocaleTimeString());
         } catch (error) {
             console.error('❌ 파일 저장 실패:', error);
             // 저장 실패 시 자동 저장 비활성화
@@ -2972,12 +2941,6 @@ document.addEventListener('DOMContentLoaded', () => {
      * 자동 저장 디스플레이 업데이트
      */
     updateAutoSaveDisplay() {
-        console.log('[DEBUG] updateAutoSaveDisplay 호출됨');
-        console.log('[DEBUG] autoSaveEnabled:', this.autoSaveEnabled);
-        console.log('[DEBUG] lastSaveTime:', this.lastSaveTime);
-        console.log('[DEBUG] elements.autosaveState:', this.elements.autosaveState);
-        console.log('[DEBUG] elements.autosaveLastTime:', this.elements.autosaveLastTime);
-        
         if (!this.elements.autosaveState) {
             console.error('[ERROR] autosaveState 엘리먼트를 찾을 수 없습니다!');
             return;
@@ -2994,11 +2957,9 @@ document.addEventListener('DOMContentLoaded', () => {
             
             if (this.lastSaveTime && this.elements.autosaveLastTime) {
                 const timeString = this.lastSaveTime.toLocaleTimeString();
-                console.log('[DEBUG] 시간 표시:', timeString);
                 this.elements.autosaveLastTime.textContent = 
                     `마지막 저장: ${timeString}`;
             } else {
-                console.log('[DEBUG] lastSaveTime 또는 autosaveLastTime이 없음');
                 if (this.elements.autosaveLastTime) {
                     this.elements.autosaveLastTime.textContent = '마지막 저장: 아직 없음';
                 }
@@ -3112,7 +3073,6 @@ document.addEventListener('DOMContentLoaded', () => {
      * 캐릭터 목록 렌더링
      */
     renderCharacterList() {
-        console.log('renderCharacterList 호출됨');
         if (!this.elements.characterListContent) {
             console.error('characterListContent 요소를 찾을 수 없습니다!');
             return;
@@ -3153,7 +3113,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 row.dataset.teamIndex = teamIndex;
                 row.dataset.charId = char.id;
                 row.style.display = 'grid';  // 기본적으로 표시
-                console.log('행 생성:', teamIndex, char.id, char.name);
                 
                 const skillTags = char.skillTypes ? char.skillTypes.map(type => 
                     `<span class="skill-tag">${type}</span>`
@@ -3180,7 +3139,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 // 클릭 이벤트 바인드 - 캐릭터 목록 페이지에서는 "선택"이 아니라 "세부/수정 모달"만
                 const clickHandler = () => {
-                    console.log('Row clicked! teamIndex:', teamIndex, 'charId:', char.id);
                     this.openEditCharacterModal(teamIndex, char.id);
                 };
                 row.addEventListener('click', clickHandler);
@@ -3189,7 +3147,6 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         });
         
-        console.log('총 캐릭터 수:', totalCharacters);
         this.filterCharacterList();
     }
 
@@ -3197,7 +3154,6 @@ document.addEventListener('DOMContentLoaded', () => {
      * 캐릭터 목록 필터링
      */
     filterCharacterList() {
-        console.log('filterCharacterList 호출됨');
         if (!this.elements.characterListContent) return;
         
         const searchQuery = this.elements.listSearch?.value.toLowerCase() || '';
@@ -3205,20 +3161,17 @@ document.addEventListener('DOMContentLoaded', () => {
         const teamFilter = this.elements.teamFilter?.value || '';
 
         const rows = this.elements.characterListContent.querySelectorAll('.char-table-row:not(.header)');
-        console.log('필터링할 행의 개수:', rows.length);
         
         rows.forEach(row => {
             const teamIndex = parseInt(row.dataset.teamIndex);
             const charId = row.dataset.charId;
             
             if (isNaN(teamIndex) || !charId) {
-                console.log('데이터 부재:', teamIndex, charId);
                 return;
             }
             
             const char = this.teams[teamIndex].characters.find(c => c.id === charId);
             if (!char) {
-                console.log('캐릭터를 찾을 수 없음:', teamIndex, charId);
                 return;
             }
 
@@ -3239,7 +3192,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 show = false;
             }
 
-            console.log('행 표시:', char.name, '표시여부:', show);
             row.style.display = show ? 'grid' : 'none';
         });
     }
@@ -3777,7 +3729,6 @@ function setupAuthUI() {
                 }
             }
             
-            console.log('✅ 로그인 성공:', user.email);
         } else {
             // 로그아웃됨
             openModal();
@@ -3788,7 +3739,6 @@ function setupAuthUI() {
                 userInfoBtn.onclick = openModal;
             }
             
-            console.log('👋 로그아웃 상태');
         }
     });
 }

@@ -38,7 +38,6 @@ class PageManager {
      * 캐릭터 목록 렌더링
      */
     renderCharacterList() {
-        console.log('renderCharacterList 호출됨');
         if (!this.app.elements.characterListContent) {
             console.error('characterListContent 요소를 찾을 수 없습니다!');
             return;
@@ -71,7 +70,6 @@ class PageManager {
                 row.dataset.teamIndex = teamIndex;
                 row.dataset.charId = char.id;
                 row.style.display = 'grid';
-                console.log('행 생성:', teamIndex, char.id, char.name);
                 
                 const skillTags = char.skillTypes ? char.skillTypes.map(type => 
                     `<span class="skill-tag">${type}</span>`
@@ -97,7 +95,6 @@ class PageManager {
                 
                 // 클릭 이벤트 바인드
                 const clickHandler = () => {
-                    console.log('Row clicked! teamIndex:', teamIndex, 'charId:', char.id);
                     this.app.modalManager.openEditCharacterModal(teamIndex, char.id);
                 };
                 row.addEventListener('click', clickHandler);
@@ -106,7 +103,6 @@ class PageManager {
             });
         });
         
-        console.log('총 캐릭터 수:', totalCharacters);
         this.filterCharacterList();
     }
 
@@ -114,7 +110,6 @@ class PageManager {
      * 캐릭터 목록 필터링
      */
     filterCharacterList() {
-        console.log('filterCharacterList 호출됨');
         if (!this.app.elements.characterListContent) return;
         
         const searchQuery = this.app.elements.listSearch?.value.toLowerCase() || '';
@@ -122,20 +117,17 @@ class PageManager {
         const teamFilter = this.app.elements.teamFilter?.value || '';
 
         const rows = this.app.elements.characterListContent.querySelectorAll('.char-table-row:not(.header)');
-        console.log('필터링할 행의 개수:', rows.length);
         
         rows.forEach(row => {
             const teamIndex = parseInt(row.dataset.teamIndex);
             const charId = row.dataset.charId;
             
             if (isNaN(teamIndex) || !charId) {
-                console.log('데이터 부재:', teamIndex, charId);
                 return;
             }
             
             const char = this.app.teams[teamIndex].characters.find(c => c.id === charId);
             if (!char) {
-                console.log('캐릭터를 찾을 수 없음:', teamIndex, charId);
                 return;
             }
 
@@ -156,7 +148,6 @@ class PageManager {
                 show = false;
             }
 
-            console.log('행 표시:', char.name, '표시여부:', show);
             row.style.display = show ? 'grid' : 'none';
         });
     }

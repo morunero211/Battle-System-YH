@@ -8,7 +8,6 @@ class BattleManager {
     this.team1Members = [];      // 팀 1 캐릭터 ID 배열
     this.team2Members = [];      // 팀 2 캐릭터 ID 배열
     this.allCharacters = [];     // 모든 캐릭터 데이터
-    console.log('BattleManager initialized with API URL:', this.apiBaseUrl);
   }
 
   getUi() {
@@ -249,7 +248,6 @@ class BattleManager {
           ];
 
           const result = await this.createBattle(characterIds, teams, ruleSetId);
-          console.log('✅ 전투 생성 성공:', result);
 
           // 전투룸으로 진입
           const battleRoom = await this.enterBattle(result.battle.id);
@@ -260,8 +258,6 @@ class BattleManager {
 
           // 폴링 시작
           battleRoom.startPolling();
-
-          console.log('✅ 전투 시작!');
         } catch (error) {
           await this.uiAlert('⚠️ 전투 생성 실패: ' + error.message, '오류');
         }

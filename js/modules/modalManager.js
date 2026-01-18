@@ -34,7 +34,6 @@ class ModalManager {
      * 캐릭터 수정 모달 열기
      */
     openEditCharacterModal(teamIndex, charId) {
-        console.log('openEditCharacterModal 호출됨:', teamIndex, charId);
         this.currentEditTeam = teamIndex;
         this.currentEditCharId = charId;
         
@@ -85,10 +84,8 @@ class ModalManager {
         if (this.app.elements.modalTitle) this.app.elements.modalTitle.textContent = '캐릭터 수정';
         if (this.app.elements.modalDelete) this.app.elements.modalDelete.classList.remove('hidden');
         
-        console.log('모달 열기 시도, 모달 요소:', this.app.elements.modal);
         if (this.app.elements.modal) {
             this.app.elements.modal.style.display = 'block';
-            console.log('모달 display:', this.app.elements.modal.style.display);
         }
     }
 
