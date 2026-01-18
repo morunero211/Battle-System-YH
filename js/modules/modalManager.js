@@ -1,231 +1,55 @@
 /**
  * 모달 관리자 (Modal Manager)
- * 캐릭터 생성/수정 모달 관련 모든 기능 처리
+ * 캐릭터 생성/수정 모달 관련 기능 진입점
+ *
+ * 현재는 `BattleApp`가 실제 구현(단일 진실원천)이며,
+ * 이 클래스는 레거시 호출부/다른 모듈을 위해 얇은 래퍼로 유지합니다.
  */
 
 class ModalManager {
     constructor(app) {
         this.app = app;
-        this.currentEditTeam = null;
-        this.currentEditCharId = null;
     }
 
     /**
      * 캐릭터 추가 모달 열기
      */
     openAddCharacterModal(teamIndex) {
-        this.currentEditTeam = teamIndex;
-        this.currentEditCharId = null;
-        
-        if (this.app.elements.modalTitle) {
-            this.app.elements.modalTitle.textContent = '캐릭터 생성';
-        }
-        if (this.app.elements.modalDelete) {
-            this.app.elements.modalDelete.classList.add('hidden');
-        }
-        
-        this.clearCustomForm();
-        if (this.app.elements.modal) {
-            this.app.elements.modal.style.display = 'block';
-        }
+        return this.app.openAddCharacterModal(teamIndex);
     }
 
     /**
      * 캐릭터 수정 모달 열기
      */
     openEditCharacterModal(teamIndex, charId) {
-        this.currentEditTeam = teamIndex;
-        this.currentEditCharId = charId;
-        
-        const char = this.app.teams[teamIndex].characters.find(c => c.id === charId);
-        if (!char) {
-            console.error('캐릭터를 찾을 수 없음:', teamIndex, charId);
-            return;
-        }
-
-        // 폼에 데이터 채우기
-        if (this.app.elements.charName) this.app.elements.charName.value = char.name;
-        if (this.app.elements.charHp) this.app.elements.charHp.value = char.hp;
-        if (this.app.elements.skillDescription) this.app.elements.skillDescription.value = char.skillDescription || '';
-
-        // 스탯 설정
-        ['attack', 'defense', 'agility', 'skill'].forEach(stat => {
-            const radio = document.querySelector(`input[name="${stat}"][value="${char[stat] || 3}"]`);
-            if (radio) radio.checked = true;
-            const valueSpan = document.getElementById(`${stat}-value`);
-            if (valueSpan) valueSpan.textContent = char[stat] || 3;
-        });
-
-        // 스킬 타입(단일) 설정
-        const skillTypeInputs = document.querySelectorAll('input[name="skillType"]');
-        skillTypeInputs.forEach(input => {
-            input.checked = !!(char.skillTypes && char.skillTypes.includes(input.value));
-        });
-        if (!document.querySelector('input[name="skillType"]:checked')) {
-            const fallback = document.querySelector('input[name="skillType"][value="공격형"]');
-            if (fallback) fallback.checked = true;
-        }
-
-        // 스킬 대상 설정(추가 UI)
-        const mode = char.skillTarget?.mode || 'single';
-        const modeRadio = document.querySelector(`input[name="skillTargetMode"][value="${mode}"]`);
-        if (modeRadio) modeRadio.checked = true;
-        const includeSelf = document.querySelector('input[name="skillIncludeSelf"]');
-        if (includeSelf) {
-            const enabled = mode === 'multi';
-            includeSelf.disabled = !enabled;
-            includeSelf.checked = enabled ? !!char.skillTarget?.includeSelf : false;
-        }
-
-        // 상태 설정
-        const statusRadio = document.querySelector(`input[name="status"][value="${char.status || 'active'}"]`);
-        if (statusRadio) statusRadio.checked = true;
-
-        if (this.app.elements.modalTitle) this.app.elements.modalTitle.textContent = '캐릭터 수정';
-        if (this.app.elements.modalDelete) this.app.elements.modalDelete.classList.remove('hidden');
-        
-        if (this.app.elements.modal) {
-            this.app.elements.modal.style.display = 'block';
-        }
+        return this.app.openEditCharacterModal(teamIndex, charId);
     }
 
     /**
      * 모달 닫기
      */
     closeModal() {
-        if (this.app.elements.modal) this.app.elements.modal.style.display = 'none';
-        this.currentEditTeam = null;
-        this.currentEditCharId = null;
+        return this.app.closeModal();
     }
 
     /**
      * 커스텀 폼 초기화
      */
     clearCustomForm() {
-        if (this.app.elements.charName) this.app.elements.charName.value = '';
-        if (this.app.elements.charHp) this.app.elements.charHp.value = 100;
-        if (this.app.elements.skillDescription) this.app.elements.skillDescription.value = '';
-        
-        ['attack', 'defense', 'agility', 'skill'].forEach(stat => {
-            const radio = document.querySelector(`input[name="${stat}"][value="3"]`);
-            if (radio) radio.checked = true;
-            const valueSpan = document.getElementById(`${stat}-value`);
-            if (valueSpan) valueSpan.textContent = '3';
-        });
-
-        const defaultSkillType = document.querySelector('input[name="skillType"][value="공격형"]');
-        if (defaultSkillType) defaultSkillType.checked = true;
-
-        const defaultTarget = document.querySelector('input[name="skillTargetMode"][value="single"]');
-        if (defaultTarget) defaultTarget.checked = true;
-        const includeSelf = document.querySelector('input[name="skillIncludeSelf"]');
-        if (includeSelf) {
-            includeSelf.checked = false;
-            includeSelf.disabled = true;
-        }
-        
-        const activeRadio = document.querySelector('input[name="status"][value="active"]');
-        if (activeRadio) activeRadio.checked = true;
+        return this.app.clearCustomForm();
     }
 
     /**
      * 커스텀 캐릭터 저장
      */
     saveCustomCharacter() {
-        const name = this.app.elements.charName?.value.trim();
-        if (!name) {
-            this.app?.showAlert?.({ title: '입력 필요', message: '캐릭터 이름을 입력해주세요.' });
-            return;
-        }
-
-        const hp = parseInt(this.app.elements.charHp?.value || 100);
-        if (hp < 10 || hp > 100) {
-            this.app?.showAlert?.({ title: '입력 오류', message: 'HP는 10~100 사이로 입력해주세요!' });
-            return;
-        }
-
-        const attack = parseInt(document.querySelector('input[name="attack"]:checked')?.value || 3);
-        const defense = parseInt(document.querySelector('input[name="defense"]:checked')?.value || 3);
-        const agility = parseInt(document.querySelector('input[name="agility"]:checked')?.value || 3);
-        const skill = parseInt(document.querySelector('input[name="skill"]:checked')?.value || 3);
-
-        const selectedSkillType = document.querySelector('input[name="skillType"]:checked')?.value || '공격형';
-        const skillTypes = [selectedSkillType];
-
-        const skillTargetMode = document.querySelector('input[name="skillTargetMode"]:checked')?.value || 'single';
-        const skillIncludeSelf = !!document.querySelector('input[name="skillIncludeSelf"]')?.checked;
-
-        const skillDescription = this.app.elements.skillDescription?.value.trim() || '';
-        const status = document.querySelector('input[name="status"]:checked')?.value || 'active';
-
-        if (this.currentEditCharId) {
-            // 수정
-            const char = this.app.teams[this.currentEditTeam].characters.find(c => c.id === this.currentEditCharId);
-            if (char) {
-                char.name = name;
-                char.hp = hp;
-                char.attack = attack;
-                char.defense = defense;
-                char.agility = agility;
-                char.skill = skill;
-                char.skillTypes = skillTypes;
-                char.skillDescription = skillDescription;
-                char.skillTarget = {
-                    mode: skillTargetMode,
-                    includeSelf: skillTargetMode === 'multi' ? skillIncludeSelf : false
-                };
-                char.status = status;
-            }
-        } else {
-            // 추가
-            const newChar = {
-                id: Date.now().toString(),
-                name,
-                hp,
-                attack,
-                defense,
-                agility,
-                skill,
-                skillTypes,
-                skillDescription,
-                skillTarget: {
-                    mode: skillTargetMode,
-                    includeSelf: skillTargetMode === 'multi' ? skillIncludeSelf : false
-                },
-                status
-            };
-            this.app.teams[this.currentEditTeam].characters.push(newChar);
-        }
-
-        this.app.saveToLocalStorage();
-        this.app.renderAllTeams();
-        this.app.updateCharacterListPage();
-        this.closeModal();
+        return this.app.saveCustomCharacter();
     }
 
     /**
      * 캐릭터 삭제
      */
     deleteCharacter() {
-        if (!this.currentEditCharId) return;
-
-        const char = this.app.teams[this.currentEditTeam].characters.find(c => c.id === this.currentEditCharId);
-        if (!char) return;
-
-        const doDelete = this.app?.showConfirm?.({
-            title: '삭제 확인',
-            message: `'${char.name}'을(를) 정말 삭제하시겠습니까?`,
-            okText: '삭제',
-            cancelText: '취소'
-        }) || Promise.resolve(false);
-
-        doDelete.then((ok) => {
-            if (!ok) return;
-            this.app.teams[this.currentEditTeam].characters = this.app.teams[this.currentEditTeam].characters.filter(c => c.id !== this.currentEditCharId);
-            this.app.saveToLocalStorage();
-            this.app.renderAllTeams();
-            this.app.updateCharacterListPage();
-            this.closeModal();
-        });
+        return this.app.deleteCharacter();
     }
 }
