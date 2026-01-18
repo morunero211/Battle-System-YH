@@ -137,21 +137,13 @@ class ModalManager {
     saveCustomCharacter() {
         const name = this.app.elements.charName?.value.trim();
         if (!name) {
-            if (this.app?.showAlert) {
-                this.app.showAlert({ title: '입력 필요', message: '캐릭터 이름을 입력해주세요.' });
-            } else {
-                alert('캐릭터 이름을 입력해주세요!');
-            }
+            this.app?.showAlert?.({ title: '입력 필요', message: '캐릭터 이름을 입력해주세요.' });
             return;
         }
 
         const hp = parseInt(this.app.elements.charHp?.value || 100);
         if (hp < 10 || hp > 100) {
-            if (this.app?.showAlert) {
-                this.app.showAlert({ title: '입력 오류', message: 'HP는 10~100 사이로 입력해주세요!' });
-            } else {
-                alert('HP는 10~100 사이로 입력해주세요!');
-            }
+            this.app?.showAlert?.({ title: '입력 오류', message: 'HP는 10~100 사이로 입력해주세요!' });
             return;
         }
 
@@ -223,14 +215,12 @@ class ModalManager {
         const char = this.app.teams[this.currentEditTeam].characters.find(c => c.id === this.currentEditCharId);
         if (!char) return;
 
-        const doDelete = this.app?.showConfirm
-            ? this.app.showConfirm({
-                title: '삭제 확인',
-                message: `'${char.name}'을(를) 정말 삭제하시겠습니까?`,
-                okText: '삭제',
-                cancelText: '취소'
-            })
-            : Promise.resolve(confirm(`'${char.name}'을(를) 정말 삭제하시겠습니까?`));
+        const doDelete = this.app?.showConfirm?.({
+            title: '삭제 확인',
+            message: `'${char.name}'을(를) 정말 삭제하시겠습니까?`,
+            okText: '삭제',
+            cancelText: '취소'
+        }) || Promise.resolve(false);
 
         doDelete.then((ok) => {
             if (!ok) return;

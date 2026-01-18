@@ -13,6 +13,24 @@ class BattleActions {
         this.initBattleActionListeners();
     }
 
+    async uiAlert(title, message) {
+        if (this.app?.showAlert) {
+            await this.app.showAlert({ title: title || '알림', message: message || '' });
+            return;
+        }
+        // 브라우저 기본 alert는 반복 경고를 유발할 수 있어 사용하지 않음
+        this.app?.showToast?.(message || '', 'warning');
+    }
+
+    async uiConfirm(title, message, okText = '확인', cancelText = '취소') {
+        if (this.app?.showConfirm) {
+            return await this.app.showConfirm({ title: title || '확인', message: message || '', okText, cancelText });
+        }
+        // 브라우저 기본 confirm은 반복 경고를 유발할 수 있어 사용하지 않음
+        this.app?.showToast?.('확인 모달이 준비되지 않았습니다.', 'warning');
+        return false;
+    }
+
     getSkillUseState(attacker) {
         const max = Math.max(0, Math.min(99, Math.floor(Number(attacker?.skillUsesMax ?? 1) || 0)));
         const used = Math.max(0, Math.floor(Number(attacker?.skillUsesUsed) || 0));
@@ -81,7 +99,7 @@ class BattleActions {
         return type || '공격형';
     }
 
-    openSkillTargetModal({ attacker, teamKey, skillType, mode, includeSelf, eligibleTeams }) {
+    openSkillTargetModal({ attacker, teamKey, skillType, mode, includeSelf, eligibleTeams, supportMode }) {
         this.initSkillTargetUi();
 
         const modal = document.getElementById('skill-target-modal');
@@ -93,14 +111,36 @@ class BattleActions {
         if (!modal || !title || !subtitle || !list) return;
 
         const isMulti = mode === 'multi';
-        const sideLabel = (skillType === '공격형') ? '적군' : '아군';
+
+        const supportModeEl = document.getElementById('skill-target-support-mode');
+        const currentSupportMode = (skillType === '지원형')
+            ? (supportMode || this.skillTargetContext?.supportMode || 'BUFF')
+            : null;
+
+        let effectiveEligibleTeams = eligibleTeams;
+        if (skillType === '지원형') {
+            const alliance = this.getAlliance(teamKey);
+            effectiveEligibleTeams = (currentSupportMode === 'BUFF') ? alliance.allies : alliance.enemies;
+        }
+
+        const sideLabel = (skillType === '공격형')
+            ? '적군'
+            : (skillType === '지원형'
+                ? (currentSupportMode === 'BUFF' ? '아군' : '적군')
+                : '아군');
         title.textContent = isMulti
             ? `🎯 ${skillType} 대상 선택 (다수 · ${sideLabel})`
             : `🎯 ${skillType} 대상 선택 (단일 · ${sideLabel})`;
 
         const targetHint = (skillType === '공격형')
             ? '적 목록에서 대상을 선택하세요.'
-            : '아군 목록에서 대상을 선택하세요.';
+            : (skillType === '지원형'
+                ? (currentSupportMode === 'BUFF'
+                    ? '아군 목록에서 대상을 선택하세요.'
+                    : (currentSupportMode === 'DISPEL'
+                        ? '적 목록에서 “버프 제거”할 대상을 선택하세요.'
+                        : '적 목록에서 대상을 선택하세요.'))
+                : '아군 목록에서 대상을 선택하세요.');
         subtitle.textContent = `${attacker?.name || '사용자'} · ${targetHint}`;
 
         if (note) {
@@ -117,6 +157,7 @@ class BattleActions {
             } else {
                 if (skillType === '방어형') note.textContent = '방어형은 쉴드를 부여합니다(쉴드는 피해를 먼저 흡수).';
                 else if (skillType === '치료형') note.textContent = '치료형은 HP를 회복합니다(maxHP 초과 불가).';
+                else if (skillType === '지원형') note.textContent = '지원형은 공격/민첩/방어/스킬을 1턴 동안 버프 또는 디버프합니다.';
                 else note.textContent = '';
             }
         }
@@ -127,15 +168,48 @@ class BattleActions {
             skillType,
             mode,
             includeSelf,
-            eligibleTeams,
+            eligibleTeams: effectiveEligibleTeams,
+            supportMode: currentSupportMode || undefined,
             selected: new Set()
         };
+
+        if (supportModeEl) {
+            if (skillType === '지원형') {
+                supportModeEl.style.display = 'flex';
+                const radios = supportModeEl.querySelectorAll('input[name="supportMode"]');
+                radios.forEach((r) => {
+                    r.checked = String(r.value) === String(currentSupportMode);
+                });
+
+                if (!supportModeEl.dataset.bound) {
+                    supportModeEl.dataset.bound = '1';
+                    supportModeEl.addEventListener('change', (e) => {
+                        const t = e.target;
+                        if (!(t instanceof HTMLInputElement)) return;
+                        if (t.name !== 'supportMode') return;
+                        const ctx = this.skillTargetContext;
+                        if (!ctx) return;
+                        this.openSkillTargetModal({
+                            attacker: ctx.attacker,
+                            teamKey: ctx.teamKey,
+                            skillType: ctx.skillType,
+                            mode: ctx.mode,
+                            includeSelf: ctx.includeSelf,
+                            eligibleTeams: ctx.eligibleTeams,
+                            supportMode: (t.value === 'DEBUFF' || t.value === 'DISPEL') ? t.value : 'BUFF'
+                        });
+                    });
+                }
+            } else {
+                supportModeEl.style.display = 'none';
+            }
+        }
 
         // UI 렌더
         list.innerHTML = '';
         const teamLabels = { hero: '🦸 히어로', gov: '🏛️ 정부', villain: '😈 빌런' };
 
-        eligibleTeams.forEach((t) => {
+        effectiveEligibleTeams.forEach((t) => {
             const group = document.createElement('div');
             group.className = 'skill-target-group';
 
@@ -289,9 +363,17 @@ class BattleActions {
 
             if (ctx.mode !== 'multi') {
                 const first = targets[0];
-                this.app.battleSystem.executeUltimate(ctx.attacker, first.char, first.teamKey);
+                const res = this.app.battleSystem.executeUltimate(ctx.attacker, first.char, first.teamKey);
+                if (res && res.awaitingResponse) {
+                    this.app.battleSystem.renderBattle();
+                    return;
+                }
             } else {
-                this.app.battleSystem.executeUltimateMulti(ctx.attacker, targets.map(t => t.char));
+                const res = this.app.battleSystem.executeUltimateMulti(ctx.attacker, targets.map(t => t.char));
+                if (res && res.awaitingResponse) {
+                    this.app.battleSystem.renderBattle();
+                    return;
+                }
             }
 
             this.app.battleSystem.renderBattle();
@@ -349,6 +431,29 @@ class BattleActions {
             return;
         }
 
+        // 지원형: 기본은 버프/디버프(1턴), 템플릿이 있으면 템플릿 우선 처리됨
+        if (ctx.skillType === '지원형') {
+            const consumed = this.consumeSkillUse(ctx.attacker);
+            if (!consumed.consumed) {
+                this.hideSkillTargetModal();
+                this.app?.showToast?.('경고. 본 캐릭터의 스킬 횟수를 모두 사용하였습니다.', 'danger');
+                this.app.battleSystem.addLog('🔒 스킬 사용 불가: 사용 횟수 소진/잠금 상태');
+                return;
+            }
+            if (consumed.exhaustedNow) {
+                this.app?.showToast?.('스킬 사용 횟수를 모두 소진했습니다. (자동 잠금)', 'info');
+                this.app.battleSystem.addLog('🔒 스킬 사용 횟수 소진: 자동 잠금 처리');
+            }
+
+            this.hideSkillTargetModal();
+            this.app.battleSystem.executeSupportSkillMulti(ctx.attacker, targets.map(t => t.char), ctx.teamKey, ctx.supportMode || 'AUTO');
+            this.app.battleSystem.renderBattle();
+            this.app.battleSystem.checkBattleEnd();
+            this.app.battleSystem.nextTurn();
+            this.app.battleSystem.renderBattle();
+            return;
+        }
+
         // 그 외(방어/치료/지원)는 UI만 확정 후 로그만 남김
         this.hideSkillTargetModal();
         this.app?.showToast?.('아직 구현되지 않은 스킬 타입입니다. (사용 횟수는 차감되지 않습니다)', 'info');
@@ -374,25 +479,16 @@ class BattleActions {
         // 시간 종료 버튼(타임아웃 판정)
         document.getElementById('forfeit-button')?.addEventListener('click', async () => {
             if (this.app?.battleSystem?.pendingDefenseResponse) {
-                if (this.app?.showAlert) {
-                    await this.app.showAlert({
-                        title: '제한',
-                        message: '방어자 응답 선택 중에는 시간 종료할 수 없습니다.'
-                    });
-                } else {
-                    alert('방어자 응답 선택 중에는 시간 종료할 수 없습니다.');
-                }
+                await this.uiAlert('제한', '방어자 응답 선택 중에는 시간 종료할 수 없습니다.');
                 return;
             }
 
-            const ok = this.app?.showConfirm
-                ? await this.app.showConfirm({
-                    title: '시간 종료',
-                    message: '시간 종료하시겠습니까? (현재 HP 상태로 승패를 판정합니다)',
-                    okText: '종료',
-                    cancelText: '취소'
-                })
-                : confirm('시간 종료하시겠습니까? (현재 HP 상태로 승패를 판정합니다)');
+            const ok = await this.uiConfirm(
+                '시간 종료',
+                '시간 종료하시겠습니까? (현재 HP 상태로 승패를 판정합니다)',
+                '종료',
+                '취소'
+            );
 
             if (ok) this.handleTimeoutEnd();
         });
@@ -492,14 +588,7 @@ class BattleActions {
      */
     selectTargetForUltimate() {
         if (this.app?.battleSystem?.pendingDefenseResponse) {
-            if (this.app?.showAlert) {
-                this.app.showAlert({
-                    title: '제한',
-                    message: '방어자 응답 선택 중에는 스킬을 사용할 수 없습니다.'
-                });
-            } else {
-                alert('방어자 응답 선택 중에는 스킬을 사용할 수 없습니다.');
-            }
+            this.uiAlert('제한', '방어자 응답 선택 중에는 스킬을 사용할 수 없습니다.');
             return;
         }
 
@@ -507,11 +596,7 @@ class BattleActions {
         const teamKey = entry?.teamKey;
         const attacker = entry?.char;
         if (!attacker) {
-            if (this.app?.showAlert) {
-                this.app.showAlert({ title: '불가', message: '스킬을 사용할 수 있는 캐릭터가 없습니다!' });
-            } else {
-                alert('스킬을 사용할 수 있는 캐릭터가 없습니다!');
-            }
+            this.uiAlert('불가', '스킬을 사용할 수 있는 캐릭터가 없습니다!');
             return;
         }
 
@@ -527,8 +612,14 @@ class BattleActions {
         const includeSelf = !!attacker.skillTarget?.includeSelf;
 
         const alliance = this.getAlliance(teamKey);
-        const eligibleTeams = (skillType === '공격형') ? alliance.enemies : alliance.allies;
 
+        if (skillType === '지원형') {
+            // 지원형: 버프/디버프 모드 선택(모달 내 라디오)
+            this.openSkillTargetModal({ attacker, teamKey, skillType, mode, includeSelf, eligibleTeams: alliance.allies, supportMode: 'BUFF' });
+            return;
+        }
+
+        const eligibleTeams = (skillType === '공격형') ? alliance.enemies : alliance.allies;
         this.openSkillTargetModal({ attacker, teamKey, skillType, mode, includeSelf, eligibleTeams });
     }
 
@@ -597,11 +688,7 @@ class BattleActions {
         const attacker = entry?.char;
         
         if (!attacker) {
-            if (this.app?.showAlert) {
-                this.app.showAlert({ title: '불가', message: '공격할 수 있는 캐릭터가 없습니다!' });
-            } else {
-                alert('공격할 수 있는 캐릭터가 없습니다!');
-            }
+            this.uiAlert('불가', '공격할 수 있는 캐릭터가 없습니다!');
             return;
         }
         
@@ -610,17 +697,18 @@ class BattleActions {
         const target = targetChars.find(c => c.id === targetCharId);
         
         if (!target || target.hp <= 0) {
-            if (this.app?.showAlert) {
-                this.app.showAlert({ title: '대상 오류', message: '유효한 대상이 아닙니다!' });
-            } else {
-                alert('유효한 대상이 아닙니다!');
-            }
+            this.uiAlert('대상 오류', '유효한 대상이 아닙니다!');
             return;
         }
         
         // 액션 실행
         if (this.currentAction === 'ultimate') {
-            this.app.battleSystem.executeUltimate(attacker, target, targetTeam);
+            const res = this.app.battleSystem.executeUltimate(attacker, target, targetTeam);
+            // 공격형 스킬에 대한 방어형 반응(선택) 단계가 열렸으면 턴 진행을 멈춤
+            if (res && res.awaitingResponse) {
+                this.app.battleSystem.renderBattle();
+                return;
+            }
         } else {
             const result = await this.app.battleSystem.executeAttack(attacker, target, targetTeam, currentTeamName);
 

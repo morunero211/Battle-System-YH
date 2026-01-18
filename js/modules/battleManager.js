@@ -11,6 +11,16 @@ class BattleManager {
     console.log('BattleManager initialized with API URL:', this.apiBaseUrl);
   }
 
+  getUi() {
+    return window.app;
+  }
+
+  async uiAlert(message, title = '알림') {
+    const ui = this.getUi();
+    if (ui?.showAlert) return ui.showAlert({ title, message });
+    console.warn('[BattleManager] UI alert fallback:', title, message);
+  }
+
   /**
    * 캐릭터 목록 조회
    */
@@ -184,7 +194,7 @@ class BattleManager {
       this.updateMembersList('team2-members', this.team2Members);
     }).catch(error => {
       console.error('캐릭터 로드 실패:', error);
-      alert('캐릭터를 불러올 수 없습니다: ' + error.message);
+      this.uiAlert('캐릭터를 불러올 수 없습니다: ' + error.message, '오류');
     });
 
     // 팀 1 추가 버튼
@@ -222,12 +232,12 @@ class BattleManager {
         const ruleSetId = document.getElementById('ruleset-select')?.value;
 
         if (!ruleSetId) {
-          alert('🎯 RuleSet을 선택해주세요');
+          await this.uiAlert('🎯 RuleSet을 선택해주세요', '선택 필요');
           return;
         }
 
         if (this.team1Members.length === 0 || this.team2Members.length === 0) {
-          alert('⚠️ 각 팀에 최소 1명 이상의 캐릭터를 추가해주세요');
+          await this.uiAlert('⚠️ 각 팀에 최소 1명 이상의 캐릭터를 추가해주세요', '선택 필요');
           return;
         }
 
@@ -253,7 +263,7 @@ class BattleManager {
 
           console.log('✅ 전투 시작!');
         } catch (error) {
-          alert('⚠️ 전투 생성 실패: ' + error.message);
+          await this.uiAlert('⚠️ 전투 생성 실패: ' + error.message, '오류');
         }
       });
     }

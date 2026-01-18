@@ -226,7 +226,7 @@ class AuthController {
         if (window.app && typeof window.app.showToast === 'function') {
             window.app.showToast(message, type);
         } else {
-            alert(message);
+            console.warn('[AuthController toast]', type, message);
         }
     }
 }

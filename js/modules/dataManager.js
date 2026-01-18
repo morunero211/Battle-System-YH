@@ -565,9 +565,9 @@ class DataManager {
                 }
                 this.saveToLocalStorage();
                 this.app.renderAllTeams();
-                alert('캐릭터 데이터가 불러와졌습니다!');
+                this.app?.showToast?.('캐릭터 데이터를 불러왔습니다!', 'success');
             } catch (error) {
-                alert('JSON 파일을 읽는데 실패했습니다.');
+                this.app?.showAlert?.({ title: '불러오기 실패', message: 'JSON 파일을 읽는데 실패했습니다.' });
                 console.error(error);
             }
         };

@@ -1275,6 +1275,13 @@ class BattleApp {
      * 이벤트 리스너 초기화
      */
     initEventListeners() {
+        // BattleApp이 여러 번 생성되더라도 document 전역 이벤트(드래그/드롭/붙여넣기)가 중복 등록되지 않도록 가드
+        // 중복 등록은 동일 처리 로직이 여러 번 실행되어 "반복" 경고/UX 이상을 유발할 수 있음
+        const globalListenersAlready = !!window.__battleAppGlobalListenersRegistered;
+        if (!globalListenersAlready) {
+            window.__battleAppGlobalListenersRegistered = true;
+        }
+
         // 검색
         this.elements.team1Search?.addEventListener('input', (e) => this.handleSearch(0, e.target.value));
         this.elements.team2Search?.addEventListener('input', (e) => this.handleSearch(1, e.target.value));
@@ -1434,51 +1441,65 @@ class BattleApp {
 
         // 개발 모드 UI 제거됨
 
-        // 드래그 앤 드롭으로 JSON 불러오기
-        document.addEventListener('dragover', (e) => {
-            e.preventDefault();
-        });
-        document.addEventListener('drop', (e) => {
-            if (!e.dataTransfer) return;
-            e.preventDefault();
-            const file = Array.from(e.dataTransfer.files || []).find(f => f.name.toLowerCase().endsWith('.json'));
-            if (!file) return;
-            const reader = new FileReader();
-            reader.onload = (evt) => {
+        if (!globalListenersAlready) {
+            // 드래그 앤 드롭으로 JSON 불러오기
+            document.addEventListener('dragover', (e) => {
+                e.preventDefault();
+            });
+            document.addEventListener('drop', (e) => {
+                if (!e.dataTransfer) return;
+                e.preventDefault();
+                const file = Array.from(e.dataTransfer.files || []).find(f => f.name.toLowerCase().endsWith('.json'));
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = (evt) => {
+                    try {
+                        const data = JSON.parse(evt.target.result);
+                        this.applyImportedData(data);
+                        this.showToast?.('드래그한 JSON을 불러왔습니다!', 'success');
+                    } catch (err) {
+                        this.showAlert?.({ title: 'JSON 오류', message: 'JSON 파싱에 실패했습니다: ' + err.message });
+                    }
+                };
+                reader.readAsText(file);
+            });
+
+            // 클립보드 붙여넣기로 JSON 불러오기 (입력 필드 포커스가 아닐 때만)
+            document.addEventListener('paste', async (e) => {
+                const active = document.activeElement;
+                const isTyping = active && (
+                    active.tagName === 'INPUT' ||
+                    active.tagName === 'TEXTAREA' ||
+                    active.isContentEditable
+                );
+                if (isTyping) return;
+
+                const text = e.clipboardData?.getData('text');
+                if (!text) return;
+                const looksJson = text.trim().startsWith('{') && text.trim().endsWith('}');
+                if (!looksJson) return;
+
+                // confirm 모달이 뜬 상태에서 또 paste가 들어오는 경우를 방지
+                if (this._pasteJsonHandling) return;
+                this._pasteJsonHandling = true;
                 try {
-                    const data = JSON.parse(evt.target.result);
+                    const ok = await this.showConfirm({
+                        title: '클립보드 불러오기',
+                        message: '클립보드의 JSON 데이터를 불러올까요? 현재 데이터가 대체됩니다.',
+                        okText: '불러오기',
+                        cancelText: '취소'
+                    });
+                    if (!ok) return;
+                    const data = JSON.parse(text);
                     this.applyImportedData(data);
-                    alert('드래그한 JSON을 불러왔습니다!');
+                    this.showToast?.('클립보드 JSON을 불러왔습니다!', 'success');
                 } catch (err) {
-                    alert('JSON 파싱에 실패했습니다: ' + err.message);
+                    await this.showAlert({ title: 'JSON 오류', message: 'JSON 파싱에 실패했습니다: ' + err.message });
+                } finally {
+                    this._pasteJsonHandling = false;
                 }
-            };
-            reader.readAsText(file);
-        });
-
-        // 클립보드 붙여넣기로 JSON 불러오기 (입력 필드 포커스가 아닐 때만)
-        document.addEventListener('paste', (e) => {
-            const active = document.activeElement;
-            const isTyping = active && (
-                active.tagName === 'INPUT' ||
-                active.tagName === 'TEXTAREA' ||
-                active.isContentEditable
-            );
-            if (isTyping) return;
-
-            const text = e.clipboardData?.getData('text');
-            if (!text) return;
-            const looksJson = text.trim().startsWith('{') && text.trim().endsWith('}');
-            if (!looksJson) return;
-            if (!confirm('클립보드의 JSON 데이터를 불러올까요? 현재 데이터가 대체됩니다.')) return;
-            try {
-                const data = JSON.parse(text);
-                this.applyImportedData(data);
-                alert('클립보드 JSON을 불러왔습니다!');
-            } catch (err) {
-                alert('JSON 파싱에 실패했습니다: ' + err.message);
-            }
-        });
+            });
+        }
     }
 
     /**
@@ -1514,7 +1535,8 @@ class BattleApp {
             const cancel = document.getElementById('confirm-cancel');
             const closeBtn = document.getElementById('confirm-close');
             if (!modal || !t || !m || !ok || !cancel) {
-                resolve(confirm(message));
+                this.showToast?.(message, 'warning', title);
+                resolve(false);
                 return;
             }
             t.textContent = title;
@@ -1552,7 +1574,7 @@ class BattleApp {
             const cancel = document.getElementById('confirm-cancel');
             const closeBtn = document.getElementById('confirm-close');
             if (!modal || !t || !m || !ok || !cancel) {
-                alert(message);
+                this.showToast?.(message, 'info', title);
                 resolve(true);
                 return;
             }
@@ -1593,10 +1615,8 @@ class BattleApp {
             const closeBtn = document.getElementById('number-prompt-close');
 
             if (!modal || !t || !m || !input || !ok || !cancel) {
-                const raw = prompt(message, String(initialValue));
-                if (raw === null) { resolve(null); return; }
-                const n = Math.max(min, Math.min(max, Math.floor(Number(raw) || 0)));
-                resolve(n);
+                this.showToast?.(message || '입력 UI를 불러올 수 없습니다.', 'warning', title);
+                resolve(null);
                 return;
             }
 
@@ -2089,7 +2109,7 @@ class BattleApp {
 
         const hp = parseInt(this.elements.charHp?.value || 100);
         if (hp < 10 || hp > 100) {
-            alert('HP는 10~100 사이로 입력해주세요!');
+            this.showAlert?.({ title: '입력 오류', message: 'HP는 10~100 사이로 입력해주세요!' });
             return;
         }
 
@@ -2260,7 +2280,10 @@ class BattleApp {
         const total = Object.values(this.selectedCharacters).reduce((sum, arr) => sum + arr.length, 0);
         
         if (total < 2) {
-            alert('⚠️ 최소 2명 이상의 캐릭터를 선택해주세요!\n\n💡 Main 화면의 캐릭터 목록을 클릭하여 전투에 참여할 캐릭터를 선택하세요.');
+            this.showAlert?.({
+                title: '선택 필요',
+                message: '⚠️ 최소 2명 이상의 캐릭터를 선택해주세요!\n\n💡 Main 화면의 캐릭터 목록을 클릭하여 전투에 참여할 캐릭터를 선택하세요.'
+            });
             return;
         }
 
@@ -2275,7 +2298,7 @@ class BattleApp {
         const total = Object.values(this.selectedCharacters).reduce((sum, arr) => sum + arr.length, 0);
         
         if (total < 2) {
-            alert('최소 2명 이상의 캐릭터를 선택해주세요!');
+            this.showAlert?.({ title: '선택 필요', message: '최소 2명 이상의 캐릭터를 선택해주세요!' });
             return;
         }
 
@@ -2366,7 +2389,7 @@ class BattleApp {
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
         
-        alert('데이터가 JSON 파일로 다운로드되었습니다!');
+        this.showToast?.('데이터를 JSON 파일로 다운로드했습니다.', 'success');
     }
 
     /**
@@ -2393,7 +2416,7 @@ class BattleApp {
             }
             this.showCopyPreview(json, '전체 데이터', 'full');
         } catch (err) {
-            alert('클립보드 복사에 실패했습니다: ' + err.message);
+            await this.showAlert({ title: '복사 실패', message: '클립보드 복사에 실패했습니다: ' + err.message });
         }
     }
 
@@ -2409,9 +2432,9 @@ class BattleApp {
             try {
                 const data = JSON.parse(e.target.result);
                 this.applyImportedData(data);
-                alert('데이터를 성공적으로 불러왔습니다!');
+                this.showToast?.('데이터를 성공적으로 불러왔습니다!', 'success');
             } catch (error) {
-                alert('JSON 파일을 읽는 중 오류가 발생했습니다: ' + error.message);
+                this.showAlert?.({ title: '불러오기 실패', message: 'JSON 파일을 읽는 중 오류가 발생했습니다: ' + error.message });
             }
         };
         
@@ -2475,7 +2498,7 @@ class BattleApp {
                 statsApplied > 0 ? `스탯 적용: ${statsApplied}개` : '',
                 skipped.length ? `건너뜀: ${skipped.length}개` : ''
             ];
-            alert(msg.filter(Boolean).join(' | '));
+            this.showToast?.(msg.filter(Boolean).join(' | '), 'info', '패치 적용');
             return;
         }
 
@@ -2552,14 +2575,12 @@ class BattleApp {
         // 수동 불러오기: 기본은 로컬에서만
         try {
             if (this._unsavedChanges) {
-                const ok = this.showConfirm
-                    ? await this.showConfirm({
-                        title: '불러오기',
-                        message: '저장되지 않은 변경사항이 있습니다. 불러오면 현재 내용이 덮어써집니다. 계속할까요?',
-                        okText: '불러오기',
-                        cancelText: '취소'
-                    })
-                    : confirm('저장되지 않은 변경사항이 있습니다. 불러오면 현재 내용이 덮어써집니다. 계속할까요?');
+                const ok = await this.showConfirm({
+                    title: '불러오기',
+                    message: '저장되지 않은 변경사항이 있습니다. 불러오면 현재 내용이 덮어써집니다. 계속할까요?',
+                    okText: '불러오기',
+                    cancelText: '취소'
+                });
                 if (!ok) return;
             }
 
@@ -2714,10 +2735,15 @@ function initAuthGuard(providedUi) {
                 loginBtn.textContent = '🚪';
                 loginBtn.title = '로그아웃';
                 loginBtn.onclick = async () => {
-                    if (confirm('로그아웃 하시겠습니까?')) {
-                        await firebase.auth().signOut();
-                        alert('로그아웃되었습니다.');
-                    }
+                    const ok = await window.app?.showConfirm?.({
+                        title: '로그아웃',
+                        message: '로그아웃 하시겠습니까?',
+                        okText: '로그아웃',
+                        cancelText: '취소'
+                    });
+                    if (!ok) return;
+                    await firebase.auth().signOut();
+                    window.app?.showToast?.('로그아웃되었습니다.', 'info');
                 };
             }
 
@@ -2799,7 +2825,7 @@ document.addEventListener('DOMContentLoaded', () => {
             this.lastSaveTime = null;
             this.nextSaveTime = null;
             this.updateAutoSaveDisplay();
-            alert('파일 자동 저장이 중지되었습니다.');
+            this.showToast?.('파일 자동 저장이 중지되었습니다.', 'info');
         } else {
             // 활성화
             await this.setupAutoSaveToFile();
@@ -2833,7 +2859,10 @@ document.addEventListener('DOMContentLoaded', () => {
             
             // File System Access API 지원 확인
             if (!('showOpenFilePicker' in window)) {
-                alert('이 브라우저는 파일 자동 저장을 지원하지 않습니다.\nChrome, Edge 등 최신 브라우저를 사용해주세요.');
+                await this.showAlert({
+                    title: '지원 불가',
+                    message: '이 브라우저는 파일 자동 저장을 지원하지 않습니다.\nChrome, Edge 등 최신 브라우저를 사용해주세요.'
+                });
                 return;
             }
 
@@ -2861,7 +2890,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const permission = await this.autoSaveFileHandle.requestPermission({ mode: 'readwrite' });
                 console.log('[DEBUG] 파일 권한 상태:', permission);
                 if (permission !== 'granted') {
-                    alert('파일 쓰기 권한이 거부되었습니다. 다시 시도해주세요.');
+                    await this.showAlert({ title: '권한 필요', message: '파일 쓰기 권한이 거부되었습니다. 다시 시도해주세요.' });
                     this.autoSaveEnabled = false;
                     this.autoSaveFileHandle = null;
                     this.updateAutoSaveDisplay();
@@ -2879,11 +2908,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
             console.log('[DEBUG] setupAutoSaveToFile 끝 - updateAutoSaveDisplay 호출');
             this.updateAutoSaveDisplay();
-            alert('파일 자동 저장이 활성화되었습니다!\n30초마다 자동으로 저장됩니다.');
+            await this.showAlert({ title: '자동 저장', message: '파일 자동 저장이 활성화되었습니다!\n30초마다 자동으로 저장됩니다.' });
         } catch (error) {
             if (error.name !== 'AbortError') {
                 console.error('❌ 파일 자동 저장 설정 실패:', error);
-                alert('파일 자동 저장 설정에 실패했습니다.');
+                await this.showAlert({ title: '실패', message: '파일 자동 저장 설정에 실패했습니다.' });
             } else {
                 console.log('[INFO] 사용자가 파일 선택을 취소했습니다.');
             }
@@ -3322,7 +3351,7 @@ document.addEventListener('DOMContentLoaded', () => {
         a.click();
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
-        alert('전투 변화(JSON 패치)를 다운로드했습니다.');
+        this.showToast?.('전투 변화(JSON 패치)를 다운로드했습니다.', 'success');
     }
 
     /**
@@ -3346,7 +3375,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             this.showCopyPreview(json, '전투 변화', 'delta', battleId);
         } catch (err) {
-            alert('클립보드 복사에 실패했습니다: ' + err.message);
+            await this.showAlert({ title: '복사 실패', message: '클립보드 복사에 실패했습니다: ' + err.message });
         }
     }
 
@@ -3356,7 +3385,7 @@ document.addEventListener('DOMContentLoaded', () => {
     buildBattleDelta(battleId) {
         const rec = this.battleHistory.find(r => r.id === battleId);
         if (!rec) {
-            alert('전투 기록을 찾을 수 없습니다.');
+            this.showAlert?.({ title: '오류', message: '전투 기록을 찾을 수 없습니다.' });
             return null;
         }
 
@@ -3444,8 +3473,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const summary = type === 'full' 
             ? `전체 데이터 (${this.teams.reduce((sum, t) => sum + t.characters.length, 0)}명 캐릭터, ${this.battleHistory.length}건 전투 기록)`
             : `전투 #${battleId?.split('_')[1] || '?'} 변화 데이터`;
-        
-        alert(`✅ 클립보드에 복사되었습니다!\n\n${summary}\n${Math.ceil(jsonContent.length / 1024)}KB`);
+
+        this.showAlert?.({
+            title: '복사 완료',
+            message: `✅ 클립보드에 복사되었습니다!\n\n${summary}\n${Math.ceil(jsonContent.length / 1024)}KB`
+        });
     }
 
     /**
@@ -3475,9 +3507,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 document.execCommand('copy');
                 document.body.removeChild(ta);
             }
-            alert('클립보드에 다시 복사했습니다!');
+            this.showToast?.('클립보드에 다시 복사했습니다!', 'success');
         } catch (err) {
-            alert('복사 실패: ' + err.message);
+            await this.showAlert({ title: '복사 실패', message: '복사 실패: ' + err.message });
         }
     }
 
@@ -3505,7 +3537,7 @@ document.addEventListener('DOMContentLoaded', () => {
         a.click();
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
-        alert('파일로 저장했습니다!');
+        this.showToast?.('파일로 저장했습니다!', 'success');
     }
 
     /**
@@ -3556,7 +3588,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const data = JSON.parse(text);
             this.applyImportedData(data);
             this.closePasteJsonModal();
-            alert('JSON 데이터를 적용했습니다!');
+            this.showToast?.('JSON 데이터를 적용했습니다!', 'success');
         } catch (err) {
             this.elements.pasteJsonStatus.textContent = '❌ JSON 파싱 실패: ' + err.message;
             this.elements.pasteJsonStatus.style.color = '#e53e3e';
@@ -3662,7 +3694,10 @@ function setupAuthUI() {
             
             await firebase.auth().createUserWithEmailAndPassword(email, password);
             closeModal();
-            alert('🎉 회원가입 성공! 환영합니다!');
+            // 앱 인스턴스는 onAuthStateChanged에서 생성되므로, 토스트/알림은 다음 틱에 시도
+            setTimeout(() => {
+                window.app?.showToast?.('🎉 회원가입 성공! 환영합니다!', 'success');
+            }, 0);
             
             signupBtn.disabled = false;
             signupBtn.textContent = '회원가입 ✨';
@@ -3715,10 +3750,15 @@ function setupAuthUI() {
                 const displayName = user.email?.split('@')[0] || 'User';
                 userInfoBtn.textContent = `👤 ${displayName}`;
                 userInfoBtn.onclick = async () => {
-                    if (confirm('로그아웃 하시겠습니까?')) {
-                        await firebase.auth().signOut();
-                        alert('로그아웃되었습니다.');
-                    }
+                    const ok = await window.app?.showConfirm?.({
+                        title: '로그아웃',
+                        message: '로그아웃 하시겠습니까?',
+                        okText: '로그아웃',
+                        cancelText: '취소'
+                    });
+                    if (!ok) return;
+                    await firebase.auth().signOut();
+                    window.app?.showToast?.('로그아웃되었습니다.', 'info');
                 };
             }
             

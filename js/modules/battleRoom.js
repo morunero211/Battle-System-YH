@@ -24,13 +24,23 @@ class BattleRoom {
   async uiAlert(message, title = '알림') {
     const ui = this.getUi();
     if (ui?.showAlert) return ui.showAlert({ title, message });
-    alert(message);
+    console.warn('[BattleRoom] UI alert fallback:', title, message);
   }
 
   async uiConfirm(message, title = '확인', okText = '확인', cancelText = '취소') {
     const ui = this.getUi();
     if (ui?.showConfirm) return ui.showConfirm({ title, message, okText, cancelText });
-    return confirm(message);
+    console.warn('[BattleRoom] UI confirm fallback:', title, message);
+    return false;
+  }
+
+  async uiNumberPrompt(message, { title = '입력', initialValue = 1, min = 1, max = 9999, okText = '적용', cancelText = '취소' } = {}) {
+    const ui = this.getUi();
+    if (ui?.showNumberPrompt) {
+      return ui.showNumberPrompt({ title, message, initialValue, min, max, okText, cancelText });
+    }
+    console.warn('[BattleRoom] UI number prompt fallback:', title, message);
+    return null;
   }
 
   async init() {
@@ -479,8 +489,15 @@ class BattleRoom {
   async basicAttack(attackerId) {
     try {
       // 대상 선택 팝업 (간단 버전)
-      const targetId = prompt('대상 ID를 입력하세요:');
-      if (!targetId) return;
+      const targetId = await this.uiNumberPrompt('대상 ID를 입력하세요:', {
+        title: '대상 선택',
+        initialValue: 1,
+        min: 1,
+        max: 9999,
+        okText: '선택',
+        cancelText: '취소'
+      });
+      if (targetId === null) return;
 
       const response = await fetch(`${this.apiBaseUrl}/battles/${this.battleId}/actions`, {
         method: 'POST',
@@ -488,7 +505,7 @@ class BattleRoom {
         body: JSON.stringify({
           action: 'BASIC_ATTACK',
           participantId: attackerId,
-          targetParticipantId: targetId
+          targetParticipantId: String(targetId)
         })
       });
 
@@ -538,9 +555,16 @@ class BattleRoom {
       };
 
       if (response === 'DEFENSE_SKILL') {
-        const skillId = prompt('방어 스킬 ID:');
-        if (!skillId) return;
-        responseData.skillId = skillId;
+        const skillId = await this.uiNumberPrompt('방어 스킬 ID:', {
+          title: '방어 스킬',
+          initialValue: 1,
+          min: 1,
+          max: 9999,
+          okText: '선택',
+          cancelText: '취소'
+        });
+        if (skillId === null) return;
+        responseData.skillId = String(skillId);
       }
 
       const res = await fetch(`${this.apiBaseUrl}/battles/${this.battleId}/responses`, {
