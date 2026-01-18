@@ -3793,8 +3793,4 @@ function setupAuthUI() {
     });
 }
 
-// Firebase Auth 가드 비활성화 (위에서 직접 구현)
-/*
-const authUI = setupAuthUI();
-initAuthGuard(authUI);
-*/
+
