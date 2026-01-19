@@ -478,8 +478,8 @@ function resolveBasicAttack({
       };
     }
 
-    // 반격 시도 실패: 그대로 피격 데미지 계산으로 진행(방어력 적용)
-    counterFailedPenalty = false;
+    // 반격 시도 실패: 그대로 피격 데미지 계산으로 진행하되, 방어력은 적용되지 않음(요구사항)
+    counterFailedPenalty = true;
   }
 
   // 3. 데미지 계산

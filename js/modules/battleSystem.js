@@ -88,8 +88,18 @@ class BattleSystem {
         }, 0);
     }
 
+    getBaseStatValue(char, statKey) {
+        if (!char) return undefined;
+        const key = String(statKey || '').toLowerCase();
+        if (key === 'attack' || key === 'atk') return char.attack ?? char.atk;
+        if (key === 'defense' || key === 'def') return char.defense ?? char.def;
+        if (key === 'agility' || key === 'agi') return char.agility ?? char.agi;
+        if (key === 'skill' || key === 'skillstat') return char.skill ?? char.skillStat;
+        return char?.[statKey];
+    }
+
     getEffectiveStat(char, statKey) {
-        const base = this.clampStat1to5(char?.[statKey]);
+        const base = this.clampStat1to5(this.getBaseStatValue(char, statKey));
         const delta = this.getStatModSum(char, statKey);
         return this.clampStat1to5(base + delta);
     }
@@ -716,19 +726,32 @@ class BattleSystem {
             const grade = this.pendingDefenseResponse?.attackGrade;
             gradeEl.textContent = this.gradeLabelKo(grade);
         }
+        const allowed = Array.isArray(this.pendingDefenseResponse?.allowedResponses)
+            ? this.pendingDefenseResponse.allowedResponses
+            : ['DODGE', 'COUNTER', 'DEFENSE_SKILL', 'PASS'];
+
         if (title) {
-            title.textContent = `${defenderName}의 반격 / 회피 / PASS`;
+            title.textContent = allowed.includes('DODGE') || allowed.includes('COUNTER')
+                ? `${defenderName}의 반격 / 회피 / PASS`
+                : `${defenderName}의 반응 (방어 스킬 / PASS)`;
         }
         if (modal) {
             modal.style.display = 'flex';
         }
+
+        const dodgeBtn = document.getElementById('defense-response-dodge');
+        const counterBtn = document.getElementById('defense-response-counter');
+        const passBtn = document.getElementById('defense-response-pass');
+        if (dodgeBtn) dodgeBtn.style.display = allowed.includes('DODGE') ? 'inline-flex' : 'none';
+        if (counterBtn) counterBtn.style.display = allowed.includes('COUNTER') ? 'inline-flex' : 'none';
+        if (passBtn) passBtn.style.display = allowed.includes('PASS') ? 'inline-flex' : 'none';
 
         // 방어 스킬 버튼은 "방어형" + "스킬 횟수 남음"일 때만 노출
         const defenseSkillBtn = document.getElementById('defense-response-defense-skill');
         if (defenseSkillBtn) {
             const defenderRef = this.pendingDefenseResponse?.defenderRef;
             const canUse = this.canUseDefenseSkillAsReaction(defenderRef);
-            defenseSkillBtn.style.display = canUse ? 'inline-flex' : 'none';
+            defenseSkillBtn.style.display = (allowed.includes('DEFENSE_SKILL') && canUse) ? 'inline-flex' : 'none';
         }
 
         const hint = document.getElementById('defense-response-hint');
@@ -742,7 +765,6 @@ class BattleSystem {
         }
 
         // 기본 포커스(키보드/모바일 접근성)
-        const counterBtn = document.getElementById('defense-response-counter');
         if (counterBtn) {
             setTimeout(() => {
                 try { counterBtn.focus(); } catch (_) {}
@@ -766,7 +788,52 @@ class BattleSystem {
         try {
             const pending = this.pendingDefenseResponse;
             const apiUrl = window.CONFIG?.API_BASE_URL;
-            if (!pending || !apiUrl) return;
+            if (!pending) return;
+
+            const mode = pending?.mode || 'SERVER_BASIC';
+
+            // 로컬 반응(공격형 스킬 대응 등)
+            if (mode === 'LOCAL_SKILL_REACTION') {
+                // 방어 스킬(쉴드) 반응: 방어자가 스킬 사용(횟수 차감) 후 로컬로 쉴드 적용
+                if (responseKind === 'DEFENSE_SKILL') {
+                    const defender = pending.defenderRef;
+                    const actions = this.app?.battleActions;
+                    if (!this.canUseDefenseSkillAsReaction(defender)) {
+                        this.addLog('ℹ️ 방어 스킬을 사용할 수 없습니다(방어형이 아니거나 횟수 소진).');
+                        return;
+                    }
+
+                    if (actions?.consumeSkillUse) {
+                        const consumed = actions.consumeSkillUse(defender);
+                        if (!consumed?.consumed) {
+                            this.addLog('ℹ️ 방어 스킬 사용 불가: 사용 횟수 소진/잠금 상태');
+                            return;
+                        }
+                    }
+                }
+
+                // UI 닫고 상태 초기화 후, 콜백에서 실제 처리
+                this.pendingDefenseResponse = null;
+                this.hideDefenseResponsePanel();
+
+                if (typeof pending.onResolve === 'function') {
+                    pending.onResolve(responseKind);
+                }
+
+                // 방어 스킬을 썼다면: 스킬 스탯 1회 소모 + 공통 패널티
+                if (responseKind === 'DEFENSE_SKILL' && pending.defenderRef) {
+                    this.consumeStatMods(pending.defenderRef, 'ON_SKILL');
+                    this.applyUnifiedSkillPenalty(pending.defenderRef);
+                }
+
+                this.renderBattle();
+                this.checkBattleEnd();
+                this.nextTurn();
+                this.renderBattle();
+                return;
+            }
+
+            if (!apiUrl) return;
 
             // 방어 스킬(쉴드) 반응: 방어자가 스킬 사용(횟수 차감/패널티) 후 서버에 DEFENSE_SKILL로 전달
             if (responseKind === 'DEFENSE_SKILL') {
@@ -838,6 +905,7 @@ class BattleSystem {
 
             // 같은 턴의 하위 단계가 끝났으니 이제 턴을 진행
             this.renderBattle();
+            this.checkBattleEnd();
             this.nextTurn();
         } catch (error) {
             console.error('방어자 응답 처리 에러:', error);
@@ -847,6 +915,21 @@ class BattleSystem {
             this.hideDefenseResponsePanel();
             this.renderBattle();
         }
+    }
+
+    applyDefenseSkillReactionSingle(defender) {
+        if (!defender) return null;
+        const skillStat = this.getEffectiveStat(defender, 'skill');
+        const rolled = this.rollShieldSkillAmountByStat(skillStat);
+        const beforeShield = this.getShieldHp(defender);
+        const beforeTotal = this.getTotalHp(defender);
+        const added = this.addShieldHp(defender, rolled.raw);
+        const afterTotal = this.getTotalHp(defender);
+
+        this.addLog(`  🛡️ 방어 스킬(반응) 발동: ${rolled.min} + (1~${rolled.extraMax})[${rolled.bonus}] = ${rolled.raw} (최대 ${rolled.max})`);
+        this.addLog(`  🧱 쉴드: ${beforeShield} → ${this.getShieldHp(defender)} (총 HP ${beforeTotal} → ${afterTotal})`);
+
+        return { added, rolled };
     }
 
     /**
@@ -1754,7 +1837,8 @@ class BattleSystem {
                                 maxHp: defender.maxHp,
                                 attack: this.getEffectiveStat(defender, 'attack'),
                                 defense: this.getEffectiveStat(defender, 'defense'),
-                                agility: this.getEffectiveStat(defender, 'agility')
+                                agility: this.getEffectiveStat(defender, 'agility'),
+                                skill: this.getEffectiveStat(defender, 'skill')
                             }
                         })
                     });
@@ -1878,6 +1962,61 @@ class BattleSystem {
         if (!isAttackSkill) {
             this.addLog('  ℹ️ 공격형 스킬이 아니라 데미지를 주지 않습니다.');
             return;
+        }
+
+        // 공격형 스킬을 맞을 때: 방어형에게 DEFENSE_SKILL(쉴드) 반응 찬스 제공
+        if (!this.pendingDefenseResponse && this.canUseDefenseSkillAsReaction(defender)) {
+            this.pendingDefenseResponse = {
+                mode: 'LOCAL_SKILL_REACTION',
+                attackerRef: attacker,
+                defenderRef: defender,
+                targetTeam,
+                allowedResponses: ['DEFENSE_SKILL', 'PASS'],
+                onResolve: (choice) => {
+                    if (choice === 'DEFENSE_SKILL') {
+                        this.applyDefenseSkillReactionSingle(defender);
+                    }
+
+                    // 이후 궁극기 피해를 그대로 처리(명중은 확정)
+                    this.addLog('  💫 궁극기는 100% 명중합니다!');
+
+                    const skillStat2 = this.getEffectiveStat(attacker, 'skill');
+                    const rolled2 = this.rollAttackSkillRawDamage(skillStat2);
+
+                    const defStat2 = this.getEffectiveStat(defender, 'defense');
+                    const defensePercent2 = this.getDefenseReductionPercent(defStat2);
+                    const damage2 = this.applyDefenseReduction(rolled2.raw, defensePercent2);
+
+                    this.addLog(`  🎲 스킬 데미지: ${rolled2.min} + (1~${rolled2.extraMax})[${rolled2.bonus}] = ${rolled2.raw} (최대 ${rolled2.max})`);
+                    this.addLog(`  🛡️ 방어력: ${defensePercent2}% (원데미지 ${rolled2.raw} → 실제 ${damage2})`);
+                    this.addLog(`  💥 데미지: ${damage2}`);
+
+                    const beforeTotal2 = this.getTotalHp(defender);
+                    const beforeShield2 = this.getShieldHp(defender);
+                    const applied2 = this.applyDamageWithShield(defender, damage2);
+                    const afterTotal2 = this.getTotalHp(defender);
+
+                    this.consumeStatMods(defender, 'ON_DEFEND');
+                    if (beforeShield2 > 0 || applied2.shieldAbsorbed > 0) {
+                        this.addLog(`  🧱 쉴드: ${beforeShield2} → ${this.getShieldHp(defender)} (흡수 ${applied2.shieldAbsorbed})`);
+                    }
+                    this.addLog(`  💔 ${defender.name} HP: ${Math.min(this.getMaxHp(defender), beforeTotal2)}/${this.getMaxHp(defender)} → ${Math.min(this.getMaxHp(defender), afterTotal2)}/${this.getMaxHp(defender)}`);
+
+                    if (attacker && attacker.id) {
+                        this.usedUltimate[attacker.id] = true;
+                    }
+
+                    this.consumeStatMods(attacker, 'ON_SKILL');
+                    this.applyUnifiedSkillPenalty(attacker);
+
+                    if (defender.hp <= 0) {
+                        this.addLog(`  💀 ${defender.name}이(가) 쓰러졌습니다!`);
+                    }
+                }
+            };
+
+            this.showDefenseResponsePanel(attacker.name, defender.name);
+            return { awaitingResponse: true };
         }
 
         this.addLog('  💫 궁극기는 100% 명중합니다!');

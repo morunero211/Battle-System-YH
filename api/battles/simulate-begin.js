@@ -82,10 +82,10 @@ module.exports = async function handler(req, res) {
     const defenderMaxHp = Number.isFinite(Number(defender.maxHp)) ? Math.max(1, Math.round(Number(defender.maxHp))) : 100;
     const defenderHp = Number.isFinite(Number(defender.hp)) ? Math.max(0, Math.round(Number(defender.hp))) : defenderMaxHp;
     const defenderChar = {
-      atk: clampStat(defender.atk ?? 1),
+      atk: clampStat(defender.atk ?? defender.attack ?? 1),
       def: clampStat(defender.def ?? defender.defense ?? 1),
       agi: clampStat(defender.agi ?? defender.agility ?? 1),
-      skillStat: clampStat(defender.skillStat ?? 1),
+      skillStat: clampStat(defender.skillStat ?? defender.skill ?? 1),
       maxHp: defenderMaxHp,
       name: defenderName
     };
