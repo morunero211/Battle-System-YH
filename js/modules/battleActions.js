@@ -99,7 +99,7 @@ class BattleActions {
         return type || '공격형';
     }
 
-    openSkillTargetModal({ attacker, teamKey, skillType, mode, includeSelf, eligibleTeams, supportMode }) {
+    openSkillTargetModal({ attacker, teamKey, skillType, mode, includeSelf, eligibleTeams, supportMode, supportTemplate, cancelKind }) {
         this.initSkillTargetUi();
 
         const modal = document.getElementById('skill-target-modal');
@@ -113,20 +113,40 @@ class BattleActions {
         const isMulti = mode === 'multi';
 
         const supportModeEl = document.getElementById('skill-target-support-mode');
+        const basicModeEl = document.getElementById('skill-target-support-basic-mode');
+        const cancelKindEl = document.getElementById('skill-target-support-cancel-kind');
+
+        const currentSupportTemplate = (skillType === '지원형')
+            ? String(supportTemplate || this.skillTargetContext?.supportTemplate || 'BASIC').toUpperCase()
+            : null;
+        const effectiveTemplate = (currentSupportTemplate === 'TURN_SKIP' || currentSupportTemplate === 'CANCEL') ? currentSupportTemplate : 'BASIC';
+
+        const currentCancelKind = (skillType === '지원형')
+            ? String(cancelKind || this.skillTargetContext?.cancelKind || 'BUFF').toUpperCase()
+            : 'BUFF';
+        const effectiveCancelKind = (currentCancelKind === 'DEBUFF') ? 'DEBUFF' : 'BUFF';
+
         const currentSupportMode = (skillType === '지원형')
             ? (supportMode || this.skillTargetContext?.supportMode || 'BUFF')
             : null;
+        const effectiveSupportMode = (String(currentSupportMode) === 'DISPEL' || String(currentSupportMode) === 'DEBUFF') ? String(currentSupportMode) : 'BUFF';
 
         let effectiveEligibleTeams = eligibleTeams;
         if (skillType === '지원형') {
             const alliance = this.getAlliance(teamKey);
-            effectiveEligibleTeams = (currentSupportMode === 'BUFF') ? alliance.allies : alliance.enemies;
+            if (effectiveTemplate === 'TURN_SKIP' || effectiveTemplate === 'CANCEL') {
+                effectiveEligibleTeams = alliance.enemies;
+            } else {
+                effectiveEligibleTeams = (effectiveSupportMode === 'BUFF') ? alliance.allies : alliance.enemies;
+            }
         }
 
         const sideLabel = (skillType === '공격형')
             ? '적군'
             : (skillType === '지원형'
-                ? (currentSupportMode === 'BUFF' ? '아군' : '적군')
+                ? ((effectiveTemplate === 'TURN_SKIP' || effectiveTemplate === 'CANCEL')
+                    ? '적군'
+                    : (effectiveSupportMode === 'BUFF' ? '아군' : '적군'))
                 : '아군');
         title.textContent = isMulti
             ? `🎯 ${skillType} 대상 선택 (다수 · ${sideLabel})`
@@ -135,11 +155,17 @@ class BattleActions {
         const targetHint = (skillType === '공격형')
             ? '적 목록에서 대상을 선택하세요.'
             : (skillType === '지원형'
-                ? (currentSupportMode === 'BUFF'
-                    ? '아군 목록에서 대상을 선택하세요.'
-                    : (currentSupportMode === 'DISPEL'
-                        ? '적 목록에서 “버프 제거”할 대상을 선택하세요.'
-                        : '적 목록에서 대상을 선택하세요.'))
+                ? ((effectiveTemplate === 'TURN_SKIP')
+                    ? '적 목록에서 “턴 스킵”할 대상을 선택하세요.'
+                    : ((effectiveTemplate === 'CANCEL')
+                        ? (effectiveCancelKind === 'DEBUFF'
+                            ? '적 목록에서 “디버프 캔슬(약화 무효화)”할 대상을 선택하세요.'
+                            : '적 목록에서 “버프 캔슬(강화 무효화)”할 대상을 선택하세요.')
+                        : (effectiveSupportMode === 'BUFF'
+                            ? '아군 목록에서 대상을 선택하세요.'
+                            : (effectiveSupportMode === 'DISPEL'
+                                ? '적 목록에서 “버프 제거”할 대상을 선택하세요.'
+                                : '적 목록에서 대상을 선택하세요.'))))
                 : '아군 목록에서 대상을 선택하세요.');
         subtitle.textContent = `${attacker?.name || '사용자'} · ${targetHint}`;
 
@@ -157,7 +183,19 @@ class BattleActions {
             } else {
                 if (skillType === '방어형') note.textContent = '방어형은 쉴드를 부여합니다(쉴드는 피해를 먼저 흡수).';
                 else if (skillType === '치료형') note.textContent = '치료형은 HP를 회복합니다(maxHP 초과 불가).';
-                else if (skillType === '지원형') note.textContent = '지원형은 공격/민첩/방어/스킬을 1턴 동안 버프 또는 디버프합니다.';
+                else if (skillType === '지원형') {
+                    if (effectiveTemplate === 'TURN_SKIP') {
+                        note.textContent = '지원형(턴 스킵)은 스킬 스탯에 따라 대상의 턴을 1~2회 스킵시킵니다.';
+                    } else if (effectiveTemplate === 'CANCEL') {
+                        note.textContent = (effectiveCancelKind === 'DEBUFF')
+                            ? '지원형(디버프 캔슬)은 대상의 (-) 스탯 변화를 무효화합니다.'
+                            : '지원형(버프 캔슬)은 대상의 (+) 스탯 변화를 무효화합니다.';
+                    } else {
+                        note.textContent = (effectiveSupportMode === 'DISPEL')
+                            ? '지원형(버프 제거)은 대상의 (+) 스탯 버프를 제거합니다.'
+                            : '지원형(기본)은 공격/민첩/방어/스킬을 1턴 동안 버프 또는 디버프합니다.';
+                    }
+                }
                 else note.textContent = '';
             }
         }
@@ -169,35 +207,95 @@ class BattleActions {
             mode,
             includeSelf,
             eligibleTeams: effectiveEligibleTeams,
-            supportMode: currentSupportMode || undefined,
+            supportTemplate: effectiveTemplate,
+            supportMode: effectiveSupportMode || undefined,
+            cancelKind: effectiveCancelKind,
             selected: new Set()
         };
 
         if (supportModeEl) {
             if (skillType === '지원형') {
                 supportModeEl.style.display = 'flex';
-                const radios = supportModeEl.querySelectorAll('input[name="supportMode"]');
-                radios.forEach((r) => {
-                    r.checked = String(r.value) === String(currentSupportMode);
+
+                // 템플릿 라디오
+                const tplRadios = supportModeEl.querySelectorAll('input[name="supportTemplate"]');
+                tplRadios.forEach((r) => {
+                    r.checked = String(r.value).toUpperCase() === effectiveTemplate;
                 });
+
+                // 기본 모드만 BUFF/DEBUFF/DISPEL 노출
+                if (basicModeEl) {
+                    basicModeEl.style.display = effectiveTemplate === 'BASIC' ? 'flex' : 'none';
+                    const modeRadios = basicModeEl.querySelectorAll('input[name="supportMode"]');
+                    modeRadios.forEach((r) => {
+                        r.checked = String(r.value) === String(effectiveSupportMode);
+                    });
+                }
+
+                // 캔슬 종류(BUFF/DEBUFF) 노출
+                if (cancelKindEl) {
+                    cancelKindEl.style.display = effectiveTemplate === 'CANCEL' ? 'flex' : 'none';
+                    const kindRadios = cancelKindEl.querySelectorAll('input[name="cancelKind"]');
+                    kindRadios.forEach((r) => {
+                        r.checked = String(r.value).toUpperCase() === effectiveCancelKind;
+                    });
+                }
 
                 if (!supportModeEl.dataset.bound) {
                     supportModeEl.dataset.bound = '1';
                     supportModeEl.addEventListener('change', (e) => {
                         const t = e.target;
                         if (!(t instanceof HTMLInputElement)) return;
-                        if (t.name !== 'supportMode') return;
                         const ctx = this.skillTargetContext;
                         if (!ctx) return;
-                        this.openSkillTargetModal({
-                            attacker: ctx.attacker,
-                            teamKey: ctx.teamKey,
-                            skillType: ctx.skillType,
-                            mode: ctx.mode,
-                            includeSelf: ctx.includeSelf,
-                            eligibleTeams: ctx.eligibleTeams,
-                            supportMode: (t.value === 'DEBUFF' || t.value === 'DISPEL') ? t.value : 'BUFF'
-                        });
+
+                        if (t.name === 'supportTemplate') {
+                            const nextTpl = (t.value === 'TURN_SKIP' || t.value === 'CANCEL') ? t.value : 'BASIC';
+                            this.openSkillTargetModal({
+                                attacker: ctx.attacker,
+                                teamKey: ctx.teamKey,
+                                skillType: ctx.skillType,
+                                mode: ctx.mode,
+                                includeSelf: ctx.includeSelf,
+                                eligibleTeams: ctx.eligibleTeams,
+                                supportTemplate: nextTpl,
+                                supportMode: ctx.supportMode || 'BUFF',
+                                cancelKind: ctx.cancelKind || 'BUFF'
+                            });
+                            return;
+                        }
+
+                        if (t.name === 'supportMode') {
+                            const nextMode = (t.value === 'DEBUFF' || t.value === 'DISPEL') ? t.value : 'BUFF';
+                            this.openSkillTargetModal({
+                                attacker: ctx.attacker,
+                                teamKey: ctx.teamKey,
+                                skillType: ctx.skillType,
+                                mode: ctx.mode,
+                                includeSelf: ctx.includeSelf,
+                                eligibleTeams: ctx.eligibleTeams,
+                                supportTemplate: ctx.supportTemplate || 'BASIC',
+                                supportMode: nextMode,
+                                cancelKind: ctx.cancelKind || 'BUFF'
+                            });
+                            return;
+                        }
+
+                        if (t.name === 'cancelKind') {
+                            const nextKind = (t.value === 'DEBUFF') ? 'DEBUFF' : 'BUFF';
+                            this.openSkillTargetModal({
+                                attacker: ctx.attacker,
+                                teamKey: ctx.teamKey,
+                                skillType: ctx.skillType,
+                                mode: ctx.mode,
+                                includeSelf: ctx.includeSelf,
+                                eligibleTeams: ctx.eligibleTeams,
+                                supportTemplate: ctx.supportTemplate || 'BASIC',
+                                supportMode: ctx.supportMode || 'BUFF',
+                                cancelKind: nextKind
+                            });
+                            return;
+                        }
                     });
                 }
             } else {
@@ -446,7 +544,24 @@ class BattleActions {
             }
 
             this.hideSkillTargetModal();
-            this.app.battleSystem.executeSupportSkillMulti(ctx.attacker, targets.map(t => t.char), ctx.teamKey, ctx.supportMode || 'AUTO');
+            const tpl = String(ctx.supportTemplate || 'BASIC').toUpperCase();
+            const resolvedMode = (tpl === 'TURN_SKIP')
+                ? 'TURN_SKIP'
+                : (tpl === 'CANCEL')
+                    ? 'CANCEL'
+                    : (ctx.supportMode || 'AUTO');
+
+            const supportOptions = (resolvedMode === 'CANCEL')
+                ? { cancelFeatureEnabled: true, cancelKind: (String(ctx.cancelKind || 'BUFF').toUpperCase() === 'DEBUFF') ? 'DEBUFF' : 'BUFF' }
+                : {};
+
+            this.app.battleSystem.executeSupportSkillMulti(
+                ctx.attacker,
+                targets.map(t => t.char),
+                ctx.teamKey,
+                resolvedMode,
+                supportOptions
+            );
             this.app.battleSystem.renderBattle();
             this.app.battleSystem.checkBattleEnd();
             this.app.battleSystem.nextTurn();
@@ -614,8 +729,25 @@ class BattleActions {
         const alliance = this.getAlliance(teamKey);
 
         if (skillType === '지원형') {
-            // 지원형: 버프/디버프 모드 선택(모달 내 라디오)
-            this.openSkillTargetModal({ attacker, teamKey, skillType, mode, includeSelf, eligibleTeams: alliance.allies, supportMode: 'BUFF' });
+            // 지원형: 캐릭터 기본 설정(템플릿/기본 모드)을 기본 선택값으로 적용
+            const tpl = String(attacker?.supportConfig?.template || 'BASIC').toUpperCase();
+            const supportTemplate = (tpl === 'TURN_SKIP' || tpl === 'CANCEL') ? tpl : 'BASIC';
+            const bm = String(attacker?.supportConfig?.basicMode || 'BUFF').toUpperCase();
+            const supportMode = (bm === 'DEBUFF' || bm === 'DISPEL') ? bm : 'BUFF';
+            const ck = String(attacker?.supportConfig?.cancelKind || 'BUFF').toUpperCase();
+            const cancelKind = (ck === 'DEBUFF') ? 'DEBUFF' : 'BUFF';
+
+            this.openSkillTargetModal({
+                attacker,
+                teamKey,
+                skillType,
+                mode,
+                includeSelf,
+                eligibleTeams: alliance.allies,
+                supportTemplate,
+                supportMode,
+                cancelKind
+            });
             return;
         }
 

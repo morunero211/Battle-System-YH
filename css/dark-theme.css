@@ -31,6 +31,26 @@ body.dark-theme textarea::placeholder {
     color: #94a3b8;
 }
 
+/* 티커 편집 모달(다크) */
+body.dark-theme .ticker-editor-textarea {
+    background: #111827;
+    color: #e5e7eb;
+    border-color: rgba(51, 65, 85, 0.70);
+}
+
+body.dark-theme .ticker-control {
+    background: var(--dark-surface-2);
+    border-color: var(--dark-border-weak);
+}
+
+body.dark-theme .ticker-control-label {
+    color: #e2e8f0;
+}
+
+body.dark-theme .ticker-control-hint {
+    color: #94a3b8;
+}
+
 body.dark-theme label {
     color: #e5e7eb;
 }
@@ -798,6 +818,38 @@ body.dark-theme .char-name-stat {
     color: #e2e8f0;
 }
 
+body.dark-theme .char-name {
+    color: #f1f5f9;
+}
+
+body.dark-theme .turn-order-hint {
+    color: #cbd5e1;
+}
+
+body.dark-theme .turn-order-hint .turn-order-title {
+    color: #f1f5f9;
+}
+
+body.dark-theme .turn-order-hint .turn-order-item {
+    border-color: var(--dark-border-weak);
+    background: rgba(15, 19, 26, 0.72);
+    color: #e2e8f0;
+}
+
+body.dark-theme .turn-order-hint .turn-order-item.is-current {
+    border-color: rgba(37, 99, 235, 0.70);
+    background: rgba(37, 99, 235, 0.20);
+    color: #f1f5ff;
+}
+
+body.dark-theme .turn-order-hint .turn-order-idx {
+    color: #e2e8f0;
+}
+
+body.dark-theme .turn-order-hint .turn-order-agi {
+    color: #86efac;
+}
+
 body.dark-theme .char-level {
     background: #667eea;
 }
@@ -1106,6 +1158,22 @@ body.dark-theme .selected-team:nth-child(3) {
 body.dark-theme #hero-selected .team-label { color: var(--team-hero); }
 body.dark-theme #gov-selected .team-label { color: var(--team-gov); }
 body.dark-theme #villain-selected .team-label { color: var(--team-villain); }
+
+/* Team-specific selected pills must override main-screen.css (#id selector specificity). */
+body.dark-theme #hero-selected .selected-character {
+    background: var(--dark-surface-3);
+    border-color: var(--team-hero);
+}
+
+body.dark-theme #gov-selected .selected-character {
+    background: var(--dark-surface-3);
+    border-color: var(--team-gov);
+}
+
+body.dark-theme #villain-selected .selected-character {
+    background: var(--dark-surface-3);
+    border-color: var(--team-villain);
+}
 
 body.dark-theme .team-label {
     color: #e2e8f0;

@@ -51,10 +51,6 @@ class BattleSystem {
 
                     // 능력 패널티: 자신 방어력 -1, 1턴
                     { type: 'APPLY_STATUS', targets: 'SELF', status: { kind: 'STAT_MOD', durationRounds: 1, statMods: { defense: -1 } } },
-
-                    // (옵션) 맞은 대상은 1턴간 치유 불가
-                    // 필요 시 enabled:false로 꺼두고 캐릭터별로 커스텀 가능
-                    { type: 'APPLY_STATUS', targets: 'SELECTED', enabled: false, status: { kind: 'NO_HEAL', durationRounds: 1, flags: { noHeal: true } } }
                 ]
             },
 
@@ -239,12 +235,49 @@ class BattleSystem {
     }
 
     getEffectEnabled(attacker, effect, effectIndex) {
-        if (!effect) return false;
-        const options = attacker && typeof attacker.skillTemplateOptions === 'object' ? attacker.skillTemplateOptions : null;
-        const key = String(effect.optionKey || `__effect_${effectIndex}`);
-        const defaultEnabled = effect.enabled !== false;
-        if (options && typeof options[key] === 'boolean') return options[key];
-        return defaultEnabled;
+        // 패널티/옵션 토글은 통일 정책으로 제거: 이펙트는 항상 적용
+        // (과거 데이터에 enabled/optionKey/skillTemplateOptions가 남아있어도 무시)
+        return !!effect;
+    }
+
+    /**
+     * 스탯 캔슬: 대상의 스탯 변화(STAT_MOD)를 선택적으로 제거
+     * - which: 'BUFF'(+만), 'DEBUFF'(-만), 'BOTH'(모두)
+     */
+    cancelStatMods(target, which = 'BOTH', onlyStats = null, magnitudeExact = null) {
+        if (!target) return 0;
+        const mode = String(which || 'BOTH').toUpperCase();
+        const allowedStats = new Set(['attack', 'defense', 'agility', 'skill']);
+        const filter = Array.isArray(onlyStats)
+            ? new Set(onlyStats.map((s) => String(s)).filter((s) => allowedStats.has(s)))
+            : null;
+        const mag = Number.isFinite(Number(magnitudeExact)) ? Math.max(1, Math.min(5, Math.floor(Number(magnitudeExact)))) : null;
+        const list = this.getOrInitStatusEffects(target);
+        let removed = 0;
+
+        list.forEach((e) => {
+            if (!e || e.kind !== 'STAT_MOD') return;
+            const mods = e.statMods || {};
+            Object.keys(mods).forEach((k) => {
+                if (filter && !filter.has(String(k))) return;
+                const v = Number(mods[k] || 0);
+                if (mag && Math.abs(v) !== mag) return;
+                const match = (mode === 'BUFF') ? (v > 0) : ((mode === 'DEBUFF') ? (v < 0) : (v !== 0));
+                if (match) {
+                    mods[k] = 0;
+                    removed += 1;
+                }
+            });
+            e.statMods = mods;
+
+            const remaining = Object.values(e.statMods || {}).some((v) => Number(v) !== 0);
+            if (!remaining && typeof e.durationRounds === 'number') {
+                e.durationRounds = 0;
+            }
+        });
+
+        target.statusEffects = list.filter((e) => e && (typeof e.durationRounds !== 'number' || e.durationRounds > 0));
+        return removed;
     }
 
     isPerTargetCondition(cond) {
@@ -1022,7 +1055,7 @@ class BattleSystem {
         return true;
     }
 
-    executeSupportSkillMulti(attacker, targets, attackerTeamKey, supportMode = 'AUTO') {
+    executeSupportSkillMulti(attacker, targets, attackerTeamKey, supportMode = 'AUTO', supportOptions = {}) {
         const list = Array.isArray(targets) ? targets.filter(Boolean) : [];
         const n = list.length;
         if (n === 0) {
@@ -1042,11 +1075,59 @@ class BattleSystem {
 
         const mode = String(supportMode || 'AUTO').toUpperCase();
 
+        // TURN_SKIP: 대상의 턴을 1~2회 스킵(스킬 스탯 4~5만 가능)
+        if (mode === 'TURN_SKIP') {
+            const ctx = { attacker, teamKey: attackerTeamKey, targets: list };
+            const count = skillStat >= 5 ? 2 : (skillStat >= 4 ? 1 : 0);
+            if (count <= 0) {
+                this.addLog('  ❌ 턴 스킵: 스킬 스탯 4~5만 사용할 수 있습니다.');
+            } else {
+                list.forEach((t) => {
+                    this.applyStatusToTarget(t, { kind: 'SKIP_TURN', durationRounds: 999, flags: { skipTurns: count } }, ctx);
+                    this.addLog(`  🎯 대상: ${t.name} (턴 스킵 ${count}회)`);
+                });
+            }
+
+            if (attacker && attacker.id) {
+                this.usedUltimate[attacker.id] = true;
+            }
+
+            // 지원형도 스킬 사용이므로 스킬스탯 소모(1회) + 공통 패널티
+            this.consumeStatMods(attacker, 'ON_SKILL');
+            this.applyUnifiedSkillPenalty(attacker);
+            return;
+        }
+
         // DISPEL: 적의 (+) 버프 제거(강한 제거형)
         if (mode === 'DISPEL') {
             list.forEach((t) => {
                 const removed = this.dispelPositiveStatBuffs(t);
                 this.addLog(`  🎯 대상: ${t.name} (버프 제거: +버프 ${removed}개 해제)`);
+            });
+
+            if (attacker && attacker.id) {
+                this.usedUltimate[attacker.id] = true;
+            }
+
+            // 지원형도 스킬 사용이므로 스킬스탯 소모(1회) + 공통 패널티
+            this.consumeStatMods(attacker, 'ON_SKILL');
+            this.applyUnifiedSkillPenalty(attacker);
+            return;
+        }
+
+        // CANCEL: 대상의 스탯 변화(버프/디버프) 무효화
+        if (mode === 'CANCEL') {
+            const cancelEnabled = supportOptions?.cancelFeatureEnabled !== false;
+            const kind = String(supportOptions?.cancelKind || 'BOTH').toUpperCase();
+            const stats = Array.isArray(supportOptions?.cancelStats) ? supportOptions.cancelStats : null;
+            const magnitude = supportOptions?.cancelMagnitude;
+            if (!cancelEnabled) {
+                this.addLog('  ⚠️ 스탯 캔슬: 현재 비활성화되어 적용되지 않습니다.');
+            }
+            list.forEach((t) => {
+                const removed = cancelEnabled ? this.cancelStatMods(t, kind, stats, magnitude) : 0;
+                const label = (kind === 'BUFF') ? '버프 캔슬' : ((kind === 'DEBUFF') ? '디버프 캔슬' : '스탯 캔슬');
+                this.addLog(`  🎯 대상: ${t.name} (${label}: 스탯 변화 ${removed}개 무효화)`);
             });
 
             if (attacker && attacker.id) {

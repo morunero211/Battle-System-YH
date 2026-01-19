@@ -1015,6 +1015,28 @@ main #combat-screen {
     color: #4a5568;
 }
 
+.skill-target-support-basic-mode {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+    width: 100%;
+    padding-top: 8px;
+    margin-top: 6px;
+    border-top: 1px dashed #e3e6f0;
+}
+
+.skill-target-support-cancel-kind {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+    width: 100%;
+    padding-top: 8px;
+    margin-top: 6px;
+    border-top: 1px dashed #e3e6f0;
+}
+
 .skill-target-list {
     display: grid;
     grid-template-columns: 1fr;

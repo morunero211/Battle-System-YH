@@ -116,6 +116,57 @@ class BattleApp {
         this.setTickerMessages(stored || this.getDefaultTickerMessages(), { save: false });
     }
 
+    getDefaultTickerDurationSeconds() {
+        return 26;
+    }
+
+    loadTickerDurationSecondsFromStorage() {
+        try {
+            const raw = window.localStorage?.getItem('battleTickerDurationSeconds');
+            const parsed = Number.parseInt(String(raw ?? ''), 10);
+            if (!Number.isFinite(parsed)) return null;
+            return Math.min(60, Math.max(12, parsed));
+        } catch {
+            return null;
+        }
+    }
+
+    saveTickerDurationSecondsToStorage(seconds) {
+        try {
+            window.localStorage?.setItem('battleTickerDurationSeconds', String(seconds));
+        } catch {
+            // ignore
+        }
+    }
+
+    applyTickerDurationSeconds(seconds) {
+        const sec = Math.min(60, Math.max(12, Number(seconds) || this.getDefaultTickerDurationSeconds()));
+        document.documentElement.style.setProperty('--ticker-duration', `${sec}s`);
+        return sec;
+    }
+
+    setTickerSpeed(seconds, { save = true } = {}) {
+        const sec = this.applyTickerDurationSeconds(seconds);
+        if (save) this.saveTickerDurationSecondsToStorage(sec);
+        return sec;
+    }
+
+    updateTickerSpeedLabel(seconds) {
+        const el = this.elements?.tickerSpeedValue;
+        if (!el) return;
+        el.textContent = `${seconds}s`;
+    }
+
+    initAppearance() {
+        // 티커 속도
+        const storedSpeed = this.loadTickerDurationSecondsFromStorage();
+        const speed = this.applyTickerDurationSeconds(storedSpeed ?? this.getDefaultTickerDurationSeconds());
+        if (this.elements?.tickerSpeed) {
+            this.elements.tickerSpeed.value = String(speed);
+        }
+        this.updateTickerSpeedLabel(speed);
+    }
+
     /**
      * 수동 저장/불러오기 모드에서도, 로그인한 사용자가 있으면
      * 같은 계정의 클라우드(Firestore) 데이터를 불러올지 1회 물어봅니다.
@@ -233,11 +284,11 @@ class BattleApp {
             backToSelection: document.getElementById('back-to-selection'),
             backToSelection2: document.getElementById('back-to-selection2'),
             backHome: document.getElementById('back-home'),
-            navSelection: document.getElementById('nav-selection'),
-            navList: document.getElementById('nav-list'),
-            navHistory: document.getElementById('nav-history'),
-            navCombat: document.getElementById('nav-combat'),
             themeToggle: document.getElementById('theme-toggle'),
+
+            // 티커/테마 부가 설정
+            tickerSpeed: document.getElementById('ticker-speed'),
+            tickerSpeedValue: document.getElementById('ticker-speed-value'),
             
             // 모달
             modal: document.getElementById('custom-character-modal'),
@@ -305,6 +356,12 @@ class BattleApp {
 
         const current = this.loadTickerMessagesFromStorage() || this.getDefaultTickerMessages();
         textarea.value = current.join('\n');
+
+        // 속도/배경 UI 동기화
+        const speed = this.loadTickerDurationSecondsFromStorage() ?? this.getDefaultTickerDurationSeconds();
+        if (this.elements?.tickerSpeed) this.elements.tickerSpeed.value = String(speed);
+        this.updateTickerSpeedLabel(speed);
+
         this.updateTickerEditorStatus();
         modal.style.display = 'flex';
         textarea.focus();
@@ -404,6 +461,9 @@ class BattleApp {
         // 헤더 상단 뉴스 티커
         this.initTicker();
 
+        // UI 설정(티커 속도/배경 이미지)
+        this.initAppearance();
+
         // 개발 모드 로직 제거됨
     }
 
@@ -472,6 +532,18 @@ class BattleApp {
                 const includeSelf = mode === 'multi' ? !!c.skillTarget?.includeSelf : false;
                 c.skillTarget = { mode, includeSelf };
 
+                // 지원형 기본 설정(템플릿/기본 모드)
+                const primarySkillType = Array.isArray(c.skillTypes) ? c.skillTypes[0] : null;
+                if (primarySkillType === '지원형') {
+                    const tpl = String(c?.supportConfig?.template || 'BASIC').toUpperCase();
+                    const template = (tpl === 'TURN_SKIP' || tpl === 'CANCEL') ? tpl : 'BASIC';
+                    const bm = String(c?.supportConfig?.basicMode || 'BUFF').toUpperCase();
+                    const basicMode = (bm === 'DEBUFF' || bm === 'DISPEL') ? bm : 'BUFF';
+                    const ck = String(c?.supportConfig?.cancelKind || 'BUFF').toUpperCase();
+                    const cancelKind = (ck === 'DEBUFF') ? 'DEBUFF' : 'BUFF';
+                    c.supportConfig = { template, basicMode, cancelKind };
+                }
+
                 // 스킬 사용 횟수/잠금 (희귀 스킬)
                 // - 기존 데이터 호환을 위해 기본 max=1
                 const skillUsesMax = Math.max(0, Math.min(99, Math.floor(Number(c.skillUsesMax ?? 1) || 0)));
@@ -527,6 +599,33 @@ class BattleApp {
         const modeRadios = Array.from(document.querySelectorAll('input[name="skillTargetMode"]'));
         if (!includeSelf || modeRadios.length === 0) return;
 
+        const supportConfigWrap = document.getElementById('support-skill-config');
+        const supportBasicWrap = document.getElementById('support-basic-mode-config');
+        const supportCancelKindWrap = document.getElementById('support-cancel-kind-config');
+        const supportTemplateRadios = Array.from(document.querySelectorAll('input[name="supportTemplateDefault"]'));
+
+        const getSelectedSkillType = () => document.querySelector('input[name="skillType"]:checked')?.value || '공격형';
+        const getSupportTemplate = () => {
+            const v = document.querySelector('input[name="supportTemplateDefault"]:checked')?.value || 'BASIC';
+            const up = String(v).toUpperCase();
+            return (up === 'TURN_SKIP' || up === 'CANCEL') ? up : 'BASIC';
+        };
+
+        const applySupportVisibility = () => {
+            if (!supportConfigWrap) return;
+            const isSupport = getSelectedSkillType() === '지원형';
+            supportConfigWrap.style.display = isSupport ? 'block' : 'none';
+            if (!isSupport) return;
+
+            const tpl = getSupportTemplate();
+            if (supportBasicWrap) {
+                supportBasicWrap.style.display = (tpl === 'BASIC') ? 'block' : 'none';
+            }
+            if (supportCancelKindWrap) {
+                supportCancelKindWrap.style.display = (tpl === 'CANCEL') ? 'block' : 'none';
+            }
+        };
+
         const apply = () => {
             const mode = document.querySelector('input[name="skillTargetMode"]:checked')?.value || 'single';
             const enabled = mode === 'multi';
@@ -536,6 +635,13 @@ class BattleApp {
 
         modeRadios.forEach(r => r.addEventListener('change', apply));
         apply();
+
+        // 지원형 설정 UI 토글
+        document.querySelectorAll('input[name="skillType"]').forEach((el) => {
+            el.addEventListener('change', applySupportVisibility);
+        });
+        supportTemplateRadios.forEach((el) => el.addEventListener('change', applySupportVisibility));
+        applySupportVisibility();
     }
 
     initSkillUsesUI() {
@@ -680,29 +786,28 @@ class BattleApp {
         return cond.type;
     }
 
-    describeEffect(effect, enabled) {
+    describeEffect(effect) {
         if (!effect || !effect.type) return '알 수 없는 효과';
-        const onOff = enabled ? '' : ' (비활성)';
         if (effect.type === 'DAMAGE_SKILL_ROLL') {
             const split = effect.split === 'evenFloor' ? '1/n 분배(내림)' : '단일'
-            return `스킬 공격: 선택 대상에 피해 (${split})${onOff}`;
+            return `스킬 공격: 선택 대상에 피해 (${split})`;
         }
         if (effect.type === 'DAMAGE_FLAT') {
-            return `고정 피해: ${effect.targets} 대상에 ${effect.amount}${onOff}`;
+            return `고정 피해: ${effect.targets} 대상에 ${effect.amount}`;
         }
         if (effect.type === 'APPLY_STATUS') {
             const kind = effect.status?.kind || 'STATUS';
             const dur = typeof effect.status?.durationRounds === 'number' ? `${effect.status.durationRounds}턴` : '1턴';
-            if (kind === 'NO_HEAL') return `상태이상: 치유 불가(${dur})${onOff}`;
+            if (kind === 'NO_HEAL') return `상태이상: 치유 불가(${dur})`;
             if (kind === 'STAT_MOD') {
                 const mods = Object.entries(effect.status?.statMods || {})
                     .map(([k, v]) => `${k}${Number(v) >= 0 ? '+' : ''}${v}`)
                     .join(', ');
-                return `상태이상: 스탯 변화(${dur}) ${mods || '-'}${onOff}`;
+                return `상태이상: 스탯 변화(${dur}) ${mods || '-'}`;
             }
-            return `상태이상: ${kind}(${dur})${onOff}`;
+            return `상태이상: ${kind}(${dur})`;
         }
-        return effect.type + onOff;
+        return effect.type;
     }
 
     renderSkillTemplateEditor(char) {
@@ -714,73 +819,33 @@ class BattleApp {
         const templates = this.battleSystem?.skillTemplates || {};
         const templateId = String(select.value || (char?.skillTemplateId || ''));
 
-        // 현재 UI에서 사용자가 토글한 옵션 상태를 우선 반영(저장 전에도 미리보기/체크 상태 유지)
-        const uiOptionState = {};
-        Array.from(optionsWrap.querySelectorAll('input[type="checkbox"][data-option-key]') || []).forEach((cb) => {
-            const key = String(cb.dataset.optionKey || '').trim();
-            if (!key) return;
-            uiOptionState[key] = !!cb.checked;
-        });
-
         // 드롭다운 값 동기화(편집 중 캐릭터 기준)
         if (!select.value && char?.skillTemplateId) {
             select.value = String(char.skillTemplateId);
         }
 
         const template = templateId ? templates[templateId] : null;
-        const savedOptions = (char && typeof char.skillTemplateOptions === 'object' && char.skillTemplateOptions) ? char.skillTemplateOptions : {};
-        const effectiveOptions = { ...savedOptions, ...uiOptionState };
 
-        // 옵션 UI
+        // 옵션 UI(패널티/옵션 on/off 통일 정책으로 제거)
         optionsWrap.innerHTML = '';
         if (!template) {
             preview.innerHTML = '<div class="title">조건/효과 미리보기</div><div class="row">템플릿을 선택하면 조건/효과가 표시됩니다.</div>';
             return;
         }
 
+        optionsWrap.innerHTML = '<div class="row" style="color:#718096; font-size:13px;">옵션 토글 없음: 모든 효과는 항상 적용됩니다.</div>';
+
         const effects = Array.isArray(template.effects) ? template.effects : [];
-        if (effects.length > 0) {
-            effects.forEach((e, idx) => {
-                if (!e || !e.type) return;
-                const key = String(e.optionKey || `__effect_${idx}`);
-                const defaultEnabled = e.enabled !== false;
-                const enabled = (typeof effectiveOptions[key] === 'boolean') ? effectiveOptions[key] : defaultEnabled;
-
-                const label = document.createElement('label');
-                label.className = 'skill-template-option';
-
-                const cb = document.createElement('input');
-                cb.type = 'checkbox';
-                cb.checked = !!enabled;
-                cb.dataset.optionKey = key;
-
-                const text = document.createElement('div');
-                text.className = 'desc';
-                text.textContent = e.optionLabel || this.describeEffect(e, enabled);
-
-                label.appendChild(cb);
-                label.appendChild(text);
-                optionsWrap.appendChild(label);
-            });
-        }
 
         // 미리보기 렌더
         const conds = Array.isArray(template.conditions) ? template.conditions : [];
-        const enabledFor = (e, idx) => {
-            if (!e) return false;
-            const key = String(e.optionKey || `__effect_${idx}`);
-            const defaultEnabled = e.enabled !== false;
-            const override = effectiveOptions[key];
-            return typeof override === 'boolean' ? override : defaultEnabled;
-        };
-
         const condText = conds.length === 0
             ? '없음'
             : conds.map((c) => `- ${this.escapeHtml(this.describeCondition(c))}`).join('<br/>');
 
         const effText = effects.length === 0
             ? '없음'
-            : effects.map((e, idx) => `- ${this.escapeHtml(this.describeEffect(e, enabledFor(e, idx)))}`).join('<br/>');
+            : effects.map((e) => `- ${this.escapeHtml(this.describeEffect(e))}`).join('<br/>');
 
         preview.innerHTML = [
             `<div class="title">조건/효과 미리보기</div>`,
@@ -1045,18 +1110,6 @@ class BattleApp {
             `;
             type.value = e?.type || 'DAMAGE_SKILL_ROLL';
 
-            const enabled = document.createElement('label');
-            enabled.style.display = 'inline-flex';
-            enabled.style.gap = '6px';
-            enabled.style.alignItems = 'center';
-            enabled.innerHTML = `<input type="checkbox" class="eff-enabled"> <span>활성</span>`;
-            const enabledCb = enabled.querySelector('input');
-            enabledCb.checked = e?.enabled !== false;
-            enabledCb.onchange = () => {
-                effects[idx] = { ...(effects[idx] || {}), enabled: !!enabledCb.checked };
-                this.renderTemplatePreview();
-            };
-
             const targets = document.createElement('select');
             targets.className = 'eff-targets';
             targets.innerHTML = `
@@ -1263,7 +1316,6 @@ class BattleApp {
             };
 
             row.appendChild(type);
-            row.appendChild(enabled);
             row.appendChild(targets);
             row.appendChild(optionKey);
             row.appendChild(optionLabel);
@@ -1280,7 +1332,6 @@ class BattleApp {
                 targets: 'SELECTED',
                 split: 'evenFloor',
                 applyDefense: true,
-                enabled: true,
                 optionKey: this.newEffectOptionKey()
             });
             this.renderTemplateEffectsEditor();
@@ -1300,7 +1351,7 @@ class BattleApp {
             : conds.map((c) => `- ${this.escapeHtml(this.describeCondition(c))}`).join('<br/>');
         const effText = effects.length === 0
             ? '없음'
-            : effects.map((e) => `- ${this.escapeHtml(this.describeEffect(e, e?.enabled !== false))}`).join('<br/>');
+            : effects.map((e) => `- ${this.escapeHtml(this.describeEffect(e))}`).join('<br/>');
 
         dom.preview.innerHTML = [
             `<div class="title">템플릿 미리보기</div>`,
@@ -1340,8 +1391,7 @@ class BattleApp {
                 const optionKey = String(e?.optionKey || '').trim() || String(e?.optionKey) || `__effect_${idx}`;
                 const base = {
                     ...e,
-                    optionKey,
-                    enabled: e?.enabled !== false
+                    optionKey
                 };
 
                 // 타입별 최소 필드 보정
@@ -1575,12 +1625,6 @@ class BattleApp {
         this.elements.backToSelection2?.addEventListener('click', () => this.showPage('character-selection'));
         this.elements.backHome?.addEventListener('click', () => this.showPage('character-selection'));
 
-        // 헤더 네비게이션
-        this.elements.navSelection?.addEventListener('click', () => this.showPage('character-selection'));
-        this.elements.navList?.addEventListener('click', () => this.showCharacterListPage());
-        this.elements.navHistory?.addEventListener('click', () => this.showBattleHistoryPage());
-        this.elements.navCombat?.addEventListener('click', () => this.showBattleCreationPage());
-
         // 티커 편집
         this.elements.tickerEditBtn?.addEventListener('click', (e) => {
             e.stopPropagation();
@@ -1596,11 +1640,27 @@ class BattleApp {
 
         this.elements.tickerEditorText?.addEventListener('input', () => this.updateTickerEditorStatus());
 
+        // 티커 속도
+        this.elements.tickerSpeed?.addEventListener('input', () => {
+            const sec = Number(this.elements.tickerSpeed.value);
+            const applied = this.setTickerSpeed(sec, { save: false });
+            this.updateTickerSpeedLabel(applied);
+        });
+        this.elements.tickerSpeed?.addEventListener('change', () => {
+            const sec = Number(this.elements.tickerSpeed.value);
+            const applied = this.setTickerSpeed(sec, { save: true });
+            this.updateTickerSpeedLabel(applied);
+        });
+
         this.elements.tickerEditorReset?.addEventListener('click', () => {
             const textarea = this.elements?.tickerEditorText;
             if (!textarea) return;
             textarea.value = this.getDefaultTickerMessages().join('\n');
             this.updateTickerEditorStatus();
+
+            const speed = this.setTickerSpeed(this.getDefaultTickerDurationSeconds(), { save: true });
+            if (this.elements?.tickerSpeed) this.elements.tickerSpeed.value = String(speed);
+            this.updateTickerSpeedLabel(speed);
         });
 
         this.elements.tickerEditorSave?.addEventListener('click', async () => {
@@ -1932,7 +1992,10 @@ class BattleApp {
         const team = this.teams[teamIndex];
         container.innerHTML = '';
 
-        team.characters.forEach((char) => {
+        const characters = (Array.isArray(team?.characters) ? team.characters.slice() : [])
+            .sort((a, b) => String(a?.name || '').localeCompare(String(b?.name || ''), 'ko'));
+
+        characters.forEach((char) => {
             const item = document.createElement('div');
             item.className = 'character-item';
             
@@ -2060,14 +2123,16 @@ class BattleApp {
         container.innerHTML = '';
         if (label) container.appendChild(label);
 
-        this.selectedCharacters[teamKey].forEach(charId => {
-            const char = this.teams[teamIndex].characters.find(c => c.id === charId);
-            if (char) {
-                const charDiv = document.createElement('div');
-                charDiv.className = 'selected-character';
-                charDiv.textContent = `${char.name} (HP: ${char.hp})`;
-                container.appendChild(charDiv);
-            }
+        const selectedList = (this.selectedCharacters?.[teamKey] || [])
+            .map((charId) => this.teams[teamIndex].characters.find(c => c.id === charId))
+            .filter(Boolean)
+            .sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''), 'ko'));
+
+        selectedList.forEach((char) => {
+            const charDiv = document.createElement('div');
+            charDiv.className = 'selected-character';
+            charDiv.textContent = `${char.name} (HP: ${char.hp})`;
+            container.appendChild(charDiv);
         });
     }
 
@@ -2139,6 +2204,14 @@ class BattleApp {
         });
         this.enforceSingleSkillType();
         this.renderSkillTemplateEditor(null);
+
+        // 지원형 기본값
+        const tpl = document.querySelector('input[name="supportTemplateDefault"][value="BASIC"]');
+        if (tpl) tpl.checked = true;
+        const bm = document.querySelector('input[name="supportBasicModeDefault"][value="BUFF"]');
+        if (bm) bm.checked = true;
+        const ck = document.querySelector('input[name="supportCancelKindDefault"][value="BUFF"]');
+        if (ck) ck.checked = true;
     }
 
     /**
@@ -2196,6 +2269,21 @@ class BattleApp {
             includeSelf.disabled = !enabled;
             includeSelf.checked = enabled ? !!char.skillTarget?.includeSelf : false;
         }
+
+        // 지원형 기본 설정(템플릿/기본 모드)
+        const tpl = String(char?.supportConfig?.template || 'BASIC').toUpperCase();
+        const template = (tpl === 'TURN_SKIP' || tpl === 'CANCEL') ? tpl : 'BASIC';
+        const bm = String(char?.supportConfig?.basicMode || 'BUFF').toUpperCase();
+        const basicMode = (bm === 'DEBUFF' || bm === 'DISPEL') ? bm : 'BUFF';
+        const ck = String(char?.supportConfig?.cancelKind || 'BUFF').toUpperCase();
+        const cancelKind = (ck === 'DEBUFF') ? 'DEBUFF' : 'BUFF';
+
+        const tplRadio = document.querySelector(`input[name="supportTemplateDefault"][value="${template}"]`);
+        if (tplRadio) tplRadio.checked = true;
+        const bmRadio = document.querySelector(`input[name="supportBasicModeDefault"][value="${basicMode}"]`);
+        if (bmRadio) bmRadio.checked = true;
+        const ckRadio = document.querySelector(`input[name="supportCancelKindDefault"][value="${cancelKind}"]`);
+        if (ckRadio) ckRadio.checked = true;
 
         // 스킬 사용 횟수/잠금
         const usesMax = document.getElementById('skill-uses-max');
@@ -2281,6 +2369,14 @@ class BattleApp {
             includeSelf.disabled = true;
         }
 
+        // 지원형 기본값
+        const tpl = document.querySelector('input[name="supportTemplateDefault"][value="BASIC"]');
+        if (tpl) tpl.checked = true;
+        const bm = document.querySelector('input[name="supportBasicModeDefault"][value="BUFF"]');
+        if (bm) bm.checked = true;
+        const ck = document.querySelector('input[name="supportCancelKindDefault"][value="BUFF"]');
+        if (ck) ck.checked = true;
+
         // 스킬 사용 횟수 기본값
         const usesMax = document.getElementById('skill-uses-max');
         const usesUsed = document.getElementById('skill-uses-used');
@@ -2357,6 +2453,24 @@ class BattleApp {
         const selectedSkillType = document.querySelector('input[name="skillType"]:checked')?.value || '공격형';
         const skillTypes = [selectedSkillType];
 
+        // 지원형 기본 설정
+        const supportTemplate = (() => {
+            const v = document.querySelector('input[name="supportTemplateDefault"]:checked')?.value || 'BASIC';
+            const up = String(v).toUpperCase();
+            return (up === 'TURN_SKIP' || up === 'CANCEL') ? up : 'BASIC';
+        })();
+        const supportBasicMode = (() => {
+            const v = document.querySelector('input[name="supportBasicModeDefault"]:checked')?.value || 'BUFF';
+            const up = String(v).toUpperCase();
+            return (up === 'DEBUFF' || up === 'DISPEL') ? up : 'BUFF';
+        })();
+
+        const supportCancelKind = (() => {
+            const v = document.querySelector('input[name="supportCancelKindDefault"]:checked')?.value || 'BUFF';
+            const up = String(v).toUpperCase();
+            return (up === 'DEBUFF') ? 'DEBUFF' : 'BUFF';
+        })();
+
         // 스킬 대상 설정(추가 UI)
         const skillTargetMode = document.querySelector('input[name="skillTargetMode"]:checked')?.value || 'single';
         const skillIncludeSelf = !!document.querySelector('input[name="skillIncludeSelf"]')?.checked;
@@ -2370,13 +2484,6 @@ class BattleApp {
 
         // 템플릿 스킬(조건+이펙트)
         const skillTemplateId = String(this.elements.skillTemplateId?.value || '').trim();
-        const skillTemplateOptions = {};
-        const optionBoxes = Array.from(this.elements.skillTemplateOptions?.querySelectorAll('input[type="checkbox"][data-option-key]') || []);
-        optionBoxes.forEach((cb) => {
-            const key = String(cb.dataset.optionKey || '').trim();
-            if (!key) return;
-            skillTemplateOptions[key] = !!cb.checked;
-        });
 
         if (this.currentEditCharId) {
             // 수정
@@ -2402,9 +2509,15 @@ class BattleApp {
                 if (exhausted) char.skillUsesLocked = true;
                 char.status = status;
 
+                if (selectedSkillType === '지원형') {
+                    char.supportConfig = { template: supportTemplate, basicMode: supportBasicMode, cancelKind: supportCancelKind };
+                } else {
+                    delete char.supportConfig;
+                }
+
                 if (skillTemplateId) {
                     char.skillTemplateId = skillTemplateId;
-                    char.skillTemplateOptions = skillTemplateOptions;
+                    delete char.skillTemplateOptions;
                 } else {
                     delete char.skillTemplateId;
                     delete char.skillTemplateOptions;
@@ -2446,9 +2559,13 @@ class BattleApp {
                 id: `custom_${Date.now()}`
             };
 
+            if (selectedSkillType === '지원형') {
+                newChar.supportConfig = { template: supportTemplate, basicMode: supportBasicMode, cancelKind: supportCancelKind };
+            }
+
             if (skillTemplateId) {
                 newChar.skillTemplateId = skillTemplateId;
-                newChar.skillTemplateOptions = skillTemplateOptions;
+                delete newChar.skillTemplateOptions;
             }
             this.teams[desiredTeamIndex].characters.push(newChar);
         }
@@ -3360,11 +3477,22 @@ document.addEventListener('DOMContentLoaded', () => {
             2: '👤 빌런'
         };
 
-        // 모든 캐릭터
-        let totalCharacters = 0;
+        // 모든 캐릭터(이름 기준 ㄱㄴㄷ 정렬)
+        const all = [];
         this.teams.forEach((team, teamIndex) => {
-            team.characters.forEach(char => {
-                totalCharacters++;
+            (team?.characters || []).forEach((char) => {
+                if (!char) return;
+                all.push({ teamIndex, char });
+            });
+        });
+
+        all.sort((a, b) => {
+            const byName = String(a.char?.name || '').localeCompare(String(b.char?.name || ''), 'ko');
+            if (byName !== 0) return byName;
+            return Number(a.teamIndex) - Number(b.teamIndex);
+        });
+
+        all.forEach(({ teamIndex, char }) => {
                 const row = document.createElement('div');
                 row.className = 'char-table-row';
                 row.dataset.teamIndex = teamIndex;
@@ -3401,7 +3529,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 row.addEventListener('click', clickHandler);
                 
                 this.elements.characterListContent.appendChild(row);
-            });
         });
         
         this.filterCharacterList();

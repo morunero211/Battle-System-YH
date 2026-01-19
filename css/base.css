@@ -20,13 +20,20 @@
 
     /* 헤더 상단 티커 높이(고정) */
     --ticker-height: 26px;
+    /* 헤더 상단 티커 속도(초) */
+    --ticker-duration: 26s;
     /* 전투 화면 sticky 요소가 헤더/티커 아래로 내려가도록 보정 */
     --combat-sticky-top: calc(var(--ticker-height) + 74px);
 }
 
 body {
     font-family: 'Noto Sans KR', 'Segoe UI', -apple-system, BlinkMacSystemFont, 'Roboto', sans-serif;
-    background: #e8e9f3;
+    background:
+        radial-gradient(520px 520px at 78% 16%, rgba(255, 78, 78, 0.38) 0%, rgba(255, 78, 78, 0.22) 18%, rgba(255, 78, 78, 0.00) 45%),
+        radial-gradient(900px 560px at 55% -10%, rgba(180, 16, 16, 0.18) 0%, rgba(180, 16, 16, 0.00) 60%),
+        radial-gradient(900px 720px at 18% 88%, rgba(88, 28, 28, 0.22) 0%, rgba(88, 28, 28, 0.00) 58%),
+        linear-gradient(135deg, #0b1020 0%, #2a0a10 45%, #0b1020 100%);
+    background-attachment: fixed;
     color: #2c3e50;
     min-height: 100vh;
     font-weight: 600;
@@ -71,7 +78,7 @@ body {
     padding-left: 100%;
     white-space: nowrap;
     will-change: transform;
-    animation: headerTickerScroll 22s linear infinite;
+    animation: headerTickerScroll var(--ticker-duration) linear infinite;
     font-size: 12px;
     font-weight: 700;
     color: rgba(255,255,255,0.92);

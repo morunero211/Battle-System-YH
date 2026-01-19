@@ -8,12 +8,12 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;600;700;800;900&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Gaegu:wght@700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="css/base.css?v=20260115i">
-    <link rel="stylesheet" href="css/shared.css?v=20260119a">
+    <link rel="stylesheet" href="css/base.css?v=20260119c">
+    <link rel="stylesheet" href="css/shared.css?v=20260119c">
     <link rel="stylesheet" href="css/main-screen.css?v=20260115">
     <link rel="stylesheet" href="css/combat-screen.css?v=20260119a">
     <link rel="stylesheet" href="css/battle-room.css?v=20260116a">
-    <link rel="stylesheet" href="css/dark-theme.css?v=20260119a">
+    <link rel="stylesheet" href="css/dark-theme.css?v=20260119c">
 </head>
 <body>
     <div class="container">
@@ -33,12 +33,6 @@
                 <p class="subtitle">Made by Marunero</p>
             </div>
             <div class="header-right">
-                <div class="nav-buttons">
-                    <button id="nav-selection" class="nav-btn">선택</button>
-                    <button id="nav-list" class="nav-btn">목록</button>
-                    <button id="nav-history" class="nav-btn">기록</button>
-                    <button id="nav-combat" class="nav-btn">전투</button>
-                </div>
                 <button id="user-info" class="btn-icon" style="font-size:14px; padding:8px 12px; min-width:auto;">👤 로그인</button>
                 <button id="ticker-edit" class="btn-icon" aria-label="티커 편집">📰</button>
                 <button id="theme-toggle" class="btn-icon" aria-label="테마 전환">🌙</button>
@@ -343,6 +337,58 @@
                                         <span>✅ 본인 포함</span>
                                     </label>
 
+                                    <div id="support-skill-config" style="display:none;">
+                                        <label>지원형 템플릿(기본값):</label>
+                                        <div class="skill-target-selector">
+                                            <label class="skill-target-option">
+                                                <input type="radio" name="supportTemplateDefault" value="BASIC" checked>
+                                                <span>기본</span>
+                                            </label>
+                                            <label class="skill-target-option">
+                                                <input type="radio" name="supportTemplateDefault" value="TURN_SKIP">
+                                                <span>턴 스킵</span>
+                                            </label>
+                                            <label class="skill-target-option">
+                                                <input type="radio" name="supportTemplateDefault" value="CANCEL">
+                                                <span>캔슬</span>
+                                            </label>
+                                        </div>
+
+                                        <div id="support-basic-mode-config" style="display:none;">
+                                            <label>기본 모드(버프/디버프/버프 제거):</label>
+                                            <div class="skill-target-selector">
+                                                <label class="skill-target-option">
+                                                    <input type="radio" name="supportBasicModeDefault" value="BUFF" checked>
+                                                    <span>버프</span>
+                                                </label>
+                                                <label class="skill-target-option">
+                                                    <input type="radio" name="supportBasicModeDefault" value="DEBUFF">
+                                                    <span>디버프</span>
+                                                </label>
+                                                <label class="skill-target-option">
+                                                    <input type="radio" name="supportBasicModeDefault" value="DISPEL">
+                                                    <span>버프 제거</span>
+                                                </label>
+                                            </div>
+                                        </div>
+
+                                        <div id="support-cancel-kind-config" style="display:none;">
+                                            <label>캔슬 종류(버프/디버프):</label>
+                                            <div class="skill-target-selector">
+                                                <label class="skill-target-option">
+                                                    <input type="radio" name="supportCancelKindDefault" value="BUFF" checked>
+                                                    <span>버프 캔슬</span>
+                                                </label>
+                                                <label class="skill-target-option">
+                                                    <input type="radio" name="supportCancelKindDefault" value="DEBUFF">
+                                                    <span>디버프 캔슬</span>
+                                                </label>
+                                            </div>
+                                        </div>
+
+                                        <div class="skill-config-note">※ 지원형 스킬 사용 시 기본값으로 자동 적용됩니다.</div>
+                                    </div>
+
                                     <label for="skill-template-id">능력(스킬 템플릿):</label>
                                     <select id="skill-template-id">
                                         <option value="">(기본) 기존 스킬 로직 사용</option>
@@ -426,6 +472,16 @@
                         </div>
                         <textarea id="ticker-editor-text" class="ticker-editor-textarea" placeholder="예) 공지 · 전투 UI 개선 완료\n예) 히어로/정부/빌런 팀 컬러 적용" spellcheck="false"></textarea>
                         <div id="ticker-editor-status" style="margin-top:8px; font-size:12px; color:#718096; font-weight:700;"></div>
+
+                        <div class="ticker-editor-controls">
+                            <div class="ticker-control">
+                                <div class="ticker-control-header">
+                                    <label class="ticker-control-label" for="ticker-speed">티커 속도</label>
+                                    <div id="ticker-speed-value" class="ticker-control-hint"></div>
+                                </div>
+                                <input id="ticker-speed" class="ticker-control-range" type="range" min="12" max="60" step="1" value="26" />
+                            </div>
+                        </div>
 
                         <div class="form-actions confirm-actions" style="margin-top:16px; display:flex; justify-content:flex-end; gap:10px;">
                             <button id="ticker-editor-reset" class="btn btn-secondary" type="button">기본값</button>
@@ -768,20 +824,48 @@
                 </div>
                 <div class="modal-body">
                     <div id="skill-target-subtitle" class="skill-target-subtitle">대상을 선택하세요.</div>
-                    <div id="skill-target-support-mode" class="skill-target-support-mode" style="display:none;" aria-label="지원형 모드 선택">
-                        <div class="skill-target-support-title">지원형 모드</div>
+                    <div id="skill-target-support-mode" class="skill-target-support-mode" style="display:none;" aria-label="지원형 템플릿 선택">
+                        <div class="skill-target-support-title">지원형 템플릿</div>
                         <label class="skill-target-support-option">
-                            <input type="radio" name="supportMode" value="BUFF" checked>
-                            <span>버프(아군 강화)</span>
+                            <input type="radio" name="supportTemplate" value="BASIC" checked>
+                            <span>기본</span>
                         </label>
                         <label class="skill-target-support-option">
-                            <input type="radio" name="supportMode" value="DEBUFF">
-                            <span>디버프(적 약화)</span>
+                            <input type="radio" name="supportTemplate" value="TURN_SKIP">
+                            <span>턴 스킵</span>
                         </label>
                         <label class="skill-target-support-option">
-                            <input type="radio" name="supportMode" value="DISPEL">
-                            <span>버프 제거(적 버프 해제)</span>
+                            <input type="radio" name="supportTemplate" value="CANCEL">
+                            <span>캔슬</span>
                         </label>
+
+                        <div id="skill-target-support-basic-mode" class="skill-target-support-basic-mode" style="display:none;" aria-label="기본 지원형 모드">
+                            <div class="skill-target-support-title">기본 모드</div>
+                            <label class="skill-target-support-option">
+                                <input type="radio" name="supportMode" value="BUFF" checked>
+                                <span>버프(아군 강화)</span>
+                            </label>
+                            <label class="skill-target-support-option">
+                                <input type="radio" name="supportMode" value="DEBUFF">
+                                <span>디버프(적 약화)</span>
+                            </label>
+                            <label class="skill-target-support-option">
+                                <input type="radio" name="supportMode" value="DISPEL">
+                                <span>버프 제거(적 버프 해제)</span>
+                            </label>
+                        </div>
+
+                        <div id="skill-target-support-cancel-kind" class="skill-target-support-cancel-kind" style="display:none;" aria-label="캔슬 종류">
+                            <div class="skill-target-support-title">캔슬 종류</div>
+                            <label class="skill-target-support-option">
+                                <input type="radio" name="cancelKind" value="BUFF" checked>
+                                <span>버프 캔슬</span>
+                            </label>
+                            <label class="skill-target-support-option">
+                                <input type="radio" name="cancelKind" value="DEBUFF">
+                                <span>디버프 캔슬</span>
+                            </label>
+                        </div>
                     </div>
                     <div id="skill-target-list" class="skill-target-list"></div>
                     <div class="skill-target-actions">
