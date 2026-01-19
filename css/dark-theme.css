@@ -8,6 +8,13 @@ body.dark-theme {
         radial-gradient(1200px 640px at 20% 0%, rgba(120, 15, 15, 0.35) 0%, rgba(0, 0, 0, 0) 60%),
         linear-gradient(180deg, #050507 0%, #120406 45%, #050507 100%);
     color: #e2e8f0;
+
+    /* 다크 테마 표면(블럭) 팔레트: 배경보다 확실히 어둡게 */
+    --dark-surface-1: #0b0d12; /* 가장 어두운 블럭 */
+    --dark-surface-2: #0f131a; /* 기본 패널 */
+    --dark-surface-3: #141a25; /* hover/강조 패널 */
+    --dark-border: rgba(127, 29, 29, 0.38);
+    --dark-border-weak: rgba(51, 65, 85, 0.45);
 }
 
 /* 다크 모드: 폼 요소 기본 글자/배경 보정(공유 컴포넌트의 고정 색상 대비) */
@@ -62,8 +69,8 @@ body.dark-theme .teams-grid {
 }
 
 body.dark-theme .team-box {
-    background: #1a2a3a;
-    border-color: #2d3e4f;
+    background: var(--dark-surface-2);
+    border-color: var(--dark-border-weak);
     color: #e2e8f0;
 }
 
@@ -78,7 +85,7 @@ body.dark-theme .teams-grid .team-box:nth-child(3) .team-title { color: var(--te
 
 body.dark-theme .team-box:hover {
     border-color: #667eea;
-    background: #1f2f3f;
+    background: var(--dark-surface-3);
 }
 
 body.dark-theme .teams-grid .team-box:nth-child(1):hover { border-color: var(--team-hero); }
@@ -91,7 +98,7 @@ body.dark-theme .team-title {
 }
 
 body.dark-theme .team-box-content {
-    background: #1a2a3a;
+    background: transparent;
 }
 
 body.dark-theme .team-box h3 {
@@ -104,8 +111,8 @@ body.dark-theme .team-header {
 
 /* 캐릭터 아이템 */
 body.dark-theme .character-item {
-    background: #1f2f3f;
-    border-color: #2d3e4f;
+    background: var(--dark-surface-2);
+    border-color: var(--dark-border-weak);
     color: #e2e8f0;
 }
 
@@ -115,11 +122,11 @@ body.dark-theme .character-item.is-missing { background: #2a1f0f; border-color: 
 
 body.dark-theme .character-item:hover {
     border-color: #667eea;
-    background: #232d3a;
+    background: var(--dark-surface-3);
 }
 
 body.dark-theme .character-item.selected {
-    background: #2a3a4a;
+    background: var(--dark-surface-3);
     border-color: #667eea;
     box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.3);
 }
@@ -138,14 +145,14 @@ body.dark-theme .character-item input[type="checkbox"] {
 
 /* 오른쪽 패널 */
 body.dark-theme .right-panel {
-    background: #1a2a3a;
-    border-color: #2d3e4f;
+    background: var(--dark-surface-2);
+    border-color: var(--dark-border-weak);
     color: #e2e8f0;
 }
 
 body.dark-theme .time-display {
-    background: #232d3a;
-    border-color: #2d3e4f;
+    background: var(--dark-surface-1);
+    border-color: var(--dark-border-weak);
     color: #e2e8f0;
 }
 
@@ -154,19 +161,19 @@ body.dark-theme .time-value {
 }
 
 body.dark-theme .mode-section {
-    background: #232d3a;
-    border-color: #2d3e4f;
+    background: var(--dark-surface-1);
+    border-color: var(--dark-border-weak);
     color: #e2e8f0;
 }
 
 body.dark-theme .mode-buttons button {
-    background: #1f2f3f;
-    border-color: #2d3e4f;
+    background: var(--dark-surface-2);
+    border-color: var(--dark-border-weak);
     color: #e2e8f0;
 }
 
 body.dark-theme .mode-buttons button:hover {
-    background: #2a3a4a;
+    background: var(--dark-surface-3);
     border-color: #667eea;
 }
 
@@ -178,8 +185,8 @@ body.dark-theme .mode-buttons button.active {
 
 /* 전투 모드 스타일 */
 body.dark-theme .battle-mode {
-    background: #1f2f3f !important;
-    border-color: #2d3e4f !important;
+    background: var(--dark-surface-2) !important;
+    border-color: var(--dark-border-weak) !important;
 }
 
 body.dark-theme .mode-label {
@@ -191,13 +198,13 @@ body.dark-theme .mode-toggle {
 }
 
 body.dark-theme .mode-btn {
-    background: #232d3a !important;
-    border-color: #2d3e4f !important;
+    background: var(--dark-surface-1) !important;
+    border-color: var(--dark-border-weak) !important;
     color: #e2e8f0 !important;
 }
 
 body.dark-theme .mode-btn:hover {
-    background: #2a3a4a !important;
+    background: var(--dark-surface-3) !important;
     border-color: #667eea !important;
 }
 
@@ -220,8 +227,8 @@ body.dark-theme .mode-btn:last-child:hover {
 
 /* 캐릭터 관리 스타일 */
 body.dark-theme .character-management {
-    background: #1f2f3f !important;
-    border-color: #2d3e4f !important;
+    background: var(--dark-surface-2) !important;
+    border-color: var(--dark-border-weak) !important;
 }
 
 body.dark-theme .management-title {
@@ -236,48 +243,48 @@ body.dark-theme .management-status {
 
 /* 관리 패널 */
 body.dark-theme .manage-section {
-    background: #232d3a;
-    border-color: #2d3e4f;
+    background: var(--dark-surface-1);
+    border-color: var(--dark-border-weak);
     color: #e2e8f0;
 }
 
 body.dark-theme .btn-management {
-    background: #1f2f3f;
-    border-color: #2d3e4f;
+    background: var(--dark-surface-2);
+    border-color: var(--dark-border-weak);
     color: #e2e8f0;
 }
 
 body.dark-theme .btn-management:hover {
-    background: #2a3a4a;
+    background: var(--dark-surface-3);
     border-color: #667eea;
     color: #667eea;
 }
 
 body.dark-theme .add-character-btn {
-    background: #1f2f3f;
-    border-color: #2d3e4f;
+    background: var(--dark-surface-2);
+    border-color: var(--dark-border-weak);
     color: #e2e8f0;
 }
 
 body.dark-theme .add-character-btn:hover {
-    background: #2a3a4a;
+    background: var(--dark-surface-3);
     border-color: #667eea;
 }
 
 /* 탐색 탭 */
 body.dark-theme .nav-tabs {
-    background: #1a2a3a;
-    border-color: #2d3e4f;
+    background: var(--dark-surface-2);
+    border-color: var(--dark-border-weak);
 }
 
 body.dark-theme .nav-tab-btn {
-    background: #1f2f3f;
-    border-color: #2d3e4f;
+    background: var(--dark-surface-2);
+    border-color: var(--dark-border-weak);
     color: #b8c9d9;
 }
 
 body.dark-theme .nav-tab-btn:hover {
-    background: #2a3a4a;
+    background: var(--dark-surface-3);
 }
 
 body.dark-theme .nav-tab-btn.active {
@@ -1040,26 +1047,26 @@ body.dark-theme .theme-toggle-btn:hover {
 }
 
 body.dark-theme .btn-icon {
-    background: #232d3a;
-    border-color: #2d3e4f;
+    background: var(--dark-surface-2);
+    border-color: var(--dark-border-weak);
     color: #e2e8f0;
 }
 
 body.dark-theme .btn-icon:hover {
-    background: #2a3a4a;
+    background: var(--dark-surface-3);
 }
 
 /* 선택된 캐릭터 및 추가 버튼 */
 body.dark-theme .btn-add-character {
-    background: #1f2f3f;
-    border-color: #2d3e4f;
+    background: var(--dark-surface-2);
+    border-color: var(--dark-border-weak);
     color: #a0aec0;
 }
 
 body.dark-theme .btn-add-character:hover {
     border-color: #667eea;
     color: #667eea;
-    background: #232d3a;
+    background: var(--dark-surface-3);
 }
 
 body.dark-theme .btn-remove {
@@ -1071,8 +1078,8 @@ body.dark-theme .btn-remove:hover {
 }
 
 body.dark-theme .selected-characters-section {
-    background: #1a2a3a;
-    border-color: #2d3e4f;
+    background: var(--dark-surface-2);
+    border-color: var(--dark-border-weak);
 }
 
 body.dark-theme .selected-title {
@@ -1080,8 +1087,8 @@ body.dark-theme .selected-title {
 }
 
 body.dark-theme .selected-team {
-    background: #1f2f3f;
-    border-color: #2d3e4f;
+    background: var(--dark-surface-1);
+    border-color: var(--dark-border-weak);
 }
 
 body.dark-theme .selected-team:nth-child(1) {
@@ -1105,7 +1112,7 @@ body.dark-theme .team-label {
 }
 
 body.dark-theme .selected-character {
-    background: #232d3a;
+    background: var(--dark-surface-3);
     color: #e2e8f0;
-    border-color: #2d3e4f;
+    border-color: var(--dark-border-weak);
 }
