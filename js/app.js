@@ -2133,6 +2133,13 @@ class BattleApp {
 
         this.renderTeam(teamIndex, [this.elements.team1List, this.elements.team2List, this.elements.team3List][teamIndex]);
         this.updateSelectedDisplay();
+
+        // 검색 필터 유지: 선택/해제 시 리스트가 재렌더링되면서 DOM 기반 필터가 초기화되는 것을 방지
+        const searchInputs = [this.elements.team1Search, this.elements.team2Search, this.elements.team3Search];
+        const currentQuery = searchInputs?.[teamIndex]?.value || '';
+        if (currentQuery) {
+            this.handleSearch(teamIndex, currentQuery);
+        }
     }
 
     /**
