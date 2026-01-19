@@ -330,8 +330,9 @@ function executeBasicAttack({
     if (counterAtkOk && counterAgiOk) {
       // 반격 데미지 계산: 기본데미지(반격자 atk) -> 원래 공격자 방어력%로 감소
       const rawCounterDamage = rollRawDamage(BASIC_RAW_DAMAGE);
-      const counterDefensePercent = getDefenseReductionPercent(attackerChar.def);
-      counterDamage = applyDefenseReduction(rawCounterDamage, counterDefensePercent);
+      // 요구사항: 반격은 방어력 무시(공격자 방어력 적용하지 않음)
+      const counterDefensePercent = 0;
+      counterDamage = rawCounterDamage;
       
       return {
         success: false,

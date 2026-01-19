@@ -665,6 +665,16 @@ body.dark-theme .modal-header h2 {
     color: #667eea;
 }
 
+body.dark-theme .skip-turn-modal .skip-turn-text {
+     background: rgba(37, 99, 235, 0.16);
+     border-color: rgba(147, 197, 253, 0.28);
+     color: #e5e7eb;
+}
+
+body.dark-theme .skip-turn-modal .skip-turn-note {
+     color: rgba(229, 231, 235, 0.72);
+}
+
 body.dark-theme .modal-close {
     color: #a0aec0;
 }

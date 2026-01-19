@@ -11,7 +11,7 @@
     <link rel="stylesheet" href="css/base.css?v=20260119d">
     <link rel="stylesheet" href="css/shared.css?v=20260119d">
     <link rel="stylesheet" href="css/main-screen.css?v=20260119d">
-    <link rel="stylesheet" href="css/combat-screen.css?v=20260119e">
+    <link rel="stylesheet" href="css/combat-screen.css?v=20260119f">
     <link rel="stylesheet" href="css/battle-room.css?v=20260119d">
     <link rel="stylesheet" href="css/dark-theme.css?v=20260119d">
 </head>
@@ -373,6 +373,10 @@
                                             <div id="support-basic-stats-config" style="margin-top:10px;">
                                                 <label>버프/디버프 적용 스탯(고정):</label>
                                                 <div class="skill-target-selector">
+                                                    <label class="skill-target-option">
+                                                        <input type="checkbox" name="supportBasicStat" value="RANDOM_ADA">
+                                                        <span>랜덤(공/방/민)</span>
+                                                    </label>
                                                     <label class="skill-target-option">
                                                         <input type="checkbox" name="supportBasicStat" value="attack" checked>
                                                         <span>공격</span>
@@ -868,6 +872,22 @@
             </div>
         </div>
 
+        <div id="skip-turn-modal" class="modal centered skip-turn-modal" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="skip-turn-title" aria-describedby="skip-turn-text">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2 id="skip-turn-title">⏭️ 턴 스킵</h2>
+                    <button id="skip-turn-close" class="modal-close" aria-label="닫기">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <div id="skip-turn-text" class="skip-turn-text">스킬로 턴 스킵되었습니다.</div>
+                    <div class="skip-turn-note">※ 자동으로 다음 턴으로 진행합니다.</div>
+                </div>
+                <div class="modal-actions" style="padding: 0 28px 22px; justify-content: flex-end;">
+                    <button id="skip-turn-ok" class="btn-primary" type="button">확인</button>
+                </div>
+            </div>
+        </div>
+
         <!-- 스킬 대상 선택 모달(스킬 버튼 클릭 시) -->
         <div id="skill-target-modal" class="modal centered skill-target-modal" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="skill-target-title">
             <div class="modal-content" style="max-width:640px;">
@@ -1023,13 +1043,13 @@
     <script src="js/modules/modalManager.js?v=20260119d"></script>
     <script src="js/modules/characterManager.js?v=20260119d"></script>
     <script src="js/modules/pageManager.js?v=20260119d"></script>
-    <script src="js/modules/battleSystem.js?v=20260119d"></script>
+    <script src="js/modules/battleSystem.js?v=20260119f"></script>
     <script src="js/modules/battleActions.js?v=20260119d"></script>
     <script src="js/modules/chaseEvent.js?v=20260119d"></script>
     <script src="js/modules/battleManager.js?v=20260119d"></script>
     <script src="js/modules/battleRoom.js?v=20260119d"></script>
     
     <!-- 메인 앱 로드 -->
-    <script src="js/app.js?v=20260119d"></script>
+    <script src="js/app.js?v=20260119f"></script>
 </body>
 </html>

@@ -560,11 +560,12 @@ class BattleApp {
                     const basicMode = (bm === 'DEBUFF') ? 'DEBUFF' : 'BUFF';
                     const cancelKind = dispelRequested ? 'BUFF' : ((ck === 'DEBUFF') ? 'DEBUFF' : 'BUFF');
 
-                    const allowedStats = ['attack', 'agility', 'defense', 'skill'];
+                    const allowedStats = ['attack', 'agility', 'defense', 'skill', 'RANDOM_ADA'];
                     const statsRaw = Array.isArray(c?.supportConfig?.basicStats) ? c.supportConfig.basicStats : null;
-                    const basicStats = (statsRaw && statsRaw.length)
-                        ? allowedStats.filter((k) => statsRaw.map(String).includes(k))
-                        : allowedStats;
+                    const raw = (statsRaw && statsRaw.length) ? statsRaw.map(String) : [];
+                    const basicStats = raw.includes('RANDOM_ADA')
+                        ? ['RANDOM_ADA']
+                        : (raw.length ? allowedStats.filter((k) => raw.includes(k)) : allowedStats.filter((k) => k !== 'RANDOM_ADA'));
 
                     c.supportConfig = { template, basicMode, cancelKind, basicStats };
                 }
@@ -655,6 +656,27 @@ class BattleApp {
             }
         };
 
+        const applySupportRandomStatLock = () => {
+            const boxes = Array.from(document.querySelectorAll('input[name="supportBasicStat"]'));
+            if (boxes.length === 0) return;
+
+            const randomBox = boxes.find((b) => String(b.value) === 'RANDOM_ADA');
+            if (!randomBox) return;
+
+            const isRandom = !!randomBox.checked;
+            boxes.forEach((b) => {
+                if (b === randomBox) return;
+                b.disabled = isRandom;
+                if (isRandom) b.checked = false;
+            });
+
+            // 랜덤 모드에서는 스킬 스탯은 대상에서 제외(요구사항: 공/방/민만)
+            const skillBox = boxes.find((b) => String(b.value) === 'skill');
+            if (isRandom && skillBox) {
+                skillBox.checked = false;
+            }
+        };
+
         const apply = () => {
             const mode = document.querySelector('input[name="skillTargetMode"]:checked')?.value || 'single';
             const enabled = mode === 'multi';
@@ -670,7 +692,11 @@ class BattleApp {
             el.addEventListener('change', applySupportVisibility);
         });
         supportTemplateRadios.forEach((el) => el.addEventListener('change', applySupportVisibility));
+        document.querySelectorAll('input[name="supportBasicStat"]').forEach((el) => {
+            el.addEventListener('change', applySupportRandomStatLock);
+        });
         applySupportVisibility();
+        applySupportRandomStatLock();
     }
 
     initSkillUsesUI() {
@@ -2347,13 +2373,17 @@ class BattleApp {
         if (ckRadio) ckRadio.checked = true;
 
         // 기본 버프/디버프 적용 스탯(고정)
-        const allowedStats = ['attack', 'agility', 'defense', 'skill'];
+        const allowedStats = ['attack', 'agility', 'defense', 'skill', 'RANDOM_ADA'];
         const statsRaw = Array.isArray(char?.supportConfig?.basicStats) ? char.supportConfig.basicStats : null;
-        const basicStats = (statsRaw && statsRaw.length)
-            ? allowedStats.filter((k) => statsRaw.map(String).includes(k))
-            : allowedStats;
+        const raw = (statsRaw && statsRaw.length) ? statsRaw.map(String) : [];
+        const basicStats = raw.includes('RANDOM_ADA')
+            ? ['RANDOM_ADA']
+            : (raw.length ? allowedStats.filter((k) => raw.includes(k)) : allowedStats.filter((k) => k !== 'RANDOM_ADA'));
         document.querySelectorAll('input[name="supportBasicStat"]').forEach((el) => {
             el.checked = basicStats.includes(String(el.value));
+            if (String(el.value) !== 'RANDOM_ADA') {
+                el.disabled = basicStats.includes('RANDOM_ADA');
+            }
         });
 
         // 스킬 사용 횟수/잠금
@@ -2450,7 +2480,8 @@ class BattleApp {
 
         // 지원형 기본 스탯(고정) 기본값: 모두 체크
         document.querySelectorAll('input[name="supportBasicStat"]').forEach((el) => {
-            el.checked = true;
+            el.checked = String(el.value) !== 'RANDOM_ADA';
+            el.disabled = false;
         });
 
         // 스킬 사용 횟수 기본값
@@ -2548,11 +2579,13 @@ class BattleApp {
         })();
 
         const supportBasicStats = (() => {
-            const allowed = ['attack', 'agility', 'defense', 'skill'];
+            const allowed = ['attack', 'agility', 'defense', 'skill', 'RANDOM_ADA'];
             const checked = Array.from(document.querySelectorAll('input[name="supportBasicStat"]:checked'))
                 .map((el) => String(el.value));
-            const picked = allowed.filter((k) => checked.includes(k));
-            return picked.length ? picked : allowed;
+            if (checked.includes('RANDOM_ADA')) return ['RANDOM_ADA'];
+            const picked = allowed.filter((k) => checked.includes(k) && k !== 'RANDOM_ADA');
+            const fallback = ['attack', 'agility', 'defense', 'skill'];
+            return picked.length ? picked : fallback;
         })();
 
         // 스킬 대상 설정(추가 UI)

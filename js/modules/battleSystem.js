@@ -665,6 +665,66 @@ class BattleSystem {
         this.defenseUiInitialized = true;
     }
 
+    initSkipTurnUi() {
+        if (this.skipTurnUiInitialized) return;
+
+        const modal = document.getElementById('skip-turn-modal');
+        const closeBtn = document.getElementById('skip-turn-close');
+        const okBtn = document.getElementById('skip-turn-ok');
+        if (!modal) return;
+
+        const hide = () => this.hideSkipTurnModal();
+        if (closeBtn) closeBtn.addEventListener('click', hide);
+        if (okBtn) okBtn.addEventListener('click', hide);
+
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) hide();
+        });
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key !== 'Escape') return;
+            const open = modal.style.display !== 'none';
+            if (!open) return;
+            hide();
+        });
+
+        this.skipTurnUiInitialized = true;
+    }
+
+    showSkipTurnModal(names = []) {
+        this.initSkipTurnUi();
+        const modal = document.getElementById('skip-turn-modal');
+        const text = document.getElementById('skip-turn-text');
+        if (!modal) return;
+
+        const list = Array.isArray(names) ? names.filter(Boolean) : [];
+        const label = list.length ? list.join(', ') : '대상';
+        if (text) {
+            text.textContent = `스킬로 턴 스킵되었습니다: ${label}`;
+        }
+
+        modal.style.display = 'flex';
+
+        if (this.skipTurnModalTimer) {
+            clearTimeout(this.skipTurnModalTimer);
+            this.skipTurnModalTimer = null;
+        }
+
+        // 짧게 보여주고 자동으로 닫음(사용자는 클릭/ESC로도 닫을 수 있음)
+        this.skipTurnModalTimer = setTimeout(() => {
+            this.hideSkipTurnModal();
+        }, 1200);
+    }
+
+    hideSkipTurnModal() {
+        const modal = document.getElementById('skip-turn-modal');
+        if (modal) modal.style.display = 'none';
+        if (this.skipTurnModalTimer) {
+            clearTimeout(this.skipTurnModalTimer);
+            this.skipTurnModalTimer = null;
+        }
+    }
+
     canUseDefenseSkillAsReaction(defenderChar) {
         if (!defenderChar) return false;
         const types = Array.isArray(defenderChar.skillTypes) ? defenderChar.skillTypes : [];
@@ -987,19 +1047,23 @@ class BattleSystem {
             char?.battleIncapacitated ? '<span class="tag" style="background:#4a5568; color:#fff;">전투불능</span>' : ''
         ].filter(Boolean).join('');
 
-        const shieldText = shieldHp > 0 ? ` <span style="color:#2b6cb0; font-weight:800;">(🛡️ +${shieldHp})</span>` : '';
+        const shieldBadge = shieldHp > 0 ? `<span class="shield-badge" title="방어 스킬(쉴드)">🧱 ${shieldHp}</span>` : '';
+        const shieldText = shieldHp > 0 ? `<span class="hp-shield-text">+${shieldHp}</span>` : '';
 
         const isCurrent = this.isCurrentActor(team, char.id);
 
         return `
             <div class="combat-char-card${isCurrent ? ' is-current' : ''}" data-char-id="${char.id}" data-team="${team}">
                 <div class="char-top">
-                    <div class="char-name">${char.name}</div>
+                    <div class="char-name">${char.name}${shieldBadge ? ` ${shieldBadge}` : ''}</div>
                     <div class="char-tags">${(tags || '<span class="tag tag-empty">-</span>')}${stateTags ? ` ${stateTags}` : ''}</div>
                 </div>
                 <div class="hp-row">
-                    <div class="hp-label">HP ${baseHp}/${maxHp}${shieldText}</div>
-                    <div class="hp-bar"><span style="width: ${hpPercent}%;"></span></div>
+                    <div class="hp-label">HP ${baseHp}/${maxHp}${shieldText ? ` ${shieldText}` : ''}</div>
+                    <div class="hp-bar${shieldHp > 0 ? ' has-shield' : ''}">
+                        <span class="hp-base" style="width: ${hpPercent}%;"></span>
+                        ${shieldHp > 0 ? '<span class="hp-shield-overlay"></span>' : ''}
+                    </div>
                 </div>
                 <div class="stat-row">
                     <span>⚔️ ${this.getEffectiveStat(char, 'attack')}</span>
@@ -1303,15 +1367,21 @@ class BattleSystem {
             const ctx = { attacker, teamKey: attackerTeamKey, targets: list };
 
             const allowedStats = ['attack', 'agility', 'defense', 'skill'];
-            const picked = Array.isArray(supportOptions?.basicStats) && supportOptions.basicStats.length
-                ? allowedStats.filter((k) => supportOptions.basicStats.map(String).includes(k))
-                : allowedStats;
+            const requested = Array.isArray(supportOptions?.basicStats) ? supportOptions.basicStats.map(String) : [];
+            const useRandomAda = requested.includes('RANDOM_ADA');
+            const randomPool = ['attack', 'agility', 'defense'];
+
+            const picked = useRandomAda
+                ? [randomPool[this.rollInt(0, randomPool.length - 1)]]
+                : (requested.length
+                    ? allowedStats.filter((k) => requested.includes(k))
+                    : allowedStats);
 
             picked.forEach((statKey) => {
                 this.applyConsumableStatMod(t, statKey, signed, ctx, { durationRounds: 999 });
             });
 
-            const label = picked
+            const label = (useRandomAda ? ['랜덤(공/방/민)'] : picked)
                 .map((k) => (k === 'attack' ? '공격' : (k === 'agility' ? '민첩' : (k === 'defense' ? '방어' : '스킬'))))
                 .join('/');
 
@@ -2243,9 +2313,12 @@ class BattleSystem {
         }
 
         // 턴 스킵 효과(지원형) 처리: 재귀 없이 반복 + 안전 가드
+        const skippedNames = [];
         let skipGuard = 0;
         while (entry && this.consumeSkipTurnIfAny(entry.char)) {
-            this.addLog(`⏭️ ${entry.char?.name || '대상'}의 턴이 스킵되었습니다.`);
+            const nm = entry.char?.name || '대상';
+            skippedNames.push(nm);
+            this.addLog(`⏭️ ${nm}의 턴이 스킵되었습니다.`);
 
             this.turnIndex += 1;
             if (this.turnIndex >= this.turnOrder.length) {
@@ -2266,6 +2339,10 @@ class BattleSystem {
                 this.addLog('⚠️ 연속 턴 스킵이 감지되어 안전 상한으로 중단했습니다.');
                 break;
             }
+        }
+
+        if (skippedNames.length > 0) {
+            this.showSkipTurnModal(skippedNames);
         }
 
         this.checkBattleEnd();

@@ -259,12 +259,51 @@ main #combat-screen {
     border-radius: 6px;
     height: 12px;
     overflow: hidden;
+    position: relative;
 }
-.hp-bar span {
+
+.hp-bar .hp-base {
     display: block;
     height: 100%;
     background: linear-gradient(90deg, #48bb78, #38a169);
     transition: width 0.3s ease;
+}
+
+.hp-bar.has-shield {
+    border-color: rgba(37, 99, 235, 0.6);
+    box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.12);
+}
+
+.hp-bar .hp-shield-overlay {
+    position: absolute;
+    inset: 0;
+    background: repeating-linear-gradient(
+        45deg,
+        rgba(37, 99, 235, 0.0) 0px,
+        rgba(37, 99, 235, 0.0) 6px,
+        rgba(37, 99, 235, 0.28) 6px,
+        rgba(37, 99, 235, 0.28) 12px
+    );
+    pointer-events: none;
+}
+
+.shield-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 1px 8px;
+    border-radius: 999px;
+    background: rgba(219, 234, 254, 0.95);
+    border: 1px solid rgba(37, 99, 235, 0.35);
+    color: #1e40af;
+    font-weight: 800;
+    font-size: 0.78em;
+    line-height: 1.2;
+}
+
+.hp-shield-text {
+    color: #1d4ed8;
+    font-weight: 800;
 }
 
 .hp-text {
@@ -952,6 +991,36 @@ main #combat-screen {
     color: #718096;
     font-size: 12.5px;
     line-height: 1.4;
+}
+
+/* ============================================
+   턴 스킵 안내 모달
+   ============================================ */
+
+.skip-turn-modal .modal-content {
+    max-width: 420px;
+    width: min(420px, calc(100% - 28px));
+}
+
+.skip-turn-modal .modal-header h2 {
+    color: #667eea;
+    font-size: 1.2em;
+}
+
+.skip-turn-modal .skip-turn-text {
+    font-size: 1.05em;
+    font-weight: 900;
+    color: #2d3748;
+    padding: 12px 14px;
+    border-radius: 12px;
+    background: #edf2ff;
+    border: 1px solid #c3dafe;
+}
+
+.skip-turn-modal .skip-turn-note {
+    margin-top: 10px;
+    font-size: 0.9em;
+    color: #718096;
 }
 
 @media (max-width: 820px) {

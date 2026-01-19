@@ -171,9 +171,15 @@ module.exports = async function handler(req, res) {
 
       const pct = Number.isFinite(Number(result.counterDefensePercent)) ? Math.round(Number(result.counterDefensePercent)) : null;
       if (pct !== null && Number.isFinite(Number(result.rawCounterDamage))) {
-        log.push(
-          `  ↩️ 반격 성공! (원데미지 ${Math.round(Number(result.rawCounterDamage))} → 방어력 ${pct}% → 실제 ${Math.round(result.counterDamage)})`
-        );
+        if (pct > 0) {
+          log.push(
+            `  ↩️ 반격 성공! (원데미지 ${Math.round(Number(result.rawCounterDamage))} → 방어력 ${pct}% → 실제 ${Math.round(result.counterDamage)})`
+          );
+        } else {
+          log.push(
+            `  ↩️ 반격 성공! (원데미지 ${Math.round(Number(result.rawCounterDamage))} → 실제 ${Math.round(result.counterDamage)})`
+          );
+        }
       } else {
         log.push(`  ↩️ 반격 성공! ${attackerName}이(가) ${Math.round(result.counterDamage)} 데미지!`);
       }
