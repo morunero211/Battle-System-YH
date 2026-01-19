@@ -939,14 +939,15 @@ class BattleSystem {
 
             // 반격 성공 시 공격자 HP 갱신(서버는 delta만 제공)
             if (typeof result.attackerDamage === 'number' && pending.attackerRef) {
-                const before = Math.max(0, Math.round(Number(pending.attackerRef.hp) || 0));
-                pending.attackerRef.hp = Math.max(0, before - Math.max(0, Math.round(result.attackerDamage)));
-                this.addLog(`  💔 ${pending.attackerRef.name} HP: ${before} → ${pending.attackerRef.hp}`);
+                const before = this.getTotalHp(pending.attackerRef);
+                const applied = this.applyDamageWithShield(pending.attackerRef, Math.max(0, Math.round(result.attackerDamage)));
+                const after = this.getTotalHp(pending.attackerRef);
+                this.addLog(`  💔 ${pending.attackerRef.name} HP: ${before} → ${after} (쉴드 흡수 ${applied.shieldAbsorbed})`);
                 this.evaluateHpStateTransition(pending.attackerRef, { cause: '반격 피해' });
             }
 
             if (typeof result.defenderHp === 'number' && pending.defenderRef) {
-                pending.defenderRef.hp = result.defenderHp;
+                this.setHpFromTotal(pending.defenderRef, result.defenderHp);
                 this.evaluateHpStateTransition(pending.defenderRef, { cause: '피해' });
             }
 
@@ -1029,10 +1030,9 @@ class BattleSystem {
      * 캐릭터 표시 생성
      */
     createCharacterDisplay(char, team) {
-        const maxHp = char.maxHp || 100;
-        const totalHp = Math.max(0, Math.round(Number(char.hp) || 0));
-        const baseHp = Math.min(maxHp, totalHp);
-        const shieldHp = Math.max(0, totalHp - maxHp);
+        const maxHp = this.getMaxHp(char);
+        const baseHp = this.getBaseHp(char);
+        const shieldHp = this.getShieldHp(char);
         const hpPercent = Math.max(0, Math.min(100, Math.round((baseHp / maxHp) * 100)));
         const tags = (char.skillTypes || []).map(type => {
             if (type === '공격형') return '<span class="tag tag-attack">공격형</span>';
@@ -1084,8 +1084,36 @@ class BattleSystem {
         return Number.isFinite(Number(char?.maxHp)) ? Math.max(1, Math.round(Number(char.maxHp))) : 100;
     }
 
+    ensureHpSplit(char) {
+        if (!char) return;
+        const maxHp = this.getMaxHp(char);
+
+        const baseRaw = Number(char?.hp);
+        const shieldRaw = Number(char?.shieldHp);
+
+        // 레거시(총 HP를 hp 하나로 표현): hp가 maxHp를 초과하면 초과분을 shieldHp로 분리
+        if (!Number.isFinite(shieldRaw)) {
+            const total = Number.isFinite(baseRaw) ? Math.max(0, Math.round(baseRaw)) : 0;
+            const base = Math.min(maxHp, total);
+            const shield = Math.max(0, total - maxHp);
+            char.hp = base;
+            char.shieldHp = shield;
+            return;
+        }
+
+        // 신규(분리 저장): base HP는 0..maxHp, shield는 0..
+        const base = Number.isFinite(baseRaw) ? Math.max(0, Math.min(maxHp, Math.round(baseRaw))) : 0;
+        const shield = Math.max(0, Math.round(shieldRaw) || 0);
+        char.hp = base;
+        char.shieldHp = shield;
+    }
+
     getTotalHp(char) {
-        return Math.max(0, Math.round(Number(char?.hp) || 0));
+        if (!char) return 0;
+        this.ensureHpSplit(char);
+        const base = Math.max(0, Math.round(Number(char?.hp) || 0));
+        const shield = Math.max(0, Math.round(Number(char?.shieldHp) || 0));
+        return base + shield;
     }
 
     isCombatCapable(char) {
@@ -1104,6 +1132,7 @@ class BattleSystem {
 
     evaluateHpStateTransition(char, { cause = '' } = {}) {
         if (!char) return;
+        this.ensureHpSplit(char);
         this.ensureBattleStartHpIfMissing(char);
 
         // 이미 확정 상태면 더 이상 변하지 않음
@@ -1126,6 +1155,7 @@ class BattleSystem {
         if (totalHp <= 0) {
             char.battleDead = true;
             char.hp = 0;
+            char.shieldHp = 0;
             // 로스터에도 표시될 수 있도록 상태를 dead로 둠(기존 시스템과 호환)
             char.status = 'dead';
             this.addLog(`  💀 ${char.name} 사망! (시작 HP ${startBase} ≤ 50, 현재 HP 0)${cause ? ` · ${cause}` : ''}`);
@@ -1133,25 +1163,36 @@ class BattleSystem {
     }
 
     getShieldHp(char) {
-        const maxHp = this.getMaxHp(char);
-        const totalHp = this.getTotalHp(char);
-        return Math.max(0, totalHp - maxHp);
+        if (!char) return 0;
+        this.ensureHpSplit(char);
+        return Math.max(0, Math.round(Number(char?.shieldHp) || 0));
     }
 
     getBaseHp(char) {
+        if (!char) return 0;
+        this.ensureHpSplit(char);
         const maxHp = this.getMaxHp(char);
-        const totalHp = this.getTotalHp(char);
-        return Math.min(maxHp, totalHp);
+        return Math.max(0, Math.min(maxHp, Math.round(Number(char?.hp) || 0)));
+    }
+
+    setHpFromTotal(target, totalHp) {
+        if (!target) return;
+        this.ensureHpSplit(target);
+        const maxHp = this.getMaxHp(target);
+        const total = Math.max(0, Math.round(Number(totalHp) || 0));
+        target.hp = Math.min(maxHp, total);
+        target.shieldHp = Math.max(0, total - maxHp);
     }
 
     applyDamageWithShield(defender, damage) {
         const dmg = Math.max(0, Math.floor(Number(damage) || 0));
         if (dmg === 0) return { shieldAbsorbed: 0, hpDamage: 0, totalDamage: 0 };
 
+        this.ensureHpSplit(defender);
+
         const maxHp = this.getMaxHp(defender);
-        const beforeTotal = this.getTotalHp(defender);
-        const beforeShield = Math.max(0, beforeTotal - maxHp);
-        const beforeBase = Math.min(maxHp, beforeTotal);
+        const beforeShield = this.getShieldHp(defender);
+        const beforeBase = this.getBaseHp(defender);
 
         const shieldAbsorbed = Math.min(beforeShield, dmg);
         const remaining = dmg - shieldAbsorbed;
@@ -1159,7 +1200,8 @@ class BattleSystem {
 
         const afterBase = Math.max(0, beforeBase - hpDamage);
         const afterShield = Math.max(0, beforeShield - shieldAbsorbed);
-        defender.hp = afterBase + afterShield;
+        defender.hp = Math.min(maxHp, afterBase);
+        defender.shieldHp = Math.max(0, afterShield);
 
         this.evaluateHpStateTransition(defender, { cause: '피해' });
 
@@ -1170,18 +1212,20 @@ class BattleSystem {
         const heal = Math.max(0, Math.floor(Number(amount) || 0));
         if (heal === 0) return 0;
 
+        this.ensureHpSplit(target);
+
         if (!this.canHealTarget(target)) {
             this.addLog(`  🚫 ${target?.name || '대상'}은(는) 치유 불가 상태입니다.`);
             return 0;
         }
 
         const maxHp = this.getMaxHp(target);
-        const beforeTotal = this.getTotalHp(target);
-        const shield = Math.max(0, beforeTotal - maxHp);
-        const base = Math.min(maxHp, beforeTotal);
+        const shield = this.getShieldHp(target);
+        const base = this.getBaseHp(target);
 
         const afterBase = Math.min(maxHp, base + heal);
-        target.hp = afterBase + shield;
+        target.hp = afterBase;
+        target.shieldHp = shield;
         // 힐로는 전투 불능/사망 상태가 되돌아가지 않음(상태는 고정)
         return afterBase - base;
     }
@@ -1189,8 +1233,8 @@ class BattleSystem {
     addShieldHp(target, amount) {
         const add = Math.max(0, Math.floor(Number(amount) || 0));
         if (add === 0) return 0;
-        const before = this.getTotalHp(target);
-        target.hp = before + add;
+        this.ensureHpSplit(target);
+        target.shieldHp = this.getShieldHp(target) + add;
         return add;
     }
 
@@ -1492,9 +1536,8 @@ class BattleSystem {
                     : '단일';
 
                 const maxHp = Number.isFinite(Number(char?.maxHp)) ? Math.max(1, Math.round(Number(char.maxHp))) : 100;
-                const totalHp = Math.max(0, Math.round(Number(char?.hp) || 0));
-                const baseHp = Math.min(maxHp, totalHp);
-                const shieldHp = Math.max(0, totalHp - maxHp);
+                const baseHp = this.getBaseHp(char);
+                const shieldHp = this.getShieldHp(char);
                 const hpText = shieldHp > 0
                     ? `HP ${baseHp}/${maxHp} · 🛡️+${shieldHp}`
                     : `HP ${baseHp}/${maxHp}`;
@@ -1903,7 +1946,7 @@ class BattleSystem {
                             },
                             defender: {
                                 name: defender.name,
-                                hp: defender.hp,
+                                hp: this.getTotalHp(defender),
                                 maxHp: defender.maxHp,
                                 attack: this.getEffectiveStat(defender, 'attack'),
                                 defense: this.getEffectiveStat(defender, 'defense'),
@@ -1922,7 +1965,7 @@ class BattleSystem {
                         // 공격 실패 등으로 즉시 종료되는 케이스
                         if (result.phase === 'RESOLVED') {
                             if (typeof result.defenderHp === 'number') {
-                                defender.hp = result.defenderHp;
+                                this.setHpFromTotal(defender, result.defenderHp);
                             }
                             return { awaitingResponse: false };
                         }
@@ -1951,7 +1994,7 @@ class BattleSystem {
                         }
 
                         if (typeof result.defenderHp === 'number') {
-                            defender.hp = result.defenderHp;
+                            this.setHpFromTotal(defender, result.defenderHp);
                         }
                         return { awaitingResponse: false };
                     }

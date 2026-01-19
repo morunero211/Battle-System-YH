@@ -530,8 +530,11 @@ class BattleApp {
                 const hp = Number.isFinite(Number(c.hp)) ? Math.max(0, Math.round(Number(c.hp))) : 100;
                 const maxHp = Number.isFinite(Number(c.maxHp)) ? Math.max(1, Math.round(Number(c.maxHp))) : hp || 100;
                 c.maxHp = maxHp;
-                // 전투 중 쉴드가 붙어서 hp가 maxHp를 초과할 수 있음 -> 그대로 유지
-                c.hp = hp;
+                // 쉴드는 base HP를 "회복"하는 개념이 아니라 추가 HP로 분리 저장
+                const shieldHp = Number.isFinite(Number(c.shieldHp)) ? Math.max(0, Math.round(Number(c.shieldHp))) : 0;
+                const legacyShield = Math.max(0, hp - maxHp);
+                c.hp = Math.min(maxHp, hp);
+                c.shieldHp = legacyShield > 0 ? legacyShield : shieldHp;
 
                 // 스킬 타입(단일) 호환: 항상 배열
                 if (Array.isArray(c.skillTypes) && c.skillTypes.length > 0) {
