@@ -1133,6 +1133,30 @@ body.dark-theme .btn-bulk-import:hover {
     color: #bfdbfe;
 }
 
+body.dark-theme #bulk-import-team2 {
+    border-color: #34d399;
+    background: rgba(16, 185, 129, 0.16);
+    color: #86efac;
+}
+
+body.dark-theme #bulk-import-team2:hover {
+    border-color: #86efac;
+    background: rgba(16, 185, 129, 0.24);
+    color: #bbf7d0;
+}
+
+body.dark-theme #bulk-import-team3 {
+    border-color: #fb7185;
+    background: rgba(244, 63, 94, 0.16);
+    color: #fda4af;
+}
+
+body.dark-theme #bulk-import-team3:hover {
+    border-color: #fda4af;
+    background: rgba(244, 63, 94, 0.24);
+    color: #fecdd3;
+}
+
 body.dark-theme .btn-remove {
     color: #fca5a5;
 }

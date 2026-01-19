@@ -230,6 +230,15 @@
     color: #1d4ed8;
 }
 
+/* 팀별 대량 등록 버튼 컬러 */
+#bulk-import-team1 { border-color: #93c5fd; }
+#bulk-import-team2 { border-color: #86efac; background: #f0fdf4; color: #15803d; }
+#bulk-import-team3 { border-color: #fca5a5; background: #fff1f2; color: #be123c; }
+
+#bulk-import-team1:hover { border-color: var(--team-hero); }
+#bulk-import-team2:hover { border-color: var(--team-gov); background: #dcfce7; color: #166534; }
+#bulk-import-team3:hover { border-color: var(--team-villain); background: #ffe4e6; color: #9f1239; }
+
 #add-team1:hover { border-color: var(--team-hero); color: var(--team-hero); }
 #add-team2:hover { border-color: var(--team-gov); color: var(--team-gov); }
 #add-team3:hover { border-color: var(--team-villain); color: var(--team-villain); }

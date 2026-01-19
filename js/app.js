@@ -274,6 +274,8 @@ class BattleApp {
             addTeam2: document.getElementById('add-team2'),
             addTeam3: document.getElementById('add-team3'),
             bulkImportTeam1: document.getElementById('bulk-import-team1'),
+            bulkImportTeam2: document.getElementById('bulk-import-team2'),
+            bulkImportTeam3: document.getElementById('bulk-import-team3'),
             saveCharacters: document.getElementById('save-characters'),
             loadCharacters: document.getElementById('load-characters'),
             fileInput: document.getElementById('file-input'),
@@ -341,6 +343,7 @@ class BattleApp {
 
             // 대량 등록 모달
             bulkImportModal: document.getElementById('bulk-import-modal'),
+            bulkImportTitle: document.getElementById('bulk-import-title'),
             bulkImportClose: document.getElementById('bulk-import-close'),
             bulkImportContent: document.getElementById('bulk-import-content'),
             bulkImportStatus: document.getElementById('bulk-import-status'),
@@ -1548,6 +1551,8 @@ class BattleApp {
 
         // 캐릭터 대량 등록(히어로)
         this.elements.bulkImportTeam1?.addEventListener('click', () => this.openBulkImportModal(0));
+        this.elements.bulkImportTeam2?.addEventListener('click', () => this.openBulkImportModal(1));
+        this.elements.bulkImportTeam3?.addEventListener('click', () => this.openBulkImportModal(2));
 
         // 모달
         this.elements.modalClose?.addEventListener('click', () => this.closeModal());
@@ -3957,13 +3962,17 @@ document.addEventListener('DOMContentLoaded', () => {
     // ===== 대량 등록(표/TSV) =====
 
     openBulkImportModal(teamIndex = 0) {
-        // 현재 요구: 무조건 히어로(0)
-        const idx = 0;
+        const idx = Number.isFinite(Number(teamIndex)) ? Math.max(0, Math.min(2, Math.floor(Number(teamIndex)))) : 0;
         const modal = this.elements?.bulkImportModal;
         const textarea = this.elements?.bulkImportContent;
         if (!modal || !textarea) {
             this.showToast?.('대량 등록 UI를 불러올 수 없습니다.', 'warning');
             return;
+        }
+
+        const teamLabel = idx === 1 ? '정부' : (idx === 2 ? '빌런' : '히어로');
+        if (this.elements?.bulkImportTitle) {
+            this.elements.bulkImportTitle.textContent = `📥 캐릭터 대량 등록 (${teamLabel})`;
         }
 
         modal.dataset.teamIndex = String(idx);
@@ -3990,13 +3999,17 @@ document.addEventListener('DOMContentLoaded', () => {
         const statusEl = this.elements?.bulkImportStatus;
         const text = String(this.elements?.bulkImportContent?.value || '').trim();
         if (!statusEl) return;
+        const idx = Number.isFinite(Number(this.elements?.bulkImportModal?.dataset?.teamIndex))
+            ? Math.max(0, Math.min(2, Math.floor(Number(this.elements.bulkImportModal.dataset.teamIndex))))
+            : 0;
+        const teamLabel = idx === 1 ? '정부' : (idx === 2 ? '빌런' : '히어로');
         if (!text) {
-            statusEl.textContent = '붙여넣기 대기 중…';
+            statusEl.textContent = `${teamLabel} · 붙여넣기 대기 중…`;
             statusEl.style.color = '#718096';
             return;
         }
         const { rows, skippedHeader } = this.parseBulkCharacterTable(text);
-        statusEl.textContent = `인식된 행: ${rows.length}개${skippedHeader ? ' (헤더 제외)' : ''}`;
+        statusEl.textContent = `${teamLabel} · 인식된 행: ${rows.length}개${skippedHeader ? ' (헤더 제외)' : ''}`;
         statusEl.style.color = '#718096';
     }
 
@@ -4087,7 +4100,10 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        const teamIndex = 0; // 무조건 히어로
+        const teamIndex = Number.isFinite(Number(this.elements?.bulkImportModal?.dataset?.teamIndex))
+            ? Math.max(0, Math.min(2, Math.floor(Number(this.elements.bulkImportModal.dataset.teamIndex))))
+            : 0;
+        const teamLabel = teamIndex === 1 ? '정부' : (teamIndex === 2 ? '빌런' : '히어로');
         const { raw } = this.parseBulkCharacterTable(text);
 
         const existingNames = new Set();
@@ -4117,6 +4133,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const newChar = {
                 id: `bulk_${stamp}_${added}`,
                 name: r.name,
+                // 표의 '현재 HP'를 그대로 적용 (maxHp는 없으면 전투 시스템에서 100으로 취급)
                 hp: r.hp,
                 attack: r.attack,
                 agility: r.agility,
@@ -4151,7 +4168,7 @@ document.addEventListener('DOMContentLoaded', () => {
         this.closeBulkImportModal();
 
         if (added > 0) {
-            this.showToast?.(`히어로에 ${added}명 추가 완료 (중복 ${skippedDup}명 스킵, 오류 ${skippedInvalid}행 무시)`, 'success');
+            this.showToast?.(`${teamLabel}에 ${added}명 추가 완료 (중복 ${skippedDup}명 스킵, 오류 ${skippedInvalid}행 무시)`, 'success');
         } else {
             this.showToast?.(`추가할 캐릭터가 없습니다 (중복 ${skippedDup}명, 오류 ${skippedInvalid}행)`, 'info');
         }

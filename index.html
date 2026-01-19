@@ -117,6 +117,7 @@
                                 <input type="text" id="team2-search" class="search-input" placeholder="🔍 캐릭터 검색...">
                                 <div id="team2-characters" class="character-list"></div>
                                 <button id="add-team2" class="btn-add-character">+ 추가</button>
+                                <button id="bulk-import-team2" class="btn-add-character btn-bulk-import">📥 대량 등록</button>
                             </div>
 
                             <!-- 빌런 팀 -->
@@ -127,6 +128,7 @@
                                 <input type="text" id="team3-search" class="search-input" placeholder="🔍 캐릭터 검색...">
                                 <div id="team3-characters" class="character-list"></div>
                                 <button id="add-team3" class="btn-add-character">+ 추가</button>
+                                <button id="bulk-import-team3" class="btn-add-character btn-bulk-import">📥 대량 등록</button>
                             </div>
                         </div>
 
@@ -567,7 +569,7 @@
             <div id="bulk-import-modal" class="modal" style="display:none;">
                 <div class="modal-content" style="max-width:760px;">
                     <div class="modal-header">
-                        <h2>📥 캐릭터 대량 등록 (히어로)</h2>
+                        <h2 id="bulk-import-title">📥 캐릭터 대량 등록</h2>
                         <button id="bulk-import-close" class="modal-close">&times;</button>
                     </div>
                     <div class="modal-body">
