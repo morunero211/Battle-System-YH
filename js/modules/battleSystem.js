@@ -2051,8 +2051,12 @@ class BattleSystem {
             const atkStat = Math.max(1, Math.min(5, Math.round(Number(attacker.attack ?? attacker.atk ?? 1))));
             const defStat = Math.max(1, Math.min(5, Math.round(Number(defender.defense ?? defender.def ?? 1))));
 
-            // 기본공격 rawDamage: 3~10 (회의안: 필요 시 3~13으로 변경)
-            const rawDamage = this.rollInt(3, 10);
+            // 기본공격 rawDamage(요청 반영):
+            // - atk 1~2 = 3~13
+            // - atk 3~4 = 4~13
+            // - atk 5   = 5~13
+            const minRaw = atkStat >= 5 ? 5 : (atkStat >= 3 ? 4 : 3);
+            const rawDamage = this.rollInt(minRaw, 13);
             const defensePercent = this.getDefenseReductionPercent(defStat);
             const finalDamage = this.applyDefenseReduction(rawDamage, defensePercent);
 
@@ -2064,6 +2068,7 @@ class BattleSystem {
             // 피격(방어 스탯)을 사용했으므로 1회 소모
             this.consumeStatMods(defender, 'ON_DEFEND');
 
+            this.addLog(`  🧮 스탯: 공격 ATK ${atkStat} / 방어 DEF ${defStat}`);
             this.addLog(`  🛡️ 방어력: ${defensePercent}% (원데미지 ${rawDamage} → 실제 ${finalDamage})`);
             this.addLog(`  💥 데미지: ${finalDamage}`);
             if (beforeShield > 0 || applied.shieldAbsorbed > 0) {
