@@ -166,6 +166,9 @@ module.exports = async function handler(req, res) {
     }
 
     if (result.countered) {
+      const selfDmg = Number.isFinite(Number(result.defenderSelfDamage)) ? Math.max(0, Math.round(Number(result.defenderSelfDamage))) : 0;
+      const counterDefenderHp = Math.max(0, effectiveDefenderHp - selfDmg);
+
       const pct = Number.isFinite(Number(result.counterDefensePercent)) ? Math.round(Number(result.counterDefensePercent)) : null;
       if (pct !== null && Number.isFinite(Number(result.rawCounterDamage))) {
         log.push(
@@ -175,10 +178,15 @@ module.exports = async function handler(req, res) {
         log.push(`  ↩️ 반격 성공! ${attackerName}이(가) ${Math.round(result.counterDamage)} 데미지!`);
       }
 
+      if (selfDmg > 0) {
+        log.push(`  ⚠️ 반격 성공 페널티: ${defenderName} -${selfDmg} (고정)`);
+        log.push(`  💚 ${defenderName} HP: ${effectiveDefenderHp} → ${counterDefenderHp}`);
+      }
+
       res.status(200).json({
         phase: 'RESOLVED',
         log,
-        defenderHp,
+        defenderHp: counterDefenderHp,
         attackerDamage: Number.isFinite(Number(result.counterDamage)) ? Math.round(Number(result.counterDamage)) : 0
       });
       return;
