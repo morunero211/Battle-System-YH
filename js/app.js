@@ -2114,6 +2114,14 @@ class BattleApp {
 
             container.appendChild(item);
         });
+
+        // 검색 필터 유지: renderTeam이 DOM을 재구성하면 기존 display 기반 필터가 초기화되므로
+        // 현재 검색어가 있으면 렌더 직후 다시 적용합니다.
+        const searchInputs = [this.elements.team1Search, this.elements.team2Search, this.elements.team3Search];
+        const currentQuery = searchInputs?.[teamIndex]?.value || '';
+        if (currentQuery) {
+            this.handleSearch(teamIndex, currentQuery);
+        }
     }
 
     /**
