@@ -273,6 +273,7 @@ class BattleApp {
             addTeam1: document.getElementById('add-team1'),
             addTeam2: document.getElementById('add-team2'),
             addTeam3: document.getElementById('add-team3'),
+            bulkImportTeam1: document.getElementById('bulk-import-team1'),
             saveCharacters: document.getElementById('save-characters'),
             loadCharacters: document.getElementById('load-characters'),
             fileInput: document.getElementById('file-input'),
@@ -337,6 +338,15 @@ class BattleApp {
             pasteJsonStatus: document.getElementById('paste-json-status'),
             pasteJson: document.getElementById('paste-json'),
             pasteJsonH: document.getElementById('paste-json-h'),
+
+            // 대량 등록 모달
+            bulkImportModal: document.getElementById('bulk-import-modal'),
+            bulkImportClose: document.getElementById('bulk-import-close'),
+            bulkImportContent: document.getElementById('bulk-import-content'),
+            bulkImportStatus: document.getElementById('bulk-import-status'),
+            bulkImportClear: document.getElementById('bulk-import-clear'),
+            bulkImportApply: document.getElementById('bulk-import-apply'),
+            bulkImportCancel: document.getElementById('bulk-import-cancel'),
             
             // 파일 자동 저장
             toggleAutosave: document.getElementById('toggle-autosave'),
@@ -1536,6 +1546,9 @@ class BattleApp {
         this.elements.addTeam2?.addEventListener('click', () => this.openAddCharacterModal(1));
         this.elements.addTeam3?.addEventListener('click', () => this.openAddCharacterModal(2));
 
+        // 캐릭터 대량 등록(히어로)
+        this.elements.bulkImportTeam1?.addEventListener('click', () => this.openBulkImportModal(0));
+
         // 모달
         this.elements.modalClose?.addEventListener('click', () => this.closeModal());
         this.elements.cancelCustomChar?.addEventListener('click', () => this.closeModal());
@@ -1727,6 +1740,16 @@ class BattleApp {
         this.elements.pasteJsonModal?.addEventListener('click', (e) => {
             if (e.target === this.elements.pasteJsonModal) this.closePasteJsonModal();
         });
+
+        // 대량 등록 모달
+        this.elements.bulkImportClose?.addEventListener('click', () => this.closeBulkImportModal());
+        this.elements.bulkImportCancel?.addEventListener('click', () => this.closeBulkImportModal());
+        this.elements.bulkImportClear?.addEventListener('click', () => this.clearBulkImportContent());
+        this.elements.bulkImportApply?.addEventListener('click', () => this.applyBulkImport());
+        this.elements.bulkImportModal?.addEventListener('click', (e) => {
+            if (e.target === this.elements.bulkImportModal) this.closeBulkImportModal();
+        });
+        this.elements.bulkImportContent?.addEventListener('input', () => this.updateBulkImportStatus());
         
         // 파일 자동 저장
         // 파일 자동 저장 UI 제거됨
@@ -3928,6 +3951,209 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (err) {
             this.elements.pasteJsonStatus.textContent = '❌ JSON 파싱 실패: ' + err.message;
             this.elements.pasteJsonStatus.style.color = '#e53e3e';
+        }
+    }
+
+    // ===== 대량 등록(표/TSV) =====
+
+    openBulkImportModal(teamIndex = 0) {
+        // 현재 요구: 무조건 히어로(0)
+        const idx = 0;
+        const modal = this.elements?.bulkImportModal;
+        const textarea = this.elements?.bulkImportContent;
+        if (!modal || !textarea) {
+            this.showToast?.('대량 등록 UI를 불러올 수 없습니다.', 'warning');
+            return;
+        }
+
+        modal.dataset.teamIndex = String(idx);
+        modal.style.display = 'flex';
+        textarea.value = '';
+        this.updateBulkImportStatus();
+        setTimeout(() => textarea.focus(), 0);
+    }
+
+    closeBulkImportModal() {
+        const modal = this.elements?.bulkImportModal;
+        if (!modal) return;
+        modal.style.display = 'none';
+        if (this.elements?.bulkImportContent) this.elements.bulkImportContent.value = '';
+        if (this.elements?.bulkImportStatus) this.elements.bulkImportStatus.textContent = '';
+    }
+
+    clearBulkImportContent() {
+        if (this.elements?.bulkImportContent) this.elements.bulkImportContent.value = '';
+        this.updateBulkImportStatus();
+    }
+
+    updateBulkImportStatus() {
+        const statusEl = this.elements?.bulkImportStatus;
+        const text = String(this.elements?.bulkImportContent?.value || '').trim();
+        if (!statusEl) return;
+        if (!text) {
+            statusEl.textContent = '붙여넣기 대기 중…';
+            statusEl.style.color = '#718096';
+            return;
+        }
+        const { rows, skippedHeader } = this.parseBulkCharacterTable(text);
+        statusEl.textContent = `인식된 행: ${rows.length}개${skippedHeader ? ' (헤더 제외)' : ''}`;
+        statusEl.style.color = '#718096';
+    }
+
+    normalizeNameKey(name) {
+        return String(name || '').trim().replace(/\s+/g, ' ');
+    }
+
+    parseBulkCharacterTable(text) {
+        const lines = String(text || '')
+            .split(/\r?\n/)
+            .map((l) => l.trim())
+            .filter((l) => l.length > 0);
+
+        let skippedHeader = false;
+        const parsed = [];
+
+        lines.forEach((line, index) => {
+            // 헤더 제거
+            if (index === 0 && /이름/.test(line) && /(공격|민첩|방어|스킬)/.test(line)) {
+                skippedHeader = true;
+                return;
+            }
+
+            // 1) TSV 우선
+            let cols = line.includes('\t') ? line.split('\t').map((c) => String(c || '').trim()) : null;
+
+            // 2) 공백 구분(이름에 공백 포함 가능) - 끝 6개 토큰 방식
+            if (!cols || cols.length < 7) {
+                const m = line.match(/^(.*?)\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+)\s*$/);
+                if (m) cols = [m[1], m[2], m[3], m[4], m[5], m[6], m[7]];
+            }
+
+            if (!cols || cols.length < 7) {
+                parsed.push({ ok: false, reason: '열 수 부족', raw: line });
+                return;
+            }
+
+            const [nameRaw, atkRaw, agiRaw, defRaw, skillRaw, typeRaw, hpRaw] = cols;
+            const name = this.normalizeNameKey(nameRaw);
+            const skillType = this.normalizeNameKey(typeRaw);
+
+            const toInt = (v) => {
+                const s = String(v || '').trim();
+                if (!s || s === '-') return null;
+                const n = Number.parseInt(s, 10);
+                return Number.isFinite(n) ? n : null;
+            };
+
+            const attack = toInt(atkRaw);
+            const agility = toInt(agiRaw);
+            const defense = toInt(defRaw);
+            const skill = toInt(skillRaw);
+            const hp = toInt(hpRaw);
+
+            const allowedTypes = new Set(['공격형', '방어형', '지원형', '치료형']);
+            const validType = allowedTypes.has(skillType) ? skillType : null;
+
+            const inRange = (n, min, max) => typeof n === 'number' && n >= min && n <= max;
+            if (!name) {
+                parsed.push({ ok: false, reason: '이름 없음', raw: line });
+                return;
+            }
+            if (!validType) {
+                parsed.push({ ok: false, reason: '스킬 유형 오류', raw: line, name });
+                return;
+            }
+            if (![attack, agility, defense, skill].every((n) => inRange(n, 1, 5))) {
+                parsed.push({ ok: false, reason: '스탯 범위 오류(1~5)', raw: line, name });
+                return;
+            }
+            if (!inRange(hp, 10, 100)) {
+                parsed.push({ ok: false, reason: 'HP 범위 오류(10~100)', raw: line, name });
+                return;
+            }
+
+            parsed.push({ ok: true, name, attack, agility, defense, skill, skillType: validType, hp });
+        });
+
+        return { rows: parsed.filter((r) => r.ok), skippedHeader, raw: parsed };
+    }
+
+    applyBulkImport() {
+        const textarea = this.elements?.bulkImportContent;
+        if (!textarea) return;
+        const text = String(textarea.value || '').trim();
+        if (!text) {
+            this.showToast?.('붙여넣을 내용이 없습니다.', 'warning');
+            return;
+        }
+
+        const teamIndex = 0; // 무조건 히어로
+        const { raw } = this.parseBulkCharacterTable(text);
+
+        const existingNames = new Set();
+        (this.teams || []).forEach((t) => (t?.characters || []).forEach((c) => existingNames.add(this.normalizeNameKey(c?.name))));
+        const batchNames = new Set();
+
+        let added = 0;
+        let skippedDup = 0;
+        let skippedInvalid = 0;
+        const stamp = Date.now();
+
+        raw.forEach((r) => {
+            if (!r.ok) {
+                skippedInvalid += 1;
+                return;
+            }
+
+            const key = this.normalizeNameKey(r.name);
+            if (existingNames.has(key) || batchNames.has(key)) {
+                skippedDup += 1;
+                return;
+            }
+
+            batchNames.add(key);
+            existingNames.add(key);
+
+            const newChar = {
+                id: `bulk_${stamp}_${added}`,
+                name: r.name,
+                hp: r.hp,
+                attack: r.attack,
+                agility: r.agility,
+                defense: r.defense,
+                skill: r.skill,
+                skillTypes: [r.skillType],
+                skillDescription: '',
+                status: 'active',
+                skillTarget: { mode: 'single', includeSelf: false },
+                skillUsesMax: 1,
+                skillUsesUsed: 0,
+                skillUsesLocked: false
+            };
+
+            if (r.skillType === '지원형') {
+                newChar.supportConfig = { template: 'BASIC', basicMode: 'BUFF', cancelKind: 'BUFF' };
+            }
+
+            this.teams[teamIndex].characters.push(newChar);
+            added += 1;
+        });
+
+        this.saveToLocalStorage();
+
+        const activeScreen = document.querySelector('.screen.screen-active')?.id;
+        if (activeScreen === 'character-list-screen') {
+            this.renderCharacterList();
+        } else {
+            this.renderAllTeams();
+        }
+
+        this.closeBulkImportModal();
+
+        if (added > 0) {
+            this.showToast?.(`히어로에 ${added}명 추가 완료 (중복 ${skippedDup}명 스킵, 오류 ${skippedInvalid}행 무시)`, 'success');
+        } else {
+            this.showToast?.(`추가할 캐릭터가 없습니다 (중복 ${skippedDup}명, 오류 ${skippedInvalid}행)`, 'info');
         }
     }
 }

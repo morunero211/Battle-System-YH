@@ -215,6 +215,21 @@
 #add-team2 { border-color: #86efac; }
 #add-team3 { border-color: #fca5a5; }
 
+/* 대량 등록 버튼(히어로) */
+.btn-bulk-import {
+    margin-top: 8px;
+    border-style: solid;
+    border-color: #93c5fd;
+    background: #eff6ff;
+    color: #1d4ed8;
+}
+
+.btn-bulk-import:hover {
+    border-color: #2563eb;
+    background: #dbeafe;
+    color: #1d4ed8;
+}
+
 #add-team1:hover { border-color: var(--team-hero); color: var(--team-hero); }
 #add-team2:hover { border-color: var(--team-gov); color: var(--team-gov); }
 #add-team3:hover { border-color: var(--team-villain); color: var(--team-villain); }
