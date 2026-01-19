@@ -332,7 +332,7 @@ class BattleSystem {
             if (!teamKey || !attacker) return [];
             const alliance = this.getAlliance(teamKey);
             const allies = alliance.allies;
-            const list = allies.flatMap((t) => (this.combatCharacters?.[t] || [])).filter((c) => this.getTotalHp(c) > 0);
+            const list = allies.flatMap((t) => (this.combatCharacters?.[t] || [])).filter((c) => this.isCombatCapable(c));
             const uniq = new Map();
             list.forEach((c) => uniq.set(String(c.id), c));
             uniq.set(String(attacker.id), attacker);
@@ -415,7 +415,7 @@ class BattleSystem {
             if (!this.getEffectEnabled(attacker, ef, i)) continue;
 
             if (ef.type === 'DAMAGE_SKILL_ROLL') {
-                const list = this.resolveEffectTargets(ef.targets, ctx).filter((c) => this.getTotalHp(c) > 0);
+                const list = this.resolveEffectTargets(ef.targets, ctx).filter((c) => this.isCombatCapable(c));
                 const n = list.length;
                 if (n === 0) continue;
 
@@ -446,7 +446,7 @@ class BattleSystem {
             }
 
             if (ef.type === 'DAMAGE_FLAT') {
-                const list = this.resolveEffectTargets(ef.targets, ctx).filter((c) => this.getTotalHp(c) > 0);
+                const list = this.resolveEffectTargets(ef.targets, ctx).filter((c) => this.isCombatCapable(c));
                 const raw = Math.max(0, Math.floor(Number(ef.amount) || 0));
                 if (raw <= 0 || list.length === 0) continue;
 
@@ -526,6 +526,17 @@ class BattleSystem {
             )
         };
 
+        // 전투 시작 HP 기준(>50이면 50에서 전투 불능, <=50이면 0에서 사망)
+        ['hero', 'gov', 'villain'].forEach((k) => {
+            (this.combatCharacters?.[k] || []).forEach((c) => {
+                if (!c) return;
+                // 전투 시작 시점의 HP를 기준으로 룰이 결정됨(매 전투마다 재설정)
+                c.battleStartBaseHp = Math.round(Number(this.getBaseHp(c)) || 0);
+                c.battleIncapacitated = false;
+                c.battleDead = false;
+            });
+        });
+
         this.addLog(`⚔️ 전투 시작! (${this.app.battleMode === 'team' ? '팀전' : '개인전'} 모드)`);
         this.addLog(`히어로: ${this.combatCharacters.hero.length}명 | 정부: ${this.combatCharacters.gov.length}명 | 빌런: ${this.combatCharacters.villain.length}명`);
         this.addLog('---');
@@ -538,7 +549,7 @@ class BattleSystem {
         return teamOrder.flatMap((teamKey) => {
             const list = Array.isArray(this.combatCharacters?.[teamKey]) ? this.combatCharacters[teamKey] : [];
             return list
-                .filter((c) => this.getTotalHp(c) > 0)
+                .filter((c) => this.isCombatCapable(c))
                 .map((char) => ({ teamKey, char }));
         });
     }
@@ -595,7 +606,7 @@ class BattleSystem {
         for (let step = 0; step < this.turnOrder.length; step++) {
             const idx = (this.turnIndex + step) % this.turnOrder.length;
             const entry = this.turnOrder[idx];
-            if (entry?.char && this.getTotalHp(entry.char) > 0) {
+            if (entry?.char && this.isCombatCapable(entry.char)) {
                 this.turnIndex = idx;
                 return entry;
             }
@@ -804,10 +815,12 @@ class BattleSystem {
                 const before = Math.max(0, Math.round(Number(pending.attackerRef.hp) || 0));
                 pending.attackerRef.hp = Math.max(0, before - Math.max(0, Math.round(result.attackerDamage)));
                 this.addLog(`  💔 ${pending.attackerRef.name} HP: ${before} → ${pending.attackerRef.hp}`);
+                this.evaluateHpStateTransition(pending.attackerRef, { cause: '반격 피해' });
             }
 
             if (typeof result.defenderHp === 'number' && pending.defenderRef) {
                 pending.defenderRef.hp = result.defenderHp;
+                this.evaluateHpStateTransition(pending.defenderRef, { cause: '피해' });
             }
 
             // 피격/방어 처리 후 방어 관련 스탯 변화 1회 소모
@@ -886,6 +899,11 @@ class BattleSystem {
             return `<span class="tag">${type}</span>`;
         }).join('');
 
+        const stateTags = [
+            char?.battleDead ? '<span class="tag" style="background:#7f1d1d; color:#fff;">사망</span>' : '',
+            char?.battleIncapacitated ? '<span class="tag" style="background:#4a5568; color:#fff;">전투불능</span>' : ''
+        ].filter(Boolean).join('');
+
         const shieldText = shieldHp > 0 ? ` <span style="color:#2b6cb0; font-weight:800;">(🛡️ +${shieldHp})</span>` : '';
 
         const isCurrent = this.isCurrentActor(team, char.id);
@@ -894,7 +912,7 @@ class BattleSystem {
             <div class="combat-char-card${isCurrent ? ' is-current' : ''}" data-char-id="${char.id}" data-team="${team}">
                 <div class="char-top">
                     <div class="char-name">${char.name}</div>
-                    <div class="char-tags">${tags || '<span class="tag tag-empty">-</span>'}</div>
+                    <div class="char-tags">${(tags || '<span class="tag tag-empty">-</span>')}${stateTags ? ` ${stateTags}` : ''}</div>
                 </div>
                 <div class="hp-row">
                     <div class="hp-label">HP ${baseHp}/${maxHp}${shieldText}</div>
@@ -921,6 +939,50 @@ class BattleSystem {
 
     getTotalHp(char) {
         return Math.max(0, Math.round(Number(char?.hp) || 0));
+    }
+
+    isCombatCapable(char) {
+        if (!char) return false;
+        if (char.battleDead) return false;
+        if (char.battleIncapacitated) return false;
+        return this.getTotalHp(char) > 0;
+    }
+
+    ensureBattleStartHpIfMissing(char) {
+        if (!char) return;
+        if (!Number.isFinite(Number(char.battleStartBaseHp))) {
+            char.battleStartBaseHp = Math.round(Number(this.getBaseHp(char)) || 0);
+        }
+    }
+
+    evaluateHpStateTransition(char, { cause = '' } = {}) {
+        if (!char) return;
+        this.ensureBattleStartHpIfMissing(char);
+
+        // 이미 확정 상태면 더 이상 변하지 않음
+        if (char.battleDead || char.battleIncapacitated) return;
+
+        const startBase = Math.round(Number(char.battleStartBaseHp) || 0);
+        const baseHp = this.getBaseHp(char);
+        const totalHp = this.getTotalHp(char);
+
+        // 시작 HP가 50 초과면, 전투 중 baseHP가 50 이하가 되는 순간 전투 불능
+        if (startBase > 50) {
+            if (baseHp <= 50) {
+                char.battleIncapacitated = true;
+                this.addLog(`  🟡 ${char.name} 전투 불능! (시작 HP ${startBase} > 50, 현재 HP ${baseHp} ≤ 50)${cause ? ` · ${cause}` : ''}`);
+            }
+            return;
+        }
+
+        // 시작 HP가 50 이하이면, 전투 중 totalHP가 0 이하가 되는 순간 사망
+        if (totalHp <= 0) {
+            char.battleDead = true;
+            char.hp = 0;
+            // 로스터에도 표시될 수 있도록 상태를 dead로 둠(기존 시스템과 호환)
+            char.status = 'dead';
+            this.addLog(`  💀 ${char.name} 사망! (시작 HP ${startBase} ≤ 50, 현재 HP 0)${cause ? ` · ${cause}` : ''}`);
+        }
     }
 
     getShieldHp(char) {
@@ -952,6 +1014,8 @@ class BattleSystem {
         const afterShield = Math.max(0, beforeShield - shieldAbsorbed);
         defender.hp = afterBase + afterShield;
 
+        this.evaluateHpStateTransition(defender, { cause: '피해' });
+
         return { shieldAbsorbed, hpDamage, totalDamage: shieldAbsorbed + hpDamage };
     }
 
@@ -971,6 +1035,7 @@ class BattleSystem {
 
         const afterBase = Math.min(maxHp, base + heal);
         target.hp = afterBase + shield;
+        // 힐로는 전투 불능/사망 상태가 되돌아가지 않음(상태는 고정)
         return afterBase - base;
     }
 
@@ -2073,9 +2138,9 @@ class BattleSystem {
      * 전투 종료 확인
      */
     checkBattleEnd() {
-        const heroAlive = this.combatCharacters.hero.some(c => this.getTotalHp(c) > 0);
-        const govAlive = this.combatCharacters.gov.some(c => this.getTotalHp(c) > 0);
-        const villainAlive = this.combatCharacters.villain.some(c => this.getTotalHp(c) > 0);
+        const heroAlive = this.combatCharacters.hero.some(c => this.isCombatCapable(c));
+        const govAlive = this.combatCharacters.gov.some(c => this.isCombatCapable(c));
+        const villainAlive = this.combatCharacters.villain.some(c => this.isCombatCapable(c));
 
         // 규칙: 히어로+정부 연합 vs 빌런
         const allyAlive = heroAlive || govAlive;
@@ -2091,9 +2156,9 @@ class BattleSystem {
      * 전투 종료
      */
     endBattle() {
-        const heroAlive = this.combatCharacters.hero.some(c => c.hp > 0);
-        const govAlive = this.combatCharacters.gov.some(c => c.hp > 0);
-        const villainAlive = this.combatCharacters.villain.some(c => c.hp > 0);
+        const heroAlive = this.combatCharacters.hero.some(c => this.isCombatCapable(c));
+        const govAlive = this.combatCharacters.gov.some(c => this.isCombatCapable(c));
+        const villainAlive = this.combatCharacters.villain.some(c => this.isCombatCapable(c));
 
         let winner = '미정';
         const allyAlive = heroAlive || govAlive;

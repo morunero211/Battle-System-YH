@@ -233,7 +233,10 @@ class BattleActions {
             const buttons = document.createElement('div');
             buttons.className = 'skill-target-buttons';
 
-            const chars = (this.app.battleSystem?.combatCharacters?.[t] || []).filter(c => (Number(c.hp) || 0) > 0);
+            const chars = (this.app.battleSystem?.combatCharacters?.[t] || []).filter(c => {
+                const bs = this.app?.battleSystem;
+                return typeof bs?.isCombatCapable === 'function' ? bs.isCombatCapable(c) : ((Number(c.hp) || 0) > 0);
+            });
             const filtered = chars.filter(c => {
                 if (skillType !== '공격형' && mode === 'multi' && !includeSelf) {
                     return c.id !== attacker?.id;
@@ -759,7 +762,9 @@ class BattleActions {
         const targetChars = this.app.battleSystem.combatCharacters[targetTeam];
         const target = targetChars.find(c => c.id === targetCharId);
         
-        if (!target || target.hp <= 0) {
+        const bs = this.app?.battleSystem;
+        const okTarget = target && (typeof bs?.isCombatCapable === 'function' ? bs.isCombatCapable(target) : (target.hp > 0));
+        if (!okTarget) {
             this.uiAlert('대상 오류', '유효한 대상이 아닙니다!');
             return;
         }
