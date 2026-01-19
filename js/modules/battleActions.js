@@ -532,7 +532,7 @@ class BattleActions {
                 '취소'
             );
 
-            if (ok) this.handleTimeoutEnd();
+            if (ok) await this.handleTimeoutEnd();
         });
 
         // 전투 결과 모달 닫기
@@ -565,7 +565,7 @@ class BattleActions {
         };
     }
 
-    handleTimeoutEnd() {
+    async handleTimeoutEnd() {
         const outcome = this.computeTimeoutOutcome();
 
         this.app.battleSystem.addLog('⏱️ 시간 종료! 현재 HP 상태로 승패를 판정합니다.');
@@ -587,7 +587,43 @@ class BattleActions {
             };
         }
 
+        // 로컬 저장은 유지하되, "시간 종료"에서는 전체 teams 원격 저장을 하지 않음
+        const prevSkipRemoteSave = !!this.app.skipRemoteSave;
+        this.app.skipRemoteSave = true;
         this.app.saveToLocalStorage();
+        this.app.skipRemoteSave = prevSkipRemoteSave;
+
+        // 참가자만 HP/스킬 사용 여부를 Firestore에 별도로 저장
+        try {
+            const bs = this.app?.battleSystem;
+            const used = bs?.usedUltimate || {};
+            const teamOrder = ['hero', 'gov', 'villain'];
+            const participants = teamOrder.flatMap((teamKey) => {
+                const list = Array.isArray(bs?.combatCharacters?.[teamKey]) ? bs.combatCharacters[teamKey] : [];
+                return list
+                    .filter((c) => c && c.id)
+                    .map((c) => ({
+                        id: String(c.id),
+                        name: c.name || null,
+                        teamKey,
+                        hp: bs?.getBaseHp ? bs.getBaseHp(c) : (Number.isFinite(Number(c.hp)) ? Math.round(Number(c.hp)) : 0),
+                        shieldHp: bs?.getShieldHp ? bs.getShieldHp(c) : (Number.isFinite(Number(c.shieldHp)) ? Math.round(Number(c.shieldHp)) : 0),
+                        totalHp: bs?.getTotalHp ? bs.getTotalHp(c) : null,
+                        usedUltimate: !!used[String(c.id)]
+                    }));
+            });
+
+            const battleId = lastRecord?.id || null;
+            await this.app?.dataManager?.saveBattleParticipantsSnapshotToFirestore?.({
+                battleId,
+                endReason: 'TIMEOUT',
+                winner: outcome.winner,
+                participants,
+                extra: lastRecord?.scores || null
+            });
+        } catch (e) {
+            console.error('참가자 스냅샷 저장 중 오류:', e);
+        }
 
         // 전투는 종료 처리(추가 액션 방지)
         this.app.battleSystem.setActionButtonsEnabled(false);

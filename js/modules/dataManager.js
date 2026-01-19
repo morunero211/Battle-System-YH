@@ -517,6 +517,76 @@ class DataManager {
     }
 
     /**
+     * 전투 참가자 상태(HP/스킬 사용)만 별도 Firestore에 저장
+     * - 전체 teams를 저장하지 않음
+     * - 로그인 상태일 때만 동작
+     */
+    async saveBattleParticipantsSnapshotToFirestore({ battleId = null, endReason = 'TIMEOUT', winner = null, participants = [], extra = null } = {}) {
+        const db = this.getFirestore();
+        if (!db) {
+            console.warn('Firestore가 초기화되지 않아 참가자 스냅샷 저장을 건너뜁니다.');
+            return false;
+        }
+
+        if (!this.userId) {
+            console.warn('로그인 정보가 없어 참가자 스냅샷 저장을 건너뜁니다.');
+            return false;
+        }
+
+        try {
+            const docRef = this.getDocRef(db);
+            if (!docRef) return false;
+
+            const now = new Date();
+            const snapshotId = `${battleId || 'battle'}_${now.getTime()}`;
+
+            const participantState = {};
+            const participantIds = [];
+            (Array.isArray(participants) ? participants : []).forEach((p) => {
+                const id = p?.id;
+                if (!id) return;
+                const key = String(id);
+                participantIds.push(key);
+                participantState[key] = {
+                    id: key,
+                    name: p?.name || null,
+                    teamKey: p?.teamKey || null,
+                    hp: Number.isFinite(Number(p?.hp)) ? Math.round(Number(p.hp)) : 0,
+                    shieldHp: Number.isFinite(Number(p?.shieldHp)) ? Math.round(Number(p.shieldHp)) : 0,
+                    totalHp: Number.isFinite(Number(p?.totalHp)) ? Math.round(Number(p.totalHp)) : null,
+                    usedUltimate: !!p?.usedUltimate
+                };
+            });
+
+            const payload = {
+                battleId: battleId || null,
+                endReason: String(endReason || 'TIMEOUT'),
+                winner: winner || null,
+                participantIds,
+                participantState,
+                createdAt: now.toISOString()
+            };
+
+            if (extra && typeof extra === 'object') payload.extra = extra;
+
+            // 서버 타임스탬프가 가능하면 함께 저장
+            try {
+                if (window.firebase?.firestore?.FieldValue?.serverTimestamp) {
+                    payload.createdAtServer = window.firebase.firestore.FieldValue.serverTimestamp();
+                }
+            } catch {
+                // ignore
+            }
+
+            await docRef.collection('timeoutSnapshots').doc(snapshotId).set(payload, { merge: true });
+            return true;
+        } catch (error) {
+            console.error('참가자 스냅샷 Firestore 저장 실패:', error);
+            return false;
+        }
+    }
+
+    /**
      * JSON 파일 다운로드
      */
     downloadJSON() {
