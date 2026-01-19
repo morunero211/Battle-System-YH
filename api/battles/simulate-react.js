@@ -42,6 +42,29 @@ function gradeLabel(grade) {
   }
 }
 
+function gradeValue(grade) {
+  switch (grade) {
+    case 'EXTREME':
+      return 3;
+    case 'HARD':
+      return 2;
+    case 'SUCCESS':
+      return 1;
+    case 'FAIL':
+    default:
+      return 0;
+  }
+}
+
+function formatGradeComparison({ requiredGrade, actualGrade, mode }) {
+  const req = gradeLabel(requiredGrade);
+  const act = gradeLabel(actualGrade);
+  const diff = gradeValue(actualGrade) - gradeValue(requiredGrade);
+  const diffText = `${diff >= 0 ? '+' : ''}${diff}단계`;
+  const requirementText = mode === 'GT' ? '초과' : '이상';
+  return `요구(${requirementText})=${req} / 실제=${act} (${diffText})`;
+}
+
 function normalizeResponse(value) {
   if (value === 'DODGE' || value === 'COUNTER' || value === 'PASS' || value === 'DEFENSE_SKILL') return value;
   return 'PASS';
@@ -160,9 +183,21 @@ module.exports = async function handler(req, res) {
       if (result.counterAgiJudgment) {
         log.push(`  💨 반격(민첩) 판정: ${result.counterAgiJudgment.roll} / ${result.counterAgiJudgment.threshold} (${gradeLabel(result.counterAgiJudgment.grade)})`);
       }
+
+      // 상대(공격자)의 성공 등급 대비 요구조건 표시
+      if (attackJudgment?.grade && (result.counterJudgment?.grade || result.defenseJudgment?.grade) && result.counterAgiJudgment?.grade) {
+        const counterAtkGrade = (result.counterJudgment?.grade || result.defenseJudgment?.grade);
+        log.push(`  📌 반격 조건(공격): ${formatGradeComparison({ requiredGrade: attackJudgment.grade, actualGrade: counterAtkGrade, mode: 'GT' })}`);
+        log.push(`  📌 반격 조건(민첩): ${formatGradeComparison({ requiredGrade: attackJudgment.grade, actualGrade: result.counterAgiJudgment.grade, mode: 'GTE' })}`);
+      }
     } else if (result.defenseJudgment) {
       const label = response === 'DODGE' ? '회피' : '반격';
       log.push(`  🛡️ ${label} 판정: ${result.defenseJudgment.roll} / ${result.defenseJudgment.threshold} (${gradeLabel(result.defenseJudgment.grade)})`);
+
+      // 회피는 민첩 등급이 공격 등급 이상이어야 함
+      if (response === 'DODGE' && attackJudgment?.grade && result.defenseJudgment?.grade) {
+        log.push(`  📌 회피 조건(민첩): ${formatGradeComparison({ requiredGrade: attackJudgment.grade, actualGrade: result.defenseJudgment.grade, mode: 'GTE' })}`);
+      }
     }
 
     if (result.countered) {

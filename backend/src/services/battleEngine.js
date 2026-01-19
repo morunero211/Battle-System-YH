@@ -432,8 +432,8 @@ function resolveBasicAttack({
   if (response === 'DODGE') {
     defenseJudgment = judgeDodge(defenderChar.agi);
 
-    // 회피 성공: 판정이 성공 이상이면 무조건 데미지 없음
-    if (defenseJudgment.grade !== 'FAIL') {
+    // 회피 성공: 회피 등급 >= 공격 등급
+    if (compareGrades(defenseJudgment.grade, attackJudgment.grade) >= 0) {
       return {
         success: false,
         damage: 0,
@@ -450,14 +450,14 @@ function resolveBasicAttack({
     // 기존 로그 호환: defenseJudgment는 "반격(공격)" 판정으로 유지
     defenseJudgment = counterJudgment;
 
-    // 반격 성공: 반격(공격) + 민첩 판정이 모두 성공 이상이면 성공
-    const counterAtkOk = counterJudgment.grade !== 'FAIL';
-    const counterAgiOk = counterAgiJudgment.grade !== 'FAIL';
+    // 반격 성공: (1) 반격(공격) 등급 > 공격 등급 AND (2) 민첩(회피) 등급 >= 공격 등급
+    const counterAtkOk = compareGrades(counterJudgment.grade, attackJudgment.grade) > 0;
+    const counterAgiOk = compareGrades(counterAgiJudgment.grade, attackJudgment.grade) >= 0;
     if (counterAtkOk && counterAgiOk) {
-      // 반격 데미지 계산: 기본데미지(반격자 atk) -> 원래 공격자 방어력%로 감소
+      // 반격 데미지 계산: 요구사항 - 반격은 방어력 무시(공격자 방어력 적용하지 않음)
       const rawCounterDamage = rollRawDamage(BASIC_RAW_DAMAGE);
-      const counterDefensePercent = getDefenseReductionPercent(attackerChar.def);
-      counterDamage = applyDefenseReduction(rawCounterDamage, counterDefensePercent);
+      const counterDefensePercent = 0;
+      counterDamage = rawCounterDamage;
 
       // 반격 성공 시: 방어자는 고정 -2 데미지(요구사항)
       defenderSelfDamage = 2;
