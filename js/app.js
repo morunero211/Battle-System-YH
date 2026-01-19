@@ -42,6 +42,80 @@ class BattleApp {
         this.init();
     }
 
+    // ===== 헤더 티커(뉴스/공지) =====
+    getDefaultTickerMessages() {
+        return [
+            '공지 · 다크 테마 개선 진행 중 · 히어로(파랑) / 정부(초록) / 빌런(빨강) 컬러가 전 화면에 적용됩니다',
+            '전투 중 스킬 패널 가독성 상향 · 블럭 구분/대비 강화',
+            '수동 저장/불러오기 모드: 로그인 시 클라우드 불러오기 지원'
+        ];
+    }
+
+    loadTickerMessagesFromStorage() {
+        try {
+            const raw = window.localStorage?.getItem('battleTickerMessages');
+            if (!raw) return null;
+            const parsed = JSON.parse(raw);
+            if (!Array.isArray(parsed)) return null;
+            const cleaned = parsed
+                .map((m) => String(m ?? '').trim())
+                .filter((m) => m.length > 0)
+                .slice(0, 20);
+            return cleaned.length ? cleaned : null;
+        } catch {
+            return null;
+        }
+    }
+
+    saveTickerMessagesToStorage(messages) {
+        try {
+            window.localStorage?.setItem('battleTickerMessages', JSON.stringify(messages));
+        } catch {
+            // ignore
+        }
+    }
+
+    setTickerMessages(messages, { save = true } = {}) {
+        const track = this.elements?.tickerTrack;
+        if (!track) return false;
+
+        const cleaned = (Array.isArray(messages) ? messages : [messages])
+            .map((m) => String(m ?? '').trim())
+            .filter((m) => m.length > 0)
+            .slice(0, 20);
+
+        const finalMessages = cleaned.length ? cleaned : this.getDefaultTickerMessages();
+
+        const renderChunk = (list) =>
+            list
+                .map((text) => `<span class="ticker-item">${this.escapeHtml(text)}</span>`)
+                .join('<span class="ticker-sep">•</span>');
+
+        // 끊김 없는 스크롤을 위해 동일한 덩어리를 2번 반복
+        const chunk = renderChunk(finalMessages);
+        track.innerHTML = `${chunk}<span class="ticker-sep">•</span>${chunk}`;
+
+        // 애니메이션 리셋(문구 교체 시 즉시 반영)
+        track.style.animation = 'none';
+        // eslint-disable-next-line no-unused-expressions
+        track.offsetHeight;
+        track.style.animation = '';
+
+        if (save) this.saveTickerMessagesToStorage(finalMessages);
+        return true;
+    }
+
+    setTickerText(text, opts) {
+        return this.setTickerMessages([text], opts);
+    }
+
+    initTicker() {
+        const track = this.elements?.tickerTrack;
+        if (!track) return;
+        const stored = this.loadTickerMessagesFromStorage();
+        this.setTickerMessages(stored || this.getDefaultTickerMessages(), { save: false });
+    }
+
     /**
      * 수동 저장/불러오기 모드에서도, 로그인한 사용자가 있으면
      * 같은 계정의 클라우드(Firestore) 데이터를 불러올지 1회 물어봅니다.
@@ -98,6 +172,19 @@ class BattleApp {
         this.elements = {
             // 헤더
             header: document.querySelector('header'),
+
+            // 헤더 티커
+            tickerTrack: document.querySelector('.header-ticker .ticker-track'),
+
+            // 티커 편집
+            tickerEditBtn: document.getElementById('ticker-edit'),
+            tickerEditorModal: document.getElementById('ticker-editor-modal'),
+            tickerEditorClose: document.getElementById('ticker-editor-close'),
+            tickerEditorText: document.getElementById('ticker-editor-text'),
+            tickerEditorStatus: document.getElementById('ticker-editor-status'),
+            tickerEditorSave: document.getElementById('ticker-editor-save'),
+            tickerEditorCancel: document.getElementById('ticker-editor-cancel'),
+            tickerEditorReset: document.getElementById('ticker-editor-reset'),
             
             // 팀 리스트
             team1List: document.getElementById('team1-characters'),
@@ -208,6 +295,40 @@ class BattleApp {
         };
     }
 
+    openTickerEditor() {
+        const modal = this.elements?.tickerEditorModal;
+        const textarea = this.elements?.tickerEditorText;
+        if (!modal || !textarea) {
+            this.showToast?.('티커 편집 UI를 불러올 수 없습니다.', 'warning');
+            return;
+        }
+
+        const current = this.loadTickerMessagesFromStorage() || this.getDefaultTickerMessages();
+        textarea.value = current.join('\n');
+        this.updateTickerEditorStatus();
+        modal.style.display = 'flex';
+        textarea.focus();
+    }
+
+    closeTickerEditor() {
+        const modal = this.elements?.tickerEditorModal;
+        if (!modal) return;
+        modal.style.display = 'none';
+    }
+
+    updateTickerEditorStatus() {
+        const textarea = this.elements?.tickerEditorText;
+        const status = this.elements?.tickerEditorStatus;
+        if (!textarea || !status) return;
+
+        const lines = textarea.value
+            .split(/\r?\n/)
+            .map((l) => l.trim())
+            .filter((l) => l.length > 0);
+        const count = Math.min(20, lines.length);
+        status.textContent = `문구 ${count}개 · 빈 줄은 무시됩니다`;
+    }
+
     /**
      * 초기화
      */
@@ -280,7 +401,19 @@ class BattleApp {
         this.initSkillTemplateUI();
         this.initSkillTemplateLibraryUI();
 
+        // 헤더 상단 뉴스 티커
+        this.initTicker();
+
         // 개발 모드 로직 제거됨
+    }
+
+    escapeHtml(str) {
+        return String(str)
+            .replaceAll('&', '&amp;')
+            .replaceAll('<', '&lt;')
+            .replaceAll('>', '&gt;')
+            .replaceAll('"', '&quot;')
+            .replaceAll("'", '&#039;');
     }
 
     /**
@@ -1340,11 +1473,13 @@ class BattleApp {
         this.elements.team2Search?.addEventListener('input', (e) => this.handleSearch(1, e.target.value));
         this.elements.team3Search?.addEventListener('input', (e) => this.handleSearch(2, e.target.value));
 
-        // 헤더 클릭 시 홈으로
-        this.elements.header?.addEventListener('click', () => {
+        // 헤더 클릭 시 홈으로(버튼/입력 클릭은 제외)
+        this.elements.header?.addEventListener('click', (e) => {
+            const interactive = e.target?.closest?.('button, a, input, select, textarea, [role="button"], .nav-buttons');
+            if (interactive) return;
             this.showPage('character-selection');
         });
-        this.elements.header.style.cursor = 'pointer';
+        if (this.elements.header) this.elements.header.style.cursor = 'pointer';
 
         // 캐릭터 추가
         this.elements.addTeam1?.addEventListener('click', () => this.openAddCharacterModal(0));
@@ -1445,6 +1580,51 @@ class BattleApp {
         this.elements.navList?.addEventListener('click', () => this.showCharacterListPage());
         this.elements.navHistory?.addEventListener('click', () => this.showBattleHistoryPage());
         this.elements.navCombat?.addEventListener('click', () => this.showBattleCreationPage());
+
+        // 티커 편집
+        this.elements.tickerEditBtn?.addEventListener('click', (e) => {
+            e.stopPropagation();
+            e.preventDefault();
+            this.openTickerEditor();
+        });
+
+        this.elements.tickerEditorClose?.addEventListener('click', () => this.closeTickerEditor());
+        this.elements.tickerEditorCancel?.addEventListener('click', () => this.closeTickerEditor());
+        this.elements.tickerEditorModal?.addEventListener('click', (e) => {
+            if (e.target === this.elements.tickerEditorModal) this.closeTickerEditor();
+        });
+
+        this.elements.tickerEditorText?.addEventListener('input', () => this.updateTickerEditorStatus());
+
+        this.elements.tickerEditorReset?.addEventListener('click', () => {
+            const textarea = this.elements?.tickerEditorText;
+            if (!textarea) return;
+            textarea.value = this.getDefaultTickerMessages().join('\n');
+            this.updateTickerEditorStatus();
+        });
+
+        this.elements.tickerEditorSave?.addEventListener('click', async () => {
+            const textarea = this.elements?.tickerEditorText;
+            if (!textarea) return;
+
+            const messages = textarea.value
+                .split(/\r?\n/)
+                .map((l) => l.trim())
+                .filter((l) => l.length > 0)
+                .slice(0, 20);
+
+            if (!messages.length) {
+                await this.showAlert({
+                    title: '티커 편집',
+                    message: '문구가 비어있습니다. 최소 1줄 이상 입력해주세요.'
+                });
+                return;
+            }
+
+            this.setTickerMessages(messages, { save: true });
+            this.closeTickerEditor();
+            this.showToast?.('티커 문구가 저장되었습니다.', 'success');
+        });
 
         // 새 전투 생성 버튼 (⚔️ 팀전) - 캐릭터 선택 페이지 유지
         document.getElementById('new-battle-btn')?.addEventListener('click', () => {
@@ -1758,11 +1938,9 @@ class BattleApp {
             
             // 상태에 따라 스타일 추가
             if (char.status === 'dead') {
-                item.style.opacity = '0.6';
-                item.style.background = '#fed7d7';
+                item.classList.add('is-dead');
             } else if (char.status === 'missing') {
-                item.style.opacity = '0.7';
-                item.style.background = '#feebc8';
+                item.classList.add('is-missing');
             }
             
             const checkbox = document.createElement('input');

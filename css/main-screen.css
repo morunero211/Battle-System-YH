@@ -34,10 +34,23 @@
     width: 100%;
 }
 
+/* 팀 컬러(히어로/정부/빌런) 강조 */
+.teams-grid .team-box:nth-child(1) { border-top: 5px solid var(--team-hero); }
+.teams-grid .team-box:nth-child(2) { border-top: 5px solid var(--team-gov); }
+.teams-grid .team-box:nth-child(3) { border-top: 5px solid var(--team-villain); }
+
+.teams-grid .team-box:nth-child(1) .team-title { color: var(--team-hero); }
+.teams-grid .team-box:nth-child(2) .team-title { color: var(--team-gov); }
+.teams-grid .team-box:nth-child(3) .team-title { color: var(--team-villain); }
+
 .team-box:hover {
     border-color: #667eea;
     box-shadow: 0 4px 16px rgba(102, 126, 234, 0.15);
 }
+
+.teams-grid .team-box:nth-child(1):hover { border-color: var(--team-hero); box-shadow: 0 4px 16px rgba(37, 99, 235, 0.18); }
+.teams-grid .team-box:nth-child(2):hover { border-color: var(--team-gov); box-shadow: 0 4px 16px rgba(22, 163, 74, 0.18); }
+.teams-grid .team-box:nth-child(3):hover { border-color: var(--team-villain); box-shadow: 0 4px 16px rgba(220, 38, 38, 0.18); }
 
 .team-title {
     color: #4a5568;
@@ -71,6 +84,11 @@
     border-color: #667eea;
     box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
 }
+
+/* 팀별 입력 포커스 색상 */
+#team1-search:focus { border-color: var(--team-hero); box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.18); }
+#team2-search:focus { border-color: var(--team-gov); box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.18); }
+#team3-search:focus { border-color: var(--team-villain); box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.18); }
 
 .search-input::placeholder {
     color: #a0aec0;
@@ -192,6 +210,19 @@
     background: #f7fafc;
 }
 
+/* 팀별 '추가' 버튼 */
+#add-team1 { border-color: #93c5fd; }
+#add-team2 { border-color: #86efac; }
+#add-team3 { border-color: #fca5a5; }
+
+#add-team1:hover { border-color: var(--team-hero); color: var(--team-hero); }
+#add-team2:hover { border-color: var(--team-gov); color: var(--team-gov); }
+#add-team3:hover { border-color: var(--team-villain); color: var(--team-villain); }
+
+/* 캐릭터 상태(사망/실종) - JS에서 클래스로 붙임 */
+.character-item.is-dead { opacity: 0.65; background: #fff1f2; border-color: #fecdd3; }
+.character-item.is-missing { opacity: 0.75; background: #fffbeb; border-color: #fde68a; }
+
 /* 선택된 캐릭터 섹션 */
 .selected-characters-section {
     background: #f8f9fc;
@@ -223,16 +254,24 @@
 }
 
 .selected-team:nth-child(1) {
-    border-color: #90cdf4;
+    border-color: var(--team-hero);
 }
 
 .selected-team:nth-child(2) {
-    border-color: #9ae6b4;
+    border-color: var(--team-gov);
 }
 
 .selected-team:nth-child(3) {
-    border-color: #fbb6ce;
+    border-color: var(--team-villain);
 }
+
+#hero-selected .team-label { color: var(--team-hero); }
+#gov-selected .team-label { color: var(--team-gov); }
+#villain-selected .team-label { color: var(--team-villain); }
+
+#hero-selected .selected-character { background: var(--team-hero-soft); border-color: #93c5fd; }
+#gov-selected .selected-character { background: var(--team-gov-soft); border-color: #86efac; }
+#villain-selected .selected-character { background: var(--team-villain-soft); border-color: #fca5a5; }
 
 .team-label {
     font-weight: 600;

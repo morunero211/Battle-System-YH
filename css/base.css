@@ -9,6 +9,21 @@
     box-sizing: border-box;
 }
 
+:root {
+    --team-hero: #2563eb;
+    --team-gov: #16a34a;
+    --team-villain: #dc2626;
+
+    --team-hero-soft: #dbeafe;
+    --team-gov-soft: #dcfce7;
+    --team-villain-soft: #fee2e2;
+
+    /* 헤더 상단 티커 높이(고정) */
+    --ticker-height: 26px;
+    /* 전투 화면 sticky 요소가 헤더/티커 아래로 내려가도록 보정 */
+    --combat-sticky-top: calc(var(--ticker-height) + 74px);
+}
+
 body {
     font-family: 'Noto Sans KR', 'Segoe UI', -apple-system, BlinkMacSystemFont, 'Roboto', sans-serif;
     background: #e8e9f3;
@@ -29,6 +44,64 @@ body {
     flex-direction: column;
 }
 
+/* 헤더 상단 뉴스 티커 */
+.header-ticker {
+    position: sticky;
+    top: 0;
+    z-index: 11;
+    height: var(--ticker-height);
+    margin-bottom: 10px;
+    border-radius: 14px;
+    background: linear-gradient(90deg, rgba(15, 23, 42, 0.92) 0%, rgba(88, 28, 28, 0.92) 60%, rgba(15, 23, 42, 0.92) 100%);
+    border: 1px solid rgba(15, 23, 42, 0.18);
+    box-shadow: 0 6px 18px rgba(0,0,0,0.10);
+    overflow: hidden;
+}
+
+.ticker-viewport {
+    height: 100%;
+    display: flex;
+    align-items: center;
+}
+
+.ticker-track {
+    display: inline-flex;
+    align-items: center;
+    gap: 14px;
+    padding-left: 100%;
+    white-space: nowrap;
+    will-change: transform;
+    animation: headerTickerScroll 22s linear infinite;
+    font-size: 12px;
+    font-weight: 700;
+    color: rgba(255,255,255,0.92);
+    letter-spacing: -0.2px;
+}
+
+.header-ticker:hover .ticker-track {
+    animation-play-state: paused;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .ticker-track {
+        animation: none;
+        padding-left: 0;
+    }
+}
+
+.ticker-item {
+    opacity: 0.95;
+}
+
+.ticker-sep {
+    opacity: 0.65;
+}
+
+@keyframes headerTickerScroll {
+    0% { transform: translateX(0); }
+    100% { transform: translateX(-100%); }
+}
+
 /* 헤더 */
 .app-header {
     display: flex;
@@ -41,7 +114,7 @@ body {
     margin-bottom: 16px;
     box-shadow: 0 6px 20px rgba(0,0,0,0.06);
     position: sticky;
-    top: 0;
+    top: var(--ticker-height);
     z-index: 10;
 }
 

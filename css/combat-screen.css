@@ -61,7 +61,7 @@ main #combat-screen {
 /* 캐릭터 표시(팀 카드) 고정: 화면이 스크롤되어도 상단에 붙어서 항상 보이게 */
 .team-cards-row {
     position: sticky;
-    top: 74px; /* app-header( sticky ) 아래로 */
+    top: var(--combat-sticky-top, 74px); /* 티커 + 헤더 아래로 */
     z-index: 5;
     background: #e8e9f3;
     padding: 10px 8px;
@@ -73,7 +73,7 @@ main #combat-screen {
 /* 우측 사이드(실시간)도 고정 */
 .combat-side {
     position: sticky;
-    top: 74px;
+    top: var(--combat-sticky-top, 74px);
     align-self: start;
 }
 
@@ -91,6 +91,10 @@ main #combat-screen {
     margin-bottom: 10px;
 }
 
+.team-card.team-hero .team-card-title { color: var(--team-hero); }
+.team-card.team-gov .team-card-title { color: var(--team-gov); }
+.team-card.team-villain .team-card-title { color: var(--team-villain); }
+
 .combat-characters { display: flex; flex-direction: column; gap: 8px; }
 
 /* 팀 카드 */
@@ -100,6 +104,26 @@ main #combat-screen {
     border-radius: 16px;
     padding: 12px;
     transition: all 0.2s ease;
+}
+
+/* 3팀 컬러(라이트/다크 공통 변수 기반) */
+.team-card.team-hero { border-left: 4px solid var(--team-hero); }
+.team-card.team-gov { border-left: 4px solid var(--team-gov); }
+.team-card.team-villain { border-left: 4px solid var(--team-villain); }
+
+.team-card.team-hero:hover {
+    border-color: var(--team-hero);
+    box-shadow: 0 6px 20px rgba(37, 99, 235, 0.15);
+}
+
+.team-card.team-gov:hover {
+    border-color: var(--team-gov);
+    box-shadow: 0 6px 20px rgba(22, 163, 74, 0.14);
+}
+
+.team-card.team-villain:hover {
+    border-color: var(--team-villain);
+    box-shadow: 0 6px 20px rgba(220, 38, 38, 0.14);
 }
 
 .team-card.team-a {
@@ -151,6 +175,21 @@ main #combat-screen {
 .combat-char-card.is-current {
     border-color: rgba(49, 130, 206, 0.65);
     box-shadow: 0 6px 18px rgba(49, 130, 206, 0.18);
+}
+
+.combat-char-card.is-current[data-team="hero"] {
+    border-color: rgba(37, 99, 235, 0.75);
+    box-shadow: 0 6px 18px rgba(37, 99, 235, 0.18);
+}
+
+.combat-char-card.is-current[data-team="gov"] {
+    border-color: rgba(22, 163, 74, 0.75);
+    box-shadow: 0 6px 18px rgba(22, 163, 74, 0.16);
+}
+
+.combat-char-card.is-current[data-team="villain"] {
+    border-color: rgba(220, 38, 38, 0.75);
+    box-shadow: 0 6px 18px rgba(220, 38, 38, 0.16);
 }
 
 .combat-char-card:hover {

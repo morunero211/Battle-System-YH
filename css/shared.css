@@ -688,6 +688,21 @@ textarea:focus {
     max-height: calc(80vh - 90px);
 }
 
+/* 티커 편집 */
+.ticker-editor-textarea {
+    width: 100%;
+    min-height: 220px;
+    resize: vertical;
+    padding: 12px;
+    border: 1px solid #cbd5e0;
+    border-radius: 10px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    font-size: 12px;
+    line-height: 1.55;
+    background: #f8fafc;
+    color: #1f2937;
+}
+
 /* ===== 캐릭터 상세 모달(2단 레이아웃) ===== */
 #custom-character-modal .modal-content {
     max-width: 1180px;
