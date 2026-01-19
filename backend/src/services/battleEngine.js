@@ -55,8 +55,17 @@ function rollInt(min, max) {
 }
 
 // ===== 전투 밸런스(정수 기반) =====
-// 기본공격 rawDamage 범위: 회의 결과로 3~10 또는 3~13 중 하나로 결정
-const BASIC_RAW_DAMAGE = { min: 3, max: 10 };
+// 기본공격 rawDamage 범위(요청 반영):
+// - 공격 스탯 1,2 = 3 ~ 13
+// - 공격 스탯 3,4 = 4 ~ 13
+// - 공격 스탯 5   = 5 ~ 13
+const BASIC_RAW_DAMAGE_BY_ATK_STAT = {
+  1: { min: 3, max: 13 },
+  2: { min: 3, max: 13 },
+  3: { min: 4, max: 13 },
+  4: { min: 4, max: 13 },
+  5: { min: 5, max: 13 }
+};
 
 // 공격형 스킬 데미지 테이블(이미지 기반)
 // format: { max | min (+ 1~N) }
@@ -249,14 +258,9 @@ function getDamageFromRuleSet(ruleSet, atkStat, defStat) {
  * - 테이블이 없거나 값이 비정상이면 안전하게 기존 랜덤 범위로 폴백
  */
 function getBasicAttackRawDamage(battle, attackerChar, defenderChar) {
-  const ruleSet = battle?.ruleSet || DEFAULT_RULESET;
   const atkStat = Math.max(1, Math.min(5, Math.round(Number(attackerChar?.atk) || 1)));
-  const defStat = Math.max(1, Math.min(5, Math.round(Number(defenderChar?.def) || 1)));
-  const base = getDamageFromRuleSet(ruleSet, atkStat, defStat);
-  if (Number.isFinite(Number(base)) && Number(base) > 0) {
-    return Math.floor(Number(base));
-  }
-  return rollRawDamage(BASIC_RAW_DAMAGE);
+  const range = BASIC_RAW_DAMAGE_BY_ATK_STAT[atkStat] || BASIC_RAW_DAMAGE_BY_ATK_STAT[1];
+  return rollRawDamage(range);
 }
 
 /**
@@ -344,8 +348,8 @@ function executeBasicAttack({
     const counterAtkOk = compareGrades(counterJudgment.grade, attackJudgment.grade) > 0;
     const counterAgiOk = compareGrades(counterAgiJudgment.grade, attackJudgment.grade) >= 0;
     if (counterAtkOk && counterAgiOk) {
-      // 반격 데미지 계산: 기본데미지(반격자 atk) -> 원래 공격자 방어력%로 감소
-      const rawCounterDamage = rollRawDamage(BASIC_RAW_DAMAGE);
+      // 반격 데미지 계산: 기본공격과 동일한 원데미지 룰(공격 스탯 기반 범위)
+      const rawCounterDamage = getBasicAttackRawDamage(battle, defenderChar, attackerChar);
       // 요구사항: 반격은 방어력 무시(공격자 방어력 적용하지 않음)
       const counterDefensePercent = 0;
       counterDamage = rawCounterDamage;
