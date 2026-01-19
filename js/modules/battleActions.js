@@ -634,6 +634,11 @@ class BattleActions {
             return;
         }
 
+        // 턴 스킵 상태면 스킬 시도 자체를 확정 실패로 처리(강제 턴 종료)
+        if (this.app?.battleSystem?.enforceSkipAsForcedFailIfNeeded?.()) {
+            return;
+        }
+
         const entry = this.app?.battleSystem?.getCurrentTurnEntry?.();
         const teamKey = entry?.teamKey;
         const attacker = entry?.char;
@@ -693,6 +698,11 @@ class BattleActions {
      * 공격 대상 선택
      */
     selectTargetForAttack() {
+        // 턴 스킵 상태면 공격 시도 자체를 확정 실패로 처리(강제 턴 종료)
+        if (this.app?.battleSystem?.enforceSkipAsForcedFailIfNeeded?.()) {
+            return;
+        }
+
         const entry = this.app?.battleSystem?.getCurrentTurnEntry?.();
         const teamKey = entry?.teamKey;
         if (!teamKey) return;
@@ -748,6 +758,11 @@ class BattleActions {
      */
     async performAction(targetTeam, targetCharId) {
         this.targetSelectionMode = false;
+
+        // 타겟 선택 도중에도 스킵 상태라면 즉시 확정 실패 처리
+        if (this.app?.battleSystem?.enforceSkipAsForcedFailIfNeeded?.()) {
+            return;
+        }
 
         const entry = this.app?.battleSystem?.getCurrentTurnEntry?.();
         const currentTeamName = entry?.teamKey;

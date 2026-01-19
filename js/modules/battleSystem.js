@@ -1311,6 +1311,29 @@ class BattleSystem {
         return true;
     }
 
+    /**
+     * 스킵(지원형) 상태면 해당 캐릭터의 이번 행동을 "확정 실패"로 처리하고
+     * 즉시 턴을 넘깁니다. (UI 흐름 상 nextTurn만으로는 스킵이 체감되지 않는 케이스를 방지)
+     * @returns {boolean} 스킵을 처리해 턴을 넘겼으면 true
+     */
+    enforceSkipAsForcedFailIfNeeded() {
+        const entry = this.getCurrentTurnEntry();
+        const actor = entry?.char;
+        if (!actor) return false;
+
+        const skipped = this.consumeSkipTurnIfAny(actor);
+        if (!skipped) return false;
+
+        const nm = actor?.name || '대상';
+        this.addLog(`⛔ ${nm} 행동 확정 실패: 턴 스킵 상태`);
+        this.addLog(`⏭️ ${nm}의 턴이 스킵되었습니다.`);
+        this.showSkipTurnModal([nm]);
+
+        // 스킵 처리 후 다음 턴으로 진행
+        this.nextTurn();
+        return true;
+    }
+
     executeSupportSkillMulti(attacker, targets, attackerTeamKey, supportMode = 'AUTO', supportOptions = {}) {
         const list = Array.isArray(targets) ? targets.filter(Boolean) : [];
         const n = list.length;
