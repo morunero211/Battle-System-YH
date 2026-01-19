@@ -1153,11 +1153,21 @@ class BattleSystem {
 
             // 스탯별로 "사용/트리거 시 1회 소모"되도록 분리 적용
             const ctx = { attacker, teamKey: attackerTeamKey, targets: list };
-            this.applyConsumableStatMod(t, 'attack', signed, ctx, { durationRounds: 999 });
-            this.applyConsumableStatMod(t, 'agility', signed, ctx, { durationRounds: 999 });
-            this.applyConsumableStatMod(t, 'defense', signed, ctx, { durationRounds: 999 });
-            this.applyConsumableStatMod(t, 'skill', signed, ctx, { durationRounds: 999 });
-            this.addLog(`  🎯 대상: ${t.name} (${isAlly ? '버프' : '디버프'}: 공격/민첩/방어/스킬 ${signed >= 0 ? '+' : ''}${signed}, 해당 스탯 1회 사용 후 소멸)`);
+
+            const allowedStats = ['attack', 'agility', 'defense', 'skill'];
+            const picked = Array.isArray(supportOptions?.basicStats) && supportOptions.basicStats.length
+                ? allowedStats.filter((k) => supportOptions.basicStats.map(String).includes(k))
+                : allowedStats;
+
+            picked.forEach((statKey) => {
+                this.applyConsumableStatMod(t, statKey, signed, ctx, { durationRounds: 999 });
+            });
+
+            const label = picked
+                .map((k) => (k === 'attack' ? '공격' : (k === 'agility' ? '민첩' : (k === 'defense' ? '방어' : '스킬'))))
+                .join('/');
+
+            this.addLog(`  🎯 대상: ${t.name} (${isAlly ? '버프' : '디버프'}: ${label} ${signed >= 0 ? '+' : ''}${signed}, 해당 스탯 1회 사용 후 소멸)`);
         });
 
         if (attacker && attacker.id) {
@@ -1668,18 +1678,18 @@ class BattleSystem {
                         body: JSON.stringify({
                             attacker: {
                                 name: attacker.name,
-                                attack: attacker.attack ?? attacker.atk,
-                                defense: attacker.defense ?? attacker.def,
-                                agility: attacker.agility ?? attacker.agi,
-                                skill: attacker.skill ?? attacker.skillStat
+                                attack: this.getEffectiveStat(attacker, 'attack'),
+                                defense: this.getEffectiveStat(attacker, 'defense'),
+                                agility: this.getEffectiveStat(attacker, 'agility'),
+                                skill: this.getEffectiveStat(attacker, 'skill')
                             },
                             defender: {
                                 name: defender.name,
                                 hp: defender.hp,
                                 maxHp: defender.maxHp,
-                                attack: defender.attack ?? defender.atk,
-                                defense: defender.defense ?? defender.def,
-                                agility: defender.agility ?? defender.agi
+                                attack: this.getEffectiveStat(defender, 'attack'),
+                                defense: this.getEffectiveStat(defender, 'defense'),
+                                agility: this.getEffectiveStat(defender, 'agility')
                             }
                         })
                     });

@@ -549,12 +549,24 @@ class BattleApp {
                 const primarySkillType = Array.isArray(c.skillTypes) ? c.skillTypes[0] : null;
                 if (primarySkillType === '지원형') {
                     const tpl = String(c?.supportConfig?.template || 'BASIC').toUpperCase();
-                    const template = (tpl === 'TURN_SKIP' || tpl === 'CANCEL') ? tpl : 'BASIC';
                     const bm = String(c?.supportConfig?.basicMode || 'BUFF').toUpperCase();
-                    const basicMode = (bm === 'DEBUFF' || bm === 'DISPEL') ? bm : 'BUFF';
                     const ck = String(c?.supportConfig?.cancelKind || 'BUFF').toUpperCase();
-                    const cancelKind = (ck === 'DEBUFF') ? 'DEBUFF' : 'BUFF';
-                    c.supportConfig = { template, basicMode, cancelKind };
+
+                    // DISPEL(버프 제거)은 중복/정책 변경으로 CANCEL(버프 캔슬)로 마이그레이션
+                    const dispelRequested = bm === 'DISPEL';
+                    const template = dispelRequested
+                        ? 'CANCEL'
+                        : ((tpl === 'TURN_SKIP' || tpl === 'CANCEL') ? tpl : 'BASIC');
+                    const basicMode = (bm === 'DEBUFF') ? 'DEBUFF' : 'BUFF';
+                    const cancelKind = dispelRequested ? 'BUFF' : ((ck === 'DEBUFF') ? 'DEBUFF' : 'BUFF');
+
+                    const allowedStats = ['attack', 'agility', 'defense', 'skill'];
+                    const statsRaw = Array.isArray(c?.supportConfig?.basicStats) ? c.supportConfig.basicStats : null;
+                    const basicStats = (statsRaw && statsRaw.length)
+                        ? allowedStats.filter((k) => statsRaw.map(String).includes(k))
+                        : allowedStats;
+
+                    c.supportConfig = { template, basicMode, cancelKind, basicStats };
                 }
 
                 // 스킬 사용 횟수/잠금 (희귀 스킬)
@@ -614,6 +626,7 @@ class BattleApp {
 
         const supportConfigWrap = document.getElementById('support-skill-config');
         const supportBasicWrap = document.getElementById('support-basic-mode-config');
+        const supportBasicStatsWrap = document.getElementById('support-basic-stats-config');
         const supportCancelKindWrap = document.getElementById('support-cancel-kind-config');
         const supportTemplateRadios = Array.from(document.querySelectorAll('input[name="supportTemplateDefault"]'));
 
@@ -633,6 +646,9 @@ class BattleApp {
             const tpl = getSupportTemplate();
             if (supportBasicWrap) {
                 supportBasicWrap.style.display = (tpl === 'BASIC') ? 'block' : 'none';
+            }
+            if (supportBasicStatsWrap) {
+                supportBasicStatsWrap.style.display = (tpl === 'BASIC') ? 'block' : 'none';
             }
             if (supportCancelKindWrap) {
                 supportCancelKindWrap.style.display = (tpl === 'CANCEL') ? 'block' : 'none';
@@ -2300,11 +2316,13 @@ class BattleApp {
 
         // 지원형 기본 설정(템플릿/기본 모드)
         const tpl = String(char?.supportConfig?.template || 'BASIC').toUpperCase();
-        const template = (tpl === 'TURN_SKIP' || tpl === 'CANCEL') ? tpl : 'BASIC';
         const bm = String(char?.supportConfig?.basicMode || 'BUFF').toUpperCase();
-        const basicMode = (bm === 'DEBUFF' || bm === 'DISPEL') ? bm : 'BUFF';
         const ck = String(char?.supportConfig?.cancelKind || 'BUFF').toUpperCase();
-        const cancelKind = (ck === 'DEBUFF') ? 'DEBUFF' : 'BUFF';
+
+        const dispelRequested = bm === 'DISPEL';
+        const template = dispelRequested ? 'CANCEL' : ((tpl === 'TURN_SKIP' || tpl === 'CANCEL') ? tpl : 'BASIC');
+        const basicMode = (bm === 'DEBUFF') ? 'DEBUFF' : 'BUFF';
+        const cancelKind = dispelRequested ? 'BUFF' : ((ck === 'DEBUFF') ? 'DEBUFF' : 'BUFF');
 
         const tplRadio = document.querySelector(`input[name="supportTemplateDefault"][value="${template}"]`);
         if (tplRadio) tplRadio.checked = true;
@@ -2312,6 +2330,16 @@ class BattleApp {
         if (bmRadio) bmRadio.checked = true;
         const ckRadio = document.querySelector(`input[name="supportCancelKindDefault"][value="${cancelKind}"]`);
         if (ckRadio) ckRadio.checked = true;
+
+        // 기본 버프/디버프 적용 스탯(고정)
+        const allowedStats = ['attack', 'agility', 'defense', 'skill'];
+        const statsRaw = Array.isArray(char?.supportConfig?.basicStats) ? char.supportConfig.basicStats : null;
+        const basicStats = (statsRaw && statsRaw.length)
+            ? allowedStats.filter((k) => statsRaw.map(String).includes(k))
+            : allowedStats;
+        document.querySelectorAll('input[name="supportBasicStat"]').forEach((el) => {
+            el.checked = basicStats.includes(String(el.value));
+        });
 
         // 스킬 사용 횟수/잠금
         const usesMax = document.getElementById('skill-uses-max');
@@ -2405,6 +2433,11 @@ class BattleApp {
         const ck = document.querySelector('input[name="supportCancelKindDefault"][value="BUFF"]');
         if (ck) ck.checked = true;
 
+        // 지원형 기본 스탯(고정) 기본값: 모두 체크
+        document.querySelectorAll('input[name="supportBasicStat"]').forEach((el) => {
+            el.checked = true;
+        });
+
         // 스킬 사용 횟수 기본값
         const usesMax = document.getElementById('skill-uses-max');
         const usesUsed = document.getElementById('skill-uses-used');
@@ -2490,13 +2523,21 @@ class BattleApp {
         const supportBasicMode = (() => {
             const v = document.querySelector('input[name="supportBasicModeDefault"]:checked')?.value || 'BUFF';
             const up = String(v).toUpperCase();
-            return (up === 'DEBUFF' || up === 'DISPEL') ? up : 'BUFF';
+            return (up === 'DEBUFF') ? 'DEBUFF' : 'BUFF';
         })();
 
         const supportCancelKind = (() => {
             const v = document.querySelector('input[name="supportCancelKindDefault"]:checked')?.value || 'BUFF';
             const up = String(v).toUpperCase();
             return (up === 'DEBUFF') ? 'DEBUFF' : 'BUFF';
+        })();
+
+        const supportBasicStats = (() => {
+            const allowed = ['attack', 'agility', 'defense', 'skill'];
+            const checked = Array.from(document.querySelectorAll('input[name="supportBasicStat"]:checked'))
+                .map((el) => String(el.value));
+            const picked = allowed.filter((k) => checked.includes(k));
+            return picked.length ? picked : allowed;
         })();
 
         // 스킬 대상 설정(추가 UI)
@@ -2538,7 +2579,7 @@ class BattleApp {
                 char.status = status;
 
                 if (selectedSkillType === '지원형') {
-                    char.supportConfig = { template: supportTemplate, basicMode: supportBasicMode, cancelKind: supportCancelKind };
+                    char.supportConfig = { template: supportTemplate, basicMode: supportBasicMode, cancelKind: supportCancelKind, basicStats: supportBasicStats };
                 } else {
                     delete char.supportConfig;
                 }
@@ -2588,7 +2629,7 @@ class BattleApp {
             };
 
             if (selectedSkillType === '지원형') {
-                newChar.supportConfig = { template: supportTemplate, basicMode: supportBasicMode, cancelKind: supportCancelKind };
+                newChar.supportConfig = { template: supportTemplate, basicMode: supportBasicMode, cancelKind: supportCancelKind, basicStats: supportBasicStats };
             }
 
             if (skillTemplateId) {

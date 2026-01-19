@@ -358,7 +358,7 @@
                                         </div>
 
                                         <div id="support-basic-mode-config" style="display:none;">
-                                            <label>기본 모드(버프/디버프/버프 제거):</label>
+                                            <label>기본 모드(버프/디버프):</label>
                                             <div class="skill-target-selector">
                                                 <label class="skill-target-option">
                                                     <input type="radio" name="supportBasicModeDefault" value="BUFF" checked>
@@ -368,10 +368,29 @@
                                                     <input type="radio" name="supportBasicModeDefault" value="DEBUFF">
                                                     <span>디버프</span>
                                                 </label>
-                                                <label class="skill-target-option">
-                                                    <input type="radio" name="supportBasicModeDefault" value="DISPEL">
-                                                    <span>버프 제거</span>
-                                                </label>
+                                            </div>
+
+                                            <div id="support-basic-stats-config" style="margin-top:10px;">
+                                                <label>버프/디버프 적용 스탯(고정):</label>
+                                                <div class="skill-target-selector">
+                                                    <label class="skill-target-option">
+                                                        <input type="checkbox" name="supportBasicStat" value="attack" checked>
+                                                        <span>공격</span>
+                                                    </label>
+                                                    <label class="skill-target-option">
+                                                        <input type="checkbox" name="supportBasicStat" value="agility" checked>
+                                                        <span>민첩</span>
+                                                    </label>
+                                                    <label class="skill-target-option">
+                                                        <input type="checkbox" name="supportBasicStat" value="defense" checked>
+                                                        <span>방어</span>
+                                                    </label>
+                                                    <label class="skill-target-option">
+                                                        <input type="checkbox" name="supportBasicStat" value="skill" checked>
+                                                        <span>스킬</span>
+                                                    </label>
+                                                </div>
+                                                <div class="skill-config-note">※ 선택된 스탯에만 1회용 버프/디버프가 적용됩니다.</div>
                                             </div>
                                         </div>
 
@@ -882,10 +901,6 @@
                             <label class="skill-target-support-option">
                                 <input type="radio" name="supportMode" value="DEBUFF">
                                 <span>디버프(적 약화)</span>
-                            </label>
-                            <label class="skill-target-support-option">
-                                <input type="radio" name="supportMode" value="DISPEL">
-                                <span>버프 제거(적 버프 해제)</span>
                             </label>
                         </div>
 

@@ -55,6 +55,11 @@ body.dark-theme label {
     color: #e5e7eb;
 }
 
+/* 전투 결과 모달(시간 종료 등): 승리자 텍스트 대비 보정 */
+body.dark-theme #battle-result-winner {
+    color: #f8fafc !important;
+}
+
 /* 공유 컴포넌트(고정 색상 텍스트) 대비 보정 */
 body.dark-theme .skill-uses-readonly {
     color: #e5e7eb;
