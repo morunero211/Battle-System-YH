@@ -58,23 +58,15 @@ main #combat-screen {
 /* 좌측 메인 래퍼 */
 .combat-main { display: flex; flex-direction: column; gap: 16px; }
 
-/* 캐릭터 표시(팀 카드) 고정: 화면이 스크롤되어도 상단에 붙어서 항상 보이게 */
+/* 캐릭터 표시(팀 카드)
+   NOTE: 고정(sticky)은 로그 가시성을 크게 떨어뜨려 기본값에서는 해제합니다. */
 .team-cards-row {
-    position: sticky;
-    top: var(--combat-sticky-top, 74px); /* 티커 + 헤더 아래로 */
-    z-index: 5;
-    background: #e8e9f3;
-    padding: 10px 8px;
-    margin: -10px -8px 8px;
-    border-radius: 14px;
-    box-shadow: 0 8px 18px rgba(0,0,0,0.06);
+    position: static;
 }
 
-/* 우측 사이드(실시간)도 고정 */
+/* 우측 사이드(실시간)도 고정 해제 (스크롤 자연스럽게) */
 .combat-side {
-    position: sticky;
-    top: var(--combat-sticky-top, 74px);
-    align-self: start;
+    position: static;
 }
 
 /* 팀 카드들 행 */
@@ -88,7 +80,7 @@ main #combat-screen {
 .team-card-title {
     font-weight: 700;
     color: #4a5568;
-    margin-bottom: 10px;
+    margin-bottom: 8px;
 }
 
 .team-card.team-hero .team-card-title { color: var(--team-hero); }
@@ -102,7 +94,7 @@ main #combat-screen {
     background: white;
     border: 2px solid #e3e6f0;
     border-radius: 16px;
-    padding: 12px;
+    padding: 10px;
     transition: all 0.2s ease;
 }
 
@@ -166,8 +158,8 @@ main #combat-screen {
     background: #f8f9fc;
     border: 1px solid #e3e6f0;
     border-radius: 12px;
-    padding: 10px;
-    margin-bottom: 6px;
+    padding: 8px;
+    margin-bottom: 4px;
     transition: all 0.2s ease;
 
 }
@@ -256,7 +248,7 @@ main #combat-screen {
 .hp-bar-container {
     background: #e2e8f0;
     border-radius: 6px;
-    height: 16px;
+    height: 12px;
     overflow: hidden;
     border: 1px solid #cbd5e0;
 }
@@ -265,7 +257,7 @@ main #combat-screen {
     background: #e2e8f0;
     border: 1px solid #cbd5e0;
     border-radius: 6px;
-    height: 16px;
+    height: 12px;
     overflow: hidden;
 }
 .hp-bar span {
@@ -287,7 +279,7 @@ main #combat-screen {
     display: grid;
     grid-template-columns: repeat(4, auto);
     gap: 4px;
-    font-size: 0.95em;
+    font-size: 0.9em;
     margin-bottom: 6px;
 }
 
@@ -397,11 +389,13 @@ main #combat-screen {
     border: 2px solid #2d3748;
     border-radius: 12px;
     padding: 12px;
-    height: 420px;
+    height: clamp(520px, 62vh, 920px);
     overflow: hidden;
     font-family: 'Courier New', monospace;
     font-size: 0.95em;
     line-height: 1.5;
+    display: flex;
+    flex-direction: column;
 }
 
 .log-header {
@@ -448,7 +442,9 @@ main #combat-screen {
 }
 
 .log-content {
-    height: calc(100% - 74px);
+    flex: 1;
+    height: auto;
+    min-height: 240px;
     overflow-y: auto;
     padding-right: 4px;
 }
@@ -1164,7 +1160,7 @@ main #combat-screen {
     }
     
     .log-panel {
-        height: 200px;
+        height: clamp(360px, 52vh, 640px);
     }
     
     .combat-header-row {
