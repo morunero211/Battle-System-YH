@@ -244,6 +244,22 @@ function getDamageFromRuleSet(ruleSet, atkStat, defStat) {
 }
 
 /**
+ * 기본 공격/반격의 원데미지 계산
+ * - 스탯별로 입력된 RuleSet damageTable(atk x def)을 최우선으로 사용
+ * - 테이블이 없거나 값이 비정상이면 안전하게 기존 랜덤 범위로 폴백
+ */
+function getBasicAttackRawDamage(battle, attackerChar, defenderChar) {
+  const ruleSet = battle?.ruleSet || DEFAULT_RULESET;
+  const atkStat = Math.max(1, Math.min(5, Math.round(Number(attackerChar?.atk) || 1)));
+  const defStat = Math.max(1, Math.min(5, Math.round(Number(defenderChar?.def) || 1)));
+  const base = getDamageFromRuleSet(ruleSet, atkStat, defStat);
+  if (Number.isFinite(Number(base)) && Number(base) > 0) {
+    return Math.floor(Number(base));
+  }
+  return rollRawDamage(BASIC_RAW_DAMAGE);
+}
+
+/**
  * RuleSet에서 방어 값 조회
  * @param {object} ruleSet - RuleSet 객체
  * @param {number} defStat - 방어자 def (1~5)
@@ -356,7 +372,7 @@ function executeBasicAttack({
   
   // 3. 데미지 계산
   // 기본 데미지는 공격자 atk만으로 산출(방어는 %감소로만 처리)
-  const rawDamage = rollRawDamage(BASIC_RAW_DAMAGE);
+  const rawDamage = getBasicAttackRawDamage(battle, attackerChar, defenderChar);
   const defensePercent = counterFailedPenalty ? 0 : getDefenseReductionPercent(defenderChar.def);
   damage = counterFailedPenalty ? rawDamage : applyDefenseReduction(rawDamage, defensePercent);
   blocked = defensePercent > 0;
@@ -455,7 +471,7 @@ function resolveBasicAttack({
     const counterAgiOk = compareGrades(counterAgiJudgment.grade, attackJudgment.grade) >= 0;
     if (counterAtkOk && counterAgiOk) {
       // 반격 데미지 계산: 요구사항 - 반격은 방어력 무시(공격자 방어력 적용하지 않음)
-      const rawCounterDamage = rollRawDamage(BASIC_RAW_DAMAGE);
+      const rawCounterDamage = getBasicAttackRawDamage(battle, defenderChar, attackerChar);
       const counterDefensePercent = 0;
       counterDamage = rawCounterDamage;
 
@@ -485,7 +501,7 @@ function resolveBasicAttack({
 
   // 3. 데미지 계산
   // 기본 데미지는 공격자 atk만으로 산출(방어는 %감소로만 처리)
-  const rawDamage = rollRawDamage(BASIC_RAW_DAMAGE);
+  const rawDamage = getBasicAttackRawDamage(battle, attackerChar, defenderChar);
   const defensePercent = counterFailedPenalty ? 0 : getDefenseReductionPercent(defenderChar.def);
   damage = counterFailedPenalty ? rawDamage : applyDefenseReduction(rawDamage, defensePercent);
   blocked = defensePercent > 0;
