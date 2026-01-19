@@ -67,9 +67,11 @@ app.use((req, res, next) => {
 // Routes
 const battleRoutes = require('./routes/battles');
 const dataRoutes = require('./routes/data');
+const firebaseRoutes = require('./routes/firebase');
 
 app.use('/api/battles', battleRoutes);
 app.use('/api/data', dataRoutes);
+app.use('/api/firebase', firebaseRoutes);
 
 // 편의상 루트 경로에도 라우트 연결
 app.use('/api/characters', dataRoutes);

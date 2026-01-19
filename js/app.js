@@ -30,6 +30,7 @@ class BattleApp {
         this.remoteSyncInterval = null; // Firestore 주기적 동기화 타이머
         this.currentUserId = null; // 로그인 사용자 ID
         this.currentUsername = null; // 현재 사용자 닉네임
+        this._cloudLoadPromptedForUserId = null; // 로그인 시 클라우드 불러오기 프롬프트 중복 방지
 
         // 저장/불러오기 정책
         // - true: 자동 저장/자동 로드/자동 원격 동기화 OFF (버튼으로만 저장/불러오기)
@@ -39,6 +40,55 @@ class BattleApp {
         // DOM 요소
         this.initElements();
         this.init();
+    }
+
+    /**
+     * 수동 저장/불러오기 모드에서도, 로그인한 사용자가 있으면
+     * 같은 계정의 클라우드(Firestore) 데이터를 불러올지 1회 물어봅니다.
+     */
+    async maybePromptCloudLoadOnLogin() {
+        try {
+            if (!this.manualPersistenceMode) return;
+            const uid = this.dataManager?.userId || null;
+            if (!uid) return;
+            if (this._cloudLoadPromptedForUserId === uid) return;
+            if (typeof this.showConfirm !== 'function') return;
+            if (typeof this.dataManager?.loadFromFirestore !== 'function') return;
+
+            this._cloudLoadPromptedForUserId = uid;
+
+            // 변경사항이 있으면, 먼저 경고
+            if (this._unsavedChanges) {
+                const ok = await this.showConfirm({
+                    title: '클라우드 불러오기',
+                    message: '저장되지 않은 변경사항이 있습니다. 클라우드에서 불러오면 현재 내용이 덮어써집니다. 계속할까요?',
+                    okText: '불러오기',
+                    cancelText: '취소'
+                });
+                if (!ok) return;
+            }
+
+            const ok = await this.showConfirm({
+                title: '클라우드 불러오기',
+                message: '같은 계정으로 다른 기기에서도 데이터를 공유하려면, 클라우드(Firestore) 데이터를 불러오면 됩니다. 지금 불러올까요?',
+                okText: '불러오기',
+                cancelText: '나중에'
+            });
+            if (!ok) return;
+
+            const loaded = await this.dataManager.loadFromFirestore({ force: true });
+            if (loaded) {
+                this.normalizePersistedData({ save: false });
+                this.renderAllTeams?.();
+                this.updateCharacterListPage?.();
+                this._unsavedChanges = false;
+                this.showToast?.('클라우드 불러오기 완료', 'success');
+            } else {
+                this.showToast?.('클라우드에 저장된 데이터가 없습니다.', 'info');
+            }
+        } catch (e) {
+            console.error('클라우드 불러오기 프롬프트 처리 실패:', e);
+        }
     }
 
     /**
@@ -209,6 +259,9 @@ class BattleApp {
         }
 
         this.renderAllTeams();
+
+        // 수동 모드에서도 로그인 상태라면 클라우드 불러오기 여부를 1회 확인
+        this.maybePromptCloudLoadOnLogin();
 
         // 수동 모드에서는 원격 자동 로드/폴링을 하지 않음
         if (!this.manualPersistenceMode) {
@@ -2568,7 +2621,8 @@ class BattleApp {
     }
 
     async manualLoadNow() {
-        // 수동 불러오기: 기본은 로컬에서만
+        // 수동 불러오기:
+        // - 기본은 로컬이지만, 로그인 상태면(동일 계정/다른 기기 동기화) Firestore(클라우드)도 선택 가능
         try {
             if (this._unsavedChanges) {
                 const ok = await this.showConfirm({
@@ -2578,6 +2632,31 @@ class BattleApp {
                     cancelText: '취소'
                 });
                 if (!ok) return;
+            }
+
+            const canRemoteLoad = !!(this.dataManager?.userId && typeof this.dataManager.loadFromFirestore === 'function');
+            let preferRemote = false;
+            if (canRemoteLoad) {
+                // OK=클라우드, Cancel=로컬
+                preferRemote = await this.showConfirm({
+                    title: '불러오기 원본',
+                    message: '로그인 상태입니다. 클라우드(Firestore)에서 불러올까요?\n(취소를 누르면 이 브라우저의 로컬 데이터를 불러옵니다.)',
+                    okText: '클라우드',
+                    cancelText: '로컬'
+                });
+            }
+
+            if (preferRemote && canRemoteLoad) {
+                const remoteLoaded = await this.dataManager.loadFromFirestore({ force: true });
+                if (remoteLoaded) {
+                    this.normalizePersistedData({ save: false });
+                    this.renderAllTeams?.();
+                    this.updateCharacterListPage?.();
+                    this._unsavedChanges = false;
+                    this.showToast?.('클라우드 불러오기 완료', 'success');
+                    return;
+                }
+                this.showToast?.('클라우드에 저장된 데이터가 없습니다. 로컬을 불러옵니다.', 'info');
             }
 
             const loaded = this.dataManager?.loadFromLocalStorage?.({ force: true });

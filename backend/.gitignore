@@ -3,4 +3,8 @@ node_modules/
 *.log
 .DS_Store
 
+# Firebase Admin service account key (DO NOT COMMIT)
+serviceAccountKey.json
+serviceAccountKey.*
+
 /src/generated/prisma

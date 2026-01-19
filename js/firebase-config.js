@@ -55,6 +55,8 @@ if (window.firebaseAuth) {
             if (window.app && window.app.dataManager) {
                 // 수동 저장/불러오기 모드: 자동 로드/동기화 금지
                 window.app.dataManager.setUser(user.uid, { applyLocalCache: false, migrate: false, render: false });
+                // 수동 모드라도, 필요 시 클라우드 불러오기 1회 안내
+                window.app.maybePromptCloudLoadOnLogin?.();
             }
         } else {
             const isDevelopment = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
