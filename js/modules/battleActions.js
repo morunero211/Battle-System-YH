@@ -535,6 +535,57 @@ class BattleActions {
             if (ok) await this.handleTimeoutEnd();
         });
 
+        // 관리자용: 강제 턴 스킵
+        try {
+            const adminBtn = document.getElementById('admin-skip-turn');
+            const params = new URLSearchParams(window.location.search || '');
+            const fromQuery = params.get('admin') === '1';
+            if (fromQuery) {
+                try { localStorage.setItem('battleAdminMode', '1'); } catch { /* ignore */ }
+            }
+            const fromLocal = (() => {
+                try { return localStorage.getItem('battleAdminMode') === '1'; } catch { return false; }
+            })();
+            const isAdmin = fromQuery || fromLocal;
+
+            if (adminBtn) {
+                if (isAdmin) {
+                    adminBtn.classList.remove('hidden');
+                } else {
+                    adminBtn.classList.add('hidden');
+                }
+
+                adminBtn.addEventListener('click', async () => {
+                    const bs = this.app?.battleSystem;
+                    if (!bs) return;
+
+                    const ok = await this.uiConfirm(
+                        '관리자 스킵',
+                        '현재 차례를 강제로 스킵합니다. (오류/정지 상황에서만 사용 권장)\n진행할까요?',
+                        '스킵',
+                        '취소'
+                    );
+                    if (!ok) return;
+
+                    // 방어자 응답 대기 상태가 걸려 있으면 해제하고 진행
+                    if (bs.pendingDefenseResponse) {
+                        bs.addLog('🛠️ 관리자: 방어자 응답 대기 상태를 해제했습니다.');
+                        bs.pendingDefenseResponse = null;
+                    }
+
+                    const entry = bs.getCurrentTurnEntry?.();
+                    const nm = entry?.char?.name || '현재 캐릭터';
+                    bs.addLog(`🛠️ 관리자: ${nm}의 턴을 강제로 스킵합니다.`);
+
+                    bs.nextTurn?.();
+                    bs.renderBattle?.();
+                    bs.updateSkillSlots?.();
+                });
+            }
+        } catch (e) {
+            console.error('관리자 스킵 버튼 초기화 실패:', e);
+        }
+
         // 전투 결과 모달 닫기
         document.getElementById('battle-result-close')?.addEventListener('click', () => this.hideBattleResultModal());
         document.getElementById('battle-result-ok')?.addEventListener('click', () => this.hideBattleResultModal());

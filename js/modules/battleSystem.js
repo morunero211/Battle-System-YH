@@ -760,8 +760,9 @@ class BattleSystem {
         const attackBtn = document.getElementById('action-attack');
         const ultimateBtn = document.getElementById('action-ultimate');
         const forfeitBtn = document.getElementById('forfeit-button');
+        const adminSkipBtn = document.getElementById('admin-skip-turn');
 
-        [attackBtn, ultimateBtn, forfeitBtn].forEach((btn) => {
+        [attackBtn, ultimateBtn, forfeitBtn, adminSkipBtn].forEach((btn) => {
             if (!btn) return;
             btn.disabled = !enabled;
             btn.style.opacity = enabled ? '1' : '0.5';
