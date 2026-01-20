@@ -3734,8 +3734,21 @@ document.addEventListener('DOMContentLoaded', () => {
             const record = document.createElement('div');
             record.className = 'battle-record';
 
-            const date = new Date(battle.date);
-            const dateStr = `${date.getFullYear()}년 ${date.getMonth() + 1}월 ${date.getDate()}일 ${date.getHours()}:${String(date.getMinutes()).padStart(2, '0')}`;
+            const parsed = new Date(String(battle.date || ''));
+            const dateStr = Number.isFinite(parsed.getTime())
+                ? `${parsed.getFullYear()}년 ${parsed.getMonth() + 1}월 ${parsed.getDate()}일 ${parsed.getHours()}:${String(parsed.getMinutes()).padStart(2, '0')}`
+                : (battle.date || '-');
+
+            const winnerText = battle.winner || '미정';
+            const endReason = battle.endReason || '';
+
+            const isWinner = (teamKey) => {
+                const w = String(winnerText || '');
+                if (teamKey === 'hero') return w.includes('히어로');
+                if (teamKey === 'gov') return w.includes('정부');
+                if (teamKey === 'villain') return w.includes('빌런');
+                return false;
+            };
 
             record.innerHTML = `
                 <div class="battle-record-header">
@@ -3743,17 +3756,20 @@ document.addEventListener('DOMContentLoaded', () => {
                     <div class="battle-record-date">${dateStr}</div>
                 </div>
                 <div class="battle-record-body">
-                    <div class="battle-team-section ${battle.winner === '히어로' ? 'battle-winner' : ''}">
+                    <div style="margin-bottom:10px; font-weight:800;">
+                        🏆 승리 팀: ${this.escapeHtml(winnerText)}${endReason ? ` <span style=\"font-weight:600; color:#718096;\">(${this.escapeHtml(endReason)})</span>` : ''}
+                    </div>
+                    <div class="battle-team-section ${isWinner('hero') ? 'battle-winner' : ''}">
                         <div class="battle-team-title">👤 히어로 팀</div>
-                        <div class="battle-team-chars">${this.getBattleTeamText(battle.teams.hero)}</div>
+                        <div class="battle-team-chars">${this.getBattleTeamText(battle.teams.hero, battle)}</div>
                     </div>
-                    <div class="battle-team-section ${battle.winner === '정부' ? 'battle-winner' : ''}">
+                    <div class="battle-team-section ${isWinner('gov') ? 'battle-winner' : ''}">
                         <div class="battle-team-title">👤 정부 팀</div>
-                        <div class="battle-team-chars">${this.getBattleTeamText(battle.teams.gov)}</div>
+                        <div class="battle-team-chars">${this.getBattleTeamText(battle.teams.gov, battle)}</div>
                     </div>
-                    <div class="battle-team-section ${battle.winner === '빌런' ? 'battle-winner' : ''}">
+                    <div class="battle-team-section ${isWinner('villain') ? 'battle-winner' : ''}">
                         <div class="battle-team-title">👤 빌런 팀</div>
-                        <div class="battle-team-chars">${this.getBattleTeamText(battle.teams.villain)}</div>
+                        <div class="battle-team-chars">${this.getBattleTeamText(battle.teams.villain, battle)}</div>
                     </div>
                     <div style="margin-top:12px; display:flex; gap:8px; flex-wrap:wrap;">
                         <button class="btn btn-secondary" data-export-delta="${battle.id}">변화 내보내기</button>
@@ -3783,11 +3799,46 @@ document.addEventListener('DOMContentLoaded', () => {
     /**
      * 전투 팀 텍스트 생성
      */
-    getBattleTeamText(teamChars) {
+    escapeHtml(value) {
+        return String(value ?? '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    }
+
+    /**
+     * 전투 팀 텍스트 생성(HP/스킬 사용 여부 포함)
+     */
+    getBattleTeamText(teamChars, battle = null) {
         if (!teamChars || teamChars.length === 0) {
             return '참가자 없음';
         }
-        return teamChars.map(c => c.name).join(', ');
+
+        const used = (battle && typeof battle.usedUltimate === 'object') ? battle.usedUltimate : {};
+        const finalHp = (battle && typeof battle.finalHp === 'object') ? battle.finalHp : {};
+        const finalShield = (battle && typeof battle.finalShieldHp === 'object') ? battle.finalShieldHp : {};
+
+        return teamChars
+            .filter(Boolean)
+            .map(c => {
+                const id = c?.id;
+                const name = this.escapeHtml(c?.name || '이름없음');
+
+                const hp = (id != null && finalHp && finalHp[id] != null) ? finalHp[id] : c?.hp;
+                const shield = (id != null && finalShield && finalShield[id] != null) ? finalShield[id] : c?.shieldHp;
+
+                const hpText = (hp === undefined || hp === null) ? '?' : Math.round(Number(hp) || 0);
+                const shieldNum = Math.max(0, Math.round(Number(shield) || 0));
+                const shieldText = shieldNum > 0 ? ` +🧱${shieldNum}` : '';
+
+                const usedFlag = (id != null && used) ? !!used[String(id)] : false;
+                const usedText = usedFlag ? '✅' : '❌';
+
+                return `${name} (HP ${hpText}${shieldText}, 스킬 ${usedText})`;
+            })
+            .join(', ');
     }
 
     /**

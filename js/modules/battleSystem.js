@@ -2455,7 +2455,35 @@ class BattleSystem {
 
         this.addLog(`\n🏆 전투 종료! 승자: ${winner}`);
 
-        // 전투 참가자만 HP/스킬 사용 여부를 Firestore에 별도 저장
+        // 전투 기록 업데이트(참가자 HP/쉴드/스킬 사용 여부 기록)
+        const lastRecord = Array.isArray(this.app?.battleHistory) && this.app.battleHistory.length > 0
+            ? this.app.battleHistory[this.app.battleHistory.length - 1]
+            : null;
+
+        if (lastRecord) {
+            lastRecord.winner = winner;
+            lastRecord.turnCount = this.currentTurn;
+            lastRecord.endReason = 'BATTLE_END';
+
+            // 스킬 사용 여부
+            lastRecord.usedUltimate = { ...(this.usedUltimate || {}) };
+
+            // 전투 참가자 HP(기본/쉴드) 스냅샷
+            const finalHp = {};
+            const finalShieldHp = {};
+            ['hero', 'gov', 'villain'].forEach((teamKey) => {
+                const list = Array.isArray(this.combatCharacters?.[teamKey]) ? this.combatCharacters[teamKey] : [];
+                list.forEach((c) => {
+                    if (!c || !c.id) return;
+                    finalHp[c.id] = this.getBaseHp(c);
+                    finalShieldHp[c.id] = this.getShieldHp(c);
+                });
+            });
+            lastRecord.finalHp = finalHp;
+            lastRecord.finalShieldHp = finalShieldHp;
+        }
+
+        // 참가자만 Firestore에 별도 저장
         try {
             const used = this.usedUltimate || {};
             const teamOrder = ['hero', 'gov', 'villain'];
@@ -2474,13 +2502,7 @@ class BattleSystem {
                     }));
             });
 
-            // battleHistory가 있다면, pop 전에 id를 잡아둠
-            const last = Array.isArray(this.app?.battleHistory) && this.app.battleHistory.length > 0
-                ? this.app.battleHistory[this.app.battleHistory.length - 1]
-                : null;
-            const battleId = last?.id || null;
-
-            // 비동기 저장은 UI 흐름을 막지 않도록 await 하지 않음
+            const battleId = lastRecord?.id || null;
             this.app?.dataManager?.saveBattleParticipantsSnapshotToFirestore?.({
                 battleId,
                 endReason: 'BATTLE_END',
@@ -2491,19 +2513,14 @@ class BattleSystem {
             console.error('참가자 스냅샷 저장 중 오류:', e);
         }
 
-        // 전투 종료 시: 관련 기록은 저장/유지하지 않음
-        // (App에서 startBattle() 시 push된 최신 전투 기록이 있으면 제거)
-        if (Array.isArray(this.app?.battleHistory) && this.app.battleHistory.length > 0) {
-            const last = this.app.battleHistory[this.app.battleHistory.length - 1];
-            if (last && typeof last.id === 'string' && last.id.startsWith('battle_')) {
-                this.app.battleHistory.pop();
-
-                // 전투 종료 시에는 전체 teams 원격 저장을 하지 않음(참가자만 저장)
-                const prevSkipRemoteSave = !!this.app.skipRemoteSave;
-                this.app.skipRemoteSave = true;
-                this.app.saveToLocalStorage?.();
-                this.app.skipRemoteSave = prevSkipRemoteSave;
-            }
+        // 로컬 저장은 하되, 원격에는 전체 teams를 저장하지 않음(참가자만 저장)
+        try {
+            const prevSkipRemoteSave = !!this.app?.skipRemoteSave;
+            if (this.app) this.app.skipRemoteSave = true;
+            this.app?.saveToLocalStorage?.();
+            if (this.app) this.app.skipRemoteSave = prevSkipRemoteSave;
+        } catch (e) {
+            console.error('전투 종료 저장 실패:', e);
         }
 
         // UI(전투 로그/턴 순서 등)도 종료 시점에 정리

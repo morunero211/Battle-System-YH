@@ -628,6 +628,22 @@ class BattleActions {
             lastRecord.winner = outcome.winner;
             lastRecord.turnCount = this.app.battleSystem.currentTurn;
             lastRecord.endReason = 'TIMEOUT';
+            // 스킬 사용 여부
+            lastRecord.usedUltimate = { ...(this.app.battleSystem.usedUltimate || {}) };
+
+            // 참가자 HP(기본/쉴드) 스냅샷
+            const finalHp = {};
+            const finalShieldHp = {};
+            ['hero', 'gov', 'villain'].forEach((teamKey) => {
+                const list = Array.isArray(this.app.battleSystem?.combatCharacters?.[teamKey]) ? this.app.battleSystem.combatCharacters[teamKey] : [];
+                list.forEach((c) => {
+                    if (!c || !c.id) return;
+                    finalHp[c.id] = this.app.battleSystem.getBaseHp ? this.app.battleSystem.getBaseHp(c) : (Number.isFinite(Number(c.hp)) ? Math.round(Number(c.hp)) : 0);
+                    finalShieldHp[c.id] = this.app.battleSystem.getShieldHp ? this.app.battleSystem.getShieldHp(c) : (Number.isFinite(Number(c.shieldHp)) ? Math.round(Number(c.shieldHp)) : 0);
+                });
+            });
+            lastRecord.finalHp = finalHp;
+            lastRecord.finalShieldHp = finalShieldHp;
             lastRecord.scores = {
                 allyAvgHp: outcome.ally.avgHp,
                 allySumHp: outcome.ally.sumHp,
