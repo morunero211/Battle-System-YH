@@ -3767,7 +3767,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <div class="battle-record-date">${dateStr}</div>
                 </div>
                 <div class="battle-record-body">
-                    <div style="margin-bottom:10px; font-weight:800;">
+                    <div class="battle-record-summary" style="margin-bottom:10px; font-weight:800;">
                         🏆 승리 팀: ${this.escapeHtml(winnerText)}${endReason ? ` <span style=\"font-weight:600; color:#718096;\">(${this.escapeHtml(endReason)})</span>` : ''}
                     </div>
                     <div class="battle-team-section ${isWinner('hero') ? 'battle-winner' : ''}">
@@ -3782,7 +3782,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         <div class="battle-team-title">👤 빌런 팀</div>
                         <div class="battle-team-chars">${this.getBattleTeamText(battle.teams.villain, battle)}</div>
                     </div>
-                    <div style="margin-top:12px; display:flex; gap:8px; flex-wrap:wrap;">
+                    <div class="battle-record-actions" style="margin-top:12px; display:flex; gap:8px; flex-wrap:wrap;">
                         <button class="btn btn-secondary" data-export-delta="${battle.id}">변화 내보내기</button>
                         <button class="btn btn-secondary" data-copy-delta="${battle.id}">변화 복사</button>
                     </div>

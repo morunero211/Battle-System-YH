@@ -1340,7 +1340,11 @@ class BattleSystem {
     ensureBattleStartHpIfMissing(char) {
         if (!char) return;
         if (!Number.isFinite(Number(char.battleStartBaseHp))) {
-            char.battleStartBaseHp = Math.round(Number(this.getBaseHp(char)) || 0);
+            // 중요 규칙: "시작 HP > 50" 여부는 전투 시작 시점에서만 결정되어야 함.
+            // 전투 도중(특히 치유 후) 누락된 값을 현재 HP로 추정하면, 잘못해서 >50 규칙이 발동할 수 있음.
+            // 따라서 누락 케이스의 안전한 기본값은 50 이하로 캡해서 설정한다.
+            const inferred = Math.round(Number(this.getBaseHp(char)) || 0);
+            char.battleStartBaseHp = Math.min(50, inferred);
         }
     }
 
@@ -1349,18 +1353,29 @@ class BattleSystem {
         this.ensureHpSplit(char);
         this.ensureBattleStartHpIfMissing(char);
 
-        // 이미 확정 상태면 더 이상 변하지 않음
-        if (char.battleDead || char.battleIncapacitated) return;
-
         const startBase = Math.round(Number(char.battleStartBaseHp) || 0);
         const baseHp = this.getBaseHp(char);
         const totalHp = this.getTotalHp(char);
 
+        // 사망 상태는 고정(단, HP는 안전하게 0 유지)
+        if (char.battleDead) {
+            char.hp = 0;
+            char.shieldHp = 0;
+            return;
+        }
+
         // 시작 HP가 50 초과면, 전투 중 baseHP가 50 이하가 되는 순간 전투 불능
         if (startBase > 50) {
-            if (baseHp <= 50) {
+            // 전투 중에는 baseHP가 50 미만으로 내려가지 않도록 고정
+            const maxHp = this.getMaxHp(char);
+            if (baseHp < 50) {
+                char.hp = Math.min(maxHp, 50);
+            }
+
+            // 전투 불능은 최초 1회만 로그/전환
+            if (!char.battleIncapacitated && this.getBaseHp(char) <= 50) {
                 char.battleIncapacitated = true;
-                this.addLog(`  🟡 ${char.name} 전투 불능! (시작 HP ${startBase} > 50, 현재 HP ${baseHp} ≤ 50)${cause ? ` · ${cause}` : ''}`);
+                this.addLog(`  🟡 ${char.name} 전투 불능! (시작 HP ${startBase} > 50, 현재 HP ${this.getBaseHp(char)} ≤ 50)${cause ? ` · ${cause}` : ''}`);
             }
             return;
         }
@@ -1403,16 +1418,23 @@ class BattleSystem {
         if (dmg === 0) return { shieldAbsorbed: 0, hpDamage: 0, totalDamage: 0 };
 
         this.ensureHpSplit(defender);
+        this.ensureBattleStartHpIfMissing(defender);
 
         const maxHp = this.getMaxHp(defender);
         const beforeShield = this.getShieldHp(defender);
         const beforeBase = this.getBaseHp(defender);
 
+        const startBase = Math.round(Number(defender?.battleStartBaseHp) || 0);
+        const baseFloor = startBase > 50 ? 50 : 0;
+
         const shieldAbsorbed = Math.min(beforeShield, dmg);
         const remaining = dmg - shieldAbsorbed;
-        const hpDamage = Math.min(beforeBase, remaining);
 
-        const afterBase = Math.max(0, beforeBase - hpDamage);
+        // 시작 baseHP가 50 초과인 캐릭터는 전투 중 baseHP가 50 미만으로 내려가지 않음
+        const allowedBaseDamage = Math.max(0, beforeBase - baseFloor);
+        const hpDamage = Math.min(allowedBaseDamage, remaining);
+
+        const afterBase = Math.max(baseFloor, beforeBase - hpDamage);
         const afterShield = Math.max(0, beforeShield - shieldAbsorbed);
         defender.hp = Math.min(maxHp, afterBase);
         defender.shieldHp = Math.max(0, afterShield);

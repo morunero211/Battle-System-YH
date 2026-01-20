@@ -490,8 +490,16 @@ textarea:focus {
 
 .battle-record-body {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 16px;
+}
+
+.battle-record-summary {
+    grid-column: 1 / -1;
+}
+
+.battle-record-actions {
+    grid-column: 1 / -1;
 }
 
 .battle-team-section {
@@ -499,6 +507,7 @@ textarea:focus {
     padding: 12px;
     border-radius: 10px;
     border: 2px solid #e3e6f0;
+    min-width: 0;
 }
 
 .battle-team-title {
@@ -512,6 +521,7 @@ textarea:focus {
     font-size: 0.85em;
     color: #718096;
     line-height: 1.6;
+    overflow-wrap: anywhere;
 }
 
 .battle-winner {
