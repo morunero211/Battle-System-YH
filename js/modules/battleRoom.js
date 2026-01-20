@@ -13,8 +13,128 @@ class BattleRoom {
     this.POLL_INTERVAL = 1000; // 1초마다 상태 조회
     this.errorCount = 0; // 연속 에러 카운트
     this.MAX_ERRORS = 5; // 최대 연속 에러 허용
+    this.lastErrorMessage = null;
+    this.profilesModalAutoOpened = false;
 
     this.init();
+  }
+
+  getCopyGuideText() {
+    // 사용자가 원하는 "안내 문구"를 여기에 넣거나, window.CONFIG로 주입할 수 있습니다.
+    // 예: window.CONFIG.BATTLE_COPY_GUIDE_TEXT = '...';
+    return String(window.CONFIG?.BATTLE_COPY_GUIDE_TEXT || '');
+  }
+
+  formatMentionName(name) {
+    const raw = String(name ?? '').trim();
+    if (!raw) return '@?';
+    const firstToken = raw.split(/\s+/)[0];
+    const clean = firstToken.replace(/^@+/, '');
+    return `@${clean || '?'}`;
+  }
+
+  formatStat(statValue) {
+    const value = Number(statValue);
+    const clamped = Number.isFinite(value) ? Math.min(5, Math.max(1, Math.round(value))) : 1;
+    const diamonds = '◆'.repeat(clamped);
+    const score = 50 + (clamped - 1) * 5;
+    return { diamonds, score };
+  }
+
+  getProfilesText({ teamIndex = null } = {}) {
+    if (!this.battle?.participants?.length) return '';
+
+    const teams = this.groupByTeam(this.battle.participants);
+    const teamNumbers = Object.keys(teams)
+      .map(n => parseInt(n, 10))
+      .filter(n => Number.isFinite(n))
+      .sort((a, b) => a - b);
+
+    const renderTeam = (teamNo) => {
+      const participants = (teams[teamNo] || [])
+        .slice()
+        .sort((a, b) => (a.initiativeOrder ?? 0) - (b.initiativeOrder ?? 0));
+
+      const blocks = participants.map(p => {
+        const c = p.character || {};
+        const mention = this.formatMentionName(c.name);
+        const atk = this.formatStat(c.atk);
+        const agi = this.formatStat(c.agi);
+        const def = this.formatStat(c.def);
+        const skill = this.formatStat(c.skillStat);
+
+        return [
+          mention,
+          `공격: ${atk.diamonds} (${atk.score})`,
+          `민첩: ${agi.diamonds} (${agi.score})`,
+          `방어: ${def.diamonds} (${def.score})`,
+          `스킬: ${skill.diamonds} (${skill.score})`,
+        ].join('\n');
+      });
+
+      if (blocks.length === 0) return '';
+      const header = `[팀 ${teamNo}]`;
+      return [header, ...blocks].join('\n\n');
+    };
+
+    if (teamIndex !== null && teamIndex !== undefined) {
+      return renderTeam(Number(teamIndex)).trim();
+    }
+
+    return teamNumbers
+      .map(t => renderTeam(t))
+      .filter(Boolean)
+      .join('\n\n')
+      .trim();
+  }
+
+  getCopyPayload({ teamIndex = null } = {}) {
+    const guide = this.getCopyGuideText();
+    const profiles = this.getProfilesText({ teamIndex });
+    return [guide, profiles].filter((s) => String(s || '').trim()).join('\n\n');
+  }
+
+  setProfilesModalText(text) {
+    const textarea = document.getElementById('profiles-modal-text');
+    if (textarea) textarea.value = String(text ?? '');
+  }
+
+  openProfilesModal(text) {
+    this.setProfilesModalText(text);
+    const modal = document.getElementById('profiles-modal');
+    if (modal) modal.style.display = 'block';
+  }
+
+  closeProfilesModal() {
+    const modal = document.getElementById('profiles-modal');
+    if (modal) modal.style.display = 'none';
+  }
+
+  async copyTextToClipboard(text) {
+    const payload = String(text ?? '');
+    if (!payload.trim()) return false;
+
+    try {
+      await navigator.clipboard.writeText(payload);
+      return true;
+    } catch (error) {
+      try {
+        const textarea = document.createElement('textarea');
+        textarea.value = payload;
+        textarea.style.position = 'fixed';
+        textarea.style.left = '-9999px';
+        textarea.style.top = '-9999px';
+        document.body.appendChild(textarea);
+        textarea.focus();
+        textarea.select();
+        const ok = document.execCommand('copy');
+        document.body.removeChild(textarea);
+        return ok;
+      } catch (fallbackError) {
+        console.error('[BattleRoom] copy failed:', error, fallbackError);
+        return false;
+      }
+    }
   }
 
   getUi() {
@@ -47,7 +167,18 @@ class BattleRoom {
     // 초기 전투 데이터 로드
     await this.fetchBattle();
     this.render();
+    this.autoOpenProfilesModalOnce();
     this.startPolling();
+  }
+
+  autoOpenProfilesModalOnce() {
+    if (this.profilesModalAutoOpened) return;
+    this.profilesModalAutoOpened = true;
+    try {
+      this.openProfilesModal(this.getCopyPayload());
+    } catch (e) {
+      console.warn('[BattleRoom] auto open profiles modal failed:', e);
+    }
   }
 
   /**
@@ -60,6 +191,7 @@ class BattleRoom {
 
       this.battle = await response.json();
       this.errorCount = 0; // 성공 시 에러 카운트 리셋
+      this.lastErrorMessage = null;
       
       // 전투 종료 감지
       if (this.battle.status === 'FINISHED') {
@@ -68,6 +200,7 @@ class BattleRoom {
     } catch (error) {
       console.error('❌ 전투 조회 오류:', error);
       this.errorCount++;
+      this.lastErrorMessage = error?.message ? String(error.message) : '전투 조회 오류';
       
       // 연속 에러가 너무 많으면 폴링 중지
       if (this.errorCount >= this.MAX_ERRORS) {
@@ -104,8 +237,6 @@ class BattleRoom {
    * UI 렌더링
    */
   render() {
-    if (!this.battle) return;
-
     const container = document.getElementById('battle-room-container');
     if (!container) return;
 
@@ -118,6 +249,58 @@ class BattleRoom {
    * 메인 HTML 반환
    */
   getHTML() {
+    // 전투 데이터가 아직 없을 때도(로딩/오류) 화면 골격은 보여줌
+    if (!this.battle) {
+      const msg = this.lastErrorMessage
+        ? `전투 데이터를 불러오지 못했습니다: ${this.escapeHtml(this.lastErrorMessage)}`
+        : '전투 데이터를 불러오는 중입니다...';
+
+      return `
+        <div class="battle-room">
+          <div class="battle-header">
+            <div class="battle-info">
+              <h2>전투 정보</h2>
+              <p class="battle-details">
+                <span class="badge badge-status">로딩/오류</span>
+              </p>
+            </div>
+            <div class="battle-actions">
+              <button id="btn-exit" class="btn btn-secondary">나가기</button>
+            </div>
+          </div>
+
+          <div class="battle-profiles-section">
+            <div class="profiles-header">
+              <h3>📋 캐릭터 프로필 (복붙용)</h3>
+              <div class="profiles-actions">
+                <button id="btn-copy-profiles" class="btn btn-secondary">전체 복사</button>
+                <button id="btn-copy-team-1" class="btn btn-secondary">팀 1 복사</button>
+                <button id="btn-copy-team-2" class="btn btn-secondary">팀 2 복사</button>
+                <button id="btn-open-profiles-modal" class="btn btn-secondary">미리보기</button>
+              </div>
+            </div>
+            <div class="profiles-hint">${msg}</div>
+          </div>
+
+          <div id="profiles-modal" class="modal centered" style="display:none;">
+            <div class="modal-content" style="max-width:720px; width: calc(100% - 32px);">
+              <div class="modal-header">
+                <h2>복붙용 텍스트</h2>
+                <button id="profiles-modal-close" class="modal-close" aria-label="닫기">&times;</button>
+              </div>
+              <div class="modal-body">
+                <textarea id="profiles-modal-text" class="profiles-text" readonly></textarea>
+                <div class="profiles-modal-actions">
+                  <button id="profiles-modal-copy" class="btn btn-primary">복사</button>
+                  <button id="profiles-modal-ok" class="btn btn-secondary">닫기</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
     const {
       id,
       status,
@@ -160,6 +343,37 @@ class BattleRoom {
         <!-- 하단: 액션 패널 -->
         <div class="battle-action-panel">
           ${this.renderActionPanel(turnOwnerParticipantId, participants)}
+        </div>
+
+        <!-- 복붙용 캐릭터 프로필 -->
+        <div class="battle-profiles-section">
+          <div class="profiles-header">
+            <h3>📋 캐릭터 프로필 (복붙용)</h3>
+            <div class="profiles-actions">
+              <button id="btn-copy-profiles" class="btn btn-secondary">전체 복사</button>
+              <button id="btn-copy-team-1" class="btn btn-secondary">팀 1 복사</button>
+              <button id="btn-copy-team-2" class="btn btn-secondary">팀 2 복사</button>
+              <button id="btn-open-profiles-modal" class="btn btn-secondary">미리보기</button>
+            </div>
+          </div>
+          <div class="profiles-hint">※ 안내 문구 + 프로필 텍스트를 모달로 표시합니다.</div>
+        </div>
+
+        <!-- 복붙용 모달 -->
+        <div id="profiles-modal" class="modal centered" style="display:none;">
+          <div class="modal-content" style="max-width:720px; width: calc(100% - 32px);">
+            <div class="modal-header">
+              <h2>복붙용 텍스트</h2>
+              <button id="profiles-modal-close" class="modal-close" aria-label="닫기">&times;</button>
+            </div>
+            <div class="modal-body">
+              <textarea id="profiles-modal-text" class="profiles-text" readonly></textarea>
+              <div class="profiles-modal-actions">
+                <button id="profiles-modal-copy" class="btn btn-primary">복사</button>
+                <button id="profiles-modal-ok" class="btn btn-secondary">닫기</button>
+              </div>
+            </div>
+          </div>
         </div>
 
         <!-- 전투 로그 -->
@@ -443,6 +657,41 @@ class BattleRoom {
         const action = e.currentTarget.dataset.action;
         this.handleAction(action);
       });
+    });
+
+    document.getElementById('btn-copy-profiles')?.addEventListener('click', async () => {
+      const payload = this.getCopyPayload();
+      this.openProfilesModal(payload);
+    });
+
+    document.getElementById('btn-copy-team-1')?.addEventListener('click', async () => {
+      const payload = this.getCopyPayload({ teamIndex: 1 });
+      this.openProfilesModal(payload);
+    });
+
+    document.getElementById('btn-copy-team-2')?.addEventListener('click', async () => {
+      const payload = this.getCopyPayload({ teamIndex: 2 });
+      this.openProfilesModal(payload);
+    });
+
+    document.getElementById('btn-open-profiles-modal')?.addEventListener('click', () => {
+      this.openProfilesModal(this.getCopyPayload());
+    });
+
+    // 모달 닫기
+    const close = () => this.closeProfilesModal();
+    document.getElementById('profiles-modal-close')?.addEventListener('click', close);
+    document.getElementById('profiles-modal-ok')?.addEventListener('click', close);
+    document.getElementById('profiles-modal')?.addEventListener('click', (e) => {
+      if (e.target?.id === 'profiles-modal') close();
+    });
+
+    // 모달 복사
+    document.getElementById('profiles-modal-copy')?.addEventListener('click', async () => {
+      const text = document.getElementById('profiles-modal-text')?.value || '';
+      const ok = await this.copyTextToClipboard(text);
+      if (ok) await this.uiAlert('클립보드에 복사되었습니다.', '복사 완료');
+      else await this.uiAlert('복사에 실패했습니다.', '오류');
     });
   }
 

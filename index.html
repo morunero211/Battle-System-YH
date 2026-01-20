@@ -751,6 +751,7 @@
                         <div class="badge-row">
                             <span class="badge badge-mode" id="battle-mode-badge">팀전</span>
                             <span class="badge badge-turn"><span id="turn-count">1</span>턴 · <span id="current-turn-text">현재 차례: -</span></span>
+                            <button id="combat-profiles-open" class="btn btn-secondary" type="button" title="복붙용 모달 다시 열기" style="padding: 8px 10px; font-size: 12px;">복붙 열기</button>
                         </div>
                     </div>
 
@@ -773,11 +774,11 @@
 
                             <div class="action-bar">
                                 <div class="action-buttons">
-                                    <button id="action-attack" class="btn btn-action">공격</button>
-                                    <button id="action-ultimate" class="btn btn-action">스킬</button>
-                                    <button id="action-chase" class="btn btn-secondary">도주 이벤트</button>
-                                    <button id="forfeit-button" class="btn btn-secondary">시간 종료</button>
-                                    <button id="admin-skip-turn" class="btn btn-secondary hidden" title="관리자용: 현재 차례를 강제로 넘깁니다">관리자 스킵</button>
+                                    <button id="action-attack" class="btn btn-action attack">공격</button>
+                                    <button id="action-ultimate" class="btn btn-action skill">스킬</button>
+                                    <button id="action-chase" class="btn btn-action">술래잡기</button>
+                                    <button id="admin-skip-turn" class="btn btn-action hidden" title="관리자용: 현재 차례를 강제로 넘깁니다">관리자 턴넘김</button>
+                                    <button id="forfeit-button" class="btn btn-action end-turn">전투 종료</button>
                                 </div>
                             </div>
 
@@ -885,6 +886,23 @@
                 </div>
                 <div class="modal-actions" style="padding: 0 28px 22px; justify-content: flex-end;">
                     <button id="skip-turn-ok" class="btn-primary" type="button">확인</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 전투 화면: 복붙용 프로필 모달(전투 시작 시 자동 오픈) -->
+        <div id="combat-profiles-modal" class="modal centered profiles-copy-modal" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="combat-profiles-title">
+            <div class="modal-content" style="max-width:720px; width: calc(100% - 32px);">
+                <div class="modal-header">
+                    <h2 id="combat-profiles-title">복붙용 텍스트</h2>
+                    <button id="combat-profiles-close" class="modal-close" aria-label="닫기">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <textarea id="combat-profiles-text" class="profiles-text" readonly></textarea>
+                    <div class="profiles-modal-actions">
+                        <button id="combat-profiles-copy" class="btn btn-primary" type="button">복사</button>
+                        <button id="combat-profiles-ok" class="btn btn-secondary" type="button">닫기</button>
+                    </div>
                 </div>
             </div>
         </div>

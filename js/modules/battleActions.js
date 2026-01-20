@@ -53,10 +53,9 @@ class BattleActions {
         const exhaustedNow = after.max === 0 ? true : (after.used >= after.max);
         if (exhaustedNow) attacker.skillUsesLocked = true;
 
-        // 전투 중 사용도 즉시 저장(다음 전투/새로고침에도 반영)
-        if (this.app?.saveToLocalStorage) {
-            this.app.saveToLocalStorage();
-        }
+        // 전투 종료(시간 종료/승패 확정) 전까지는 HP/스킬 사용 여부를 저장하지 않음
+        // - 전투 중에는 battleSystem이 teams 원본을 건드리지 않도록 클론을 사용
+        // - 여기서도 로컬 저장을 호출하지 않아 새로고침/동기화로 기록이 남지 않게 함
 
         return { consumed: true, exhaustedNow, state: after };
     }
@@ -526,8 +525,8 @@ class BattleActions {
             }
 
             const ok = await this.uiConfirm(
-                '시간 종료',
-                '시간 종료하시겠습니까? (현재 HP 상태로 승패를 판정합니다)',
+                '전투 종료',
+                '전투를 종료하시겠습니까? (현재 HP 상태로 승패를 판정합니다)',
                 '종료',
                 '취소'
             );
@@ -575,11 +574,59 @@ class BattleActions {
 
                     const entry = bs.getCurrentTurnEntry?.();
                     const nm = entry?.char?.name || '현재 캐릭터';
-                    bs.addLog(`🛠️ 관리자: ${nm}의 턴을 강제로 스킵합니다.`);
 
-                    bs.nextTurn?.();
-                    bs.renderBattle?.();
-                    bs.updateSkillSlots?.();
+                    const beforeTurn = Number.isFinite(Number(bs.currentTurn)) ? Number(bs.currentTurn) : null;
+                    const beforeIndex = Number.isFinite(Number(bs.turnIndex)) ? Number(bs.turnIndex) : null;
+                    const orderLen = Array.isArray(bs.turnOrder) ? bs.turnOrder.length : 0;
+                    const isLastInOrder = (orderLen > 0 && beforeIndex !== null)
+                        ? (beforeIndex >= orderLen - 1)
+                        : false;
+
+                    // 1) 마지막 차례가 아니면: 경고/질문 없이 다음 차례로만 넘김
+                    if (!isLastInOrder) {
+                        bs.addLog(`🛠️ 관리자: ${nm} 턴넘김(강제)`);
+                        bs.nextTurn?.();
+                        return;
+                    }
+
+                    // 2) 마지막 차례면: 턴 n+1 진행 여부를 질문
+                    const nextTurnNo = (beforeTurn !== null) ? (beforeTurn + 1) : null;
+                    const question = (beforeTurn !== null && nextTurnNo !== null)
+                        ? `현재 턴 ${beforeTurn}의 마지막 차례입니다.\n턴 ${nextTurnNo}로 진행할까요?`
+                        : '현재 턴 순서의 마지막 차례입니다. 다음 턴(+1)로 진행할까요?';
+
+                    const okAdvance = await this.uiConfirm(
+                        '턴 +1 진행?',
+                        question,
+                        '예(턴 +1)',
+                        '아니오'
+                    );
+
+                    if (okAdvance) {
+                        // 예: 정상 nextTurn으로 턴 증가/로그/상태이상 tick 포함
+                        bs.addLog(`🛠️ 관리자: ${nm} 턴넘김(강제) + 턴 +1 진행`);
+                        bs.nextTurn?.();
+                        return;
+                    }
+
+                    // 아니오: 턴 증가는 하지 않고(로그도 X), 조용히 다음 차례(= turnIndex 0)로 랩
+                    try {
+                        if (orderLen > 0) {
+                            bs.turnIndex = 0;
+                        }
+
+                        const nextEntry = bs.getCurrentTurnEntry?.();
+                        if (nextEntry) {
+                            const idx = ['hero', 'gov', 'villain'].indexOf(nextEntry.teamKey);
+                            bs.currentTeamTurn = idx >= 0 ? idx : 0;
+                        }
+
+                        bs.checkBattleEnd?.();
+                        bs.renderBattle?.();
+                        bs.updateSkillSlots?.();
+                    } catch (e) {
+                        console.error('관리자 턴넘김(턴+1 미진행) 처리 실패:', e);
+                    }
                 });
             }
         } catch (e) {
@@ -619,7 +666,7 @@ class BattleActions {
     async handleTimeoutEnd() {
         const outcome = this.computeTimeoutOutcome();
 
-        this.app.battleSystem.addLog('⏱️ 시간 종료! 현재 HP 상태로 승패를 판정합니다.');
+        this.app.battleSystem.addLog('⏱️ 전투 종료! 현재 HP 상태로 승패를 판정합니다.');
         this.app.battleSystem.renderBattle();
 
         // 전투 기록 업데이트(현재 HP 상태 그대로 저장)
@@ -655,10 +702,24 @@ class BattleActions {
         }
 
         // 로컬 저장은 유지하되, "시간 종료"에서는 전체 teams 원격 저장을 하지 않음
-        const prevSkipRemoteSave = !!this.app.skipRemoteSave;
-        this.app.skipRemoteSave = true;
+        try {
+            this.app?.battleSystem?.commitCombatStateToRoster?.();
+        } catch (e) {
+            console.error('전투 종료 커밋 실패:', e);
+        }
         this.app.saveToLocalStorage();
-        this.app.skipRemoteSave = prevSkipRemoteSave;
+
+        // 수동 저장 모드라도(전투 종료는 예외) 로그인 상태면 DB(Firestore) 저장을 한 번 시도
+        try {
+            if (this.app?.manualPersistenceMode) {
+                const dm = this.app?.dataManager;
+                if (dm?.userId && typeof dm.saveToFirestore === 'function' && !this.app?.skipRemoteSave) {
+                    await dm.saveToFirestore({ force: true });
+                }
+            }
+        } catch (e) {
+            console.error('전투 종료 원격 저장 실패:', e);
+        }
 
         // 참가자만 HP/스킬 사용 여부를 Firestore에 별도로 저장
         try {

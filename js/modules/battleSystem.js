@@ -28,6 +28,9 @@ class BattleSystem {
         this.pendingDefenseResponse = null; // { pendingId, attackerRef, defenderRef, targetTeam, attackerTeam, expiresAt }
         this.defenseUiInitialized = false;
 
+        // ===== 복붙(프로필) 모달 =====
+        this.profilesCopyUiInitialized = false;
+
         // ===== 스킬 템플릿(조건+이펙트) =====
         // 캐릭터에 `skillTemplateId`를 넣으면 이 템플릿을 사용합니다.
         // (없으면 기존 스킬 로직/분기 그대로 사용)
@@ -63,6 +66,211 @@ class BattleSystem {
                 ]
             }
         };
+    }
+
+    // ===== 복붙(프로필) 모달 =====
+    getCopyGuideText() {
+        return String(window.CONFIG?.BATTLE_COPY_GUIDE_TEXT || '');
+    }
+
+    formatMentionName(name) {
+        const raw = String(name ?? '').trim();
+        if (!raw) return '@?';
+        const firstToken = raw.split(/\s+/)[0];
+        const clean = firstToken.replace(/^@+/, '');
+        return `@${clean || '?'}`;
+    }
+
+    formatProfileStat(statValue) {
+        const clamped = this.clampStat1to5(statValue);
+        const diamonds = '◆'.repeat(clamped);
+        const score = 50 + (clamped - 1) * 5;
+        return { diamonds, score };
+    }
+
+    getProfilesTextCombat() {
+        const teams = [
+            { key: 'hero', label: '히어로' },
+            { key: 'gov', label: '정부' },
+            { key: 'villain', label: '빌런' }
+        ];
+
+        const blocks = teams.map(({ key, label }) => {
+            const list = Array.isArray(this.combatCharacters?.[key]) ? this.combatCharacters[key] : [];
+            if (list.length === 0) return '';
+
+            const people = list.map((c) => {
+                const mention = this.formatMentionName(c?.name);
+                const atk = this.formatProfileStat(this.getBaseStatValue(c, 'attack'));
+                const agi = this.formatProfileStat(this.getBaseStatValue(c, 'agility'));
+                const def = this.formatProfileStat(this.getBaseStatValue(c, 'defense'));
+                const skill = this.formatProfileStat(this.getBaseStatValue(c, 'skill'));
+
+                return [
+                    mention,
+                    `공격: ${atk.diamonds} (${atk.score})`,
+                    `민첩: ${agi.diamonds} (${agi.score})`,
+                    `방어: ${def.diamonds} (${def.score})`,
+                    `스킬: ${skill.diamonds} (${skill.score})`,
+                ].join('\n');
+            });
+
+            return [`[${label}]`, ...people].join('\n\n');
+        }).filter(Boolean);
+
+        return blocks.join('\n\n').trim();
+    }
+
+    getCopyPayloadCombat() {
+        const guide = this.getCopyGuideText();
+        const profiles = this.getProfilesTextCombat();
+        // 요청: 안내문구는 아래에, 캐릭터 스탯(프로필)은 위로
+        return [profiles, guide].filter((s) => String(s || '').trim()).join('\n\n');
+    }
+
+    setCombatProfilesModalText(text) {
+        const textarea = document.getElementById('combat-profiles-text');
+        if (textarea) textarea.value = String(text ?? '');
+    }
+
+    showCombatProfilesModal({ autoFill = true } = {}) {
+        this.initProfilesCopyUi();
+        const modal = document.getElementById('combat-profiles-modal');
+        if (!modal) return;
+        if (autoFill) this.setCombatProfilesModalText(this.getCopyPayloadCombat());
+        modal.style.display = 'block';
+    }
+
+    hideCombatProfilesModal() {
+        const modal = document.getElementById('combat-profiles-modal');
+        if (modal) modal.style.display = 'none';
+    }
+
+    async copyTextToClipboard(text) {
+        const payload = String(text ?? '');
+        if (!payload.trim()) return false;
+        try {
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                await navigator.clipboard.writeText(payload);
+                return true;
+            }
+        } catch (e) {
+            // fallback 아래에서 처리
+        }
+        try {
+            const textarea = document.createElement('textarea');
+            textarea.value = payload;
+            textarea.style.position = 'fixed';
+            textarea.style.left = '-9999px';
+            textarea.style.top = '-9999px';
+            document.body.appendChild(textarea);
+            textarea.focus();
+            textarea.select();
+            const ok = document.execCommand('copy');
+            document.body.removeChild(textarea);
+            return ok;
+        } catch {
+            return false;
+        }
+    }
+
+    initProfilesCopyUi() {
+        if (this.profilesCopyUiInitialized) return;
+
+        const openBtn = document.getElementById('combat-profiles-open');
+        const modal = document.getElementById('combat-profiles-modal');
+        const closeBtn = document.getElementById('combat-profiles-close');
+        const okBtn = document.getElementById('combat-profiles-ok');
+        const copyBtn = document.getElementById('combat-profiles-copy');
+        const textarea = document.getElementById('combat-profiles-text');
+
+        if (!modal || !closeBtn || !okBtn || !copyBtn || !textarea) return;
+
+        openBtn?.addEventListener('click', () => this.showCombatProfilesModal({ autoFill: true }));
+
+        const hide = () => this.hideCombatProfilesModal();
+        closeBtn.addEventListener('click', hide);
+        okBtn.addEventListener('click', hide);
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) hide();
+        });
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key !== 'Escape') return;
+            const open = modal.style.display !== 'none';
+            if (!open) return;
+            hide();
+        });
+
+        copyBtn.addEventListener('click', async () => {
+            const text = textarea.value || '';
+            const ok = await this.copyTextToClipboard(text);
+            if (ok) this.app?.showToast?.('클립보드에 복사되었습니다.', 'success');
+            else this.app?.showToast?.('복사에 실패했습니다.', 'error');
+        });
+
+        this.profilesCopyUiInitialized = true;
+    }
+
+    cloneCharacterForBattle(source) {
+        if (!source) return null;
+        try {
+            // 전투 중에는 원본 teams를 건드리면(자동 저장/동기화로) HP/스킬 사용 상태가 저장되어버리므로,
+            // 전투 전용 복제본을 사용합니다.
+            const cloned = (typeof structuredClone === 'function')
+                ? structuredClone(source)
+                : JSON.parse(JSON.stringify(source));
+            // 안전: 최소 식별/표시 필드는 원본을 우선
+            cloned.id = source.id;
+            cloned.name = source.name;
+            return cloned;
+        } catch {
+            return { ...source };
+        }
+    }
+
+    // ===== 전투 종료 시 커밋(원본 teams 반영) =====
+    getRosterCharacterById(charId) {
+        const id = String(charId);
+        const teams = Array.isArray(this.app?.teams) ? this.app.teams : [];
+        for (const team of teams) {
+            const list = Array.isArray(team?.characters) ? team.characters : [];
+            const found = list.find((c) => c && String(c.id) === id);
+            if (found) return found;
+        }
+        return null;
+    }
+
+    commitCombatStateToRoster({ persistDeathStatus = true } = {}) {
+        const teamOrder = ['hero', 'gov', 'villain'];
+        const updates = [];
+
+        teamOrder.forEach((teamKey) => {
+            const list = Array.isArray(this.combatCharacters?.[teamKey]) ? this.combatCharacters[teamKey] : [];
+            list.forEach((combatChar) => {
+                if (!combatChar?.id) return;
+                const rosterChar = this.getRosterCharacterById(combatChar.id);
+                if (!rosterChar) return;
+
+                // 최종 HP/쉴드 반영
+                rosterChar.hp = this.getBaseHp(combatChar);
+                rosterChar.shieldHp = this.getShieldHp(combatChar);
+
+                // 스킬 사용 여부(횟수/잠금) 반영
+                if (combatChar.skillUsesMax !== undefined) rosterChar.skillUsesMax = combatChar.skillUsesMax;
+                if (combatChar.skillUsesUsed !== undefined) rosterChar.skillUsesUsed = combatChar.skillUsesUsed;
+                if (combatChar.skillUsesLocked !== undefined) rosterChar.skillUsesLocked = combatChar.skillUsesLocked;
+
+                // 사망은 roster에도 반영(선택 불가/표시 목적). 전투 불능(battleIncapacitated)은 저장하지 않음.
+                if (persistDeathStatus && String(combatChar.status || '') === 'dead') {
+                    rosterChar.status = 'dead';
+                }
+
+                updates.push(String(combatChar.id));
+            });
+        });
+
+        return { updatedIds: updates };
     }
 
     // ===== 상태이상/스킬 템플릿 공용 =====
@@ -524,16 +732,21 @@ class BattleSystem {
         });
         
         // 선택된 캐릭터들로 전투 캐릭터 설정
+        // - 원본 teams 객체를 그대로 쓰면 전투 중 HP/스킬 사용 상태가 자동 저장/동기화로 영구 저장될 수 있음
+        // - 전투 전용 클론을 만들어 전투 종료 전까지는 저장되지 않도록 분리
         this.combatCharacters = {
-            hero: this.app.teams[0].characters.filter(c => 
-                this.app.selectedCharacters.hero.includes(c.id)
-            ),
-            gov: this.app.teams[1].characters.filter(c => 
-                this.app.selectedCharacters.gov.includes(c.id)
-            ),
-            villain: this.app.teams[2].characters.filter(c => 
-                this.app.selectedCharacters.villain.includes(c.id)
-            )
+            hero: this.app.teams[0].characters
+                .filter(c => this.app.selectedCharacters.hero.includes(c.id))
+                .map(c => this.cloneCharacterForBattle(c))
+                .filter(Boolean),
+            gov: this.app.teams[1].characters
+                .filter(c => this.app.selectedCharacters.gov.includes(c.id))
+                .map(c => this.cloneCharacterForBattle(c))
+                .filter(Boolean),
+            villain: this.app.teams[2].characters
+                .filter(c => this.app.selectedCharacters.villain.includes(c.id))
+                .map(c => this.cloneCharacterForBattle(c))
+                .filter(Boolean)
         };
 
         // 전투 시작 HP 기준(>50이면 50에서 전투 불능, <=50이면 0에서 사망)
@@ -2513,12 +2726,18 @@ class BattleSystem {
             console.error('참가자 스냅샷 저장 중 오류:', e);
         }
 
-        // 로컬 저장은 하되, 원격에는 전체 teams를 저장하지 않음(참가자만 저장)
+        // 전투 종료 시점에만: 최종 HP/스킬 사용 여부를 원본 teams에 반영 후 저장(원격 동기화 포함)
         try {
-            const prevSkipRemoteSave = !!this.app?.skipRemoteSave;
-            if (this.app) this.app.skipRemoteSave = true;
+            this.commitCombatStateToRoster?.();
             this.app?.saveToLocalStorage?.();
-            if (this.app) this.app.skipRemoteSave = prevSkipRemoteSave;
+
+            // 수동 저장 모드라도(전투 종료는 예외) 로그인 상태면 DB(Firestore) 저장을 한 번 시도
+            if (this.app?.manualPersistenceMode) {
+                const dm = this.app?.dataManager;
+                if (dm?.userId && typeof dm.saveToFirestore === 'function' && !this.app?.skipRemoteSave) {
+                    dm.saveToFirestore({ force: true }).catch((e) => console.error('전투 종료 원격 저장 실패:', e));
+                }
+            }
         } catch (e) {
             console.error('전투 종료 저장 실패:', e);
         }

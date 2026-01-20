@@ -688,6 +688,74 @@ textarea:focus {
     max-height: calc(80vh - 90px);
 }
 
+/* ===== 복붙용 프로필 텍스트(공용) ===== */
+.profiles-text {
+    width: 100%;
+    min-height: 280px;
+    resize: vertical;
+    padding: 12px;
+    border: 1px solid #0b1220;
+    border-radius: 10px;
+    background: #111827;
+    color: #f8fafc;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    font-size: 12px;
+    line-height: 1.45;
+}
+
+.profiles-text:focus {
+    outline: none;
+    border-color: #1f2937;
+    box-shadow: 0 0 0 3px rgba(17, 24, 39, 0.25);
+}
+
+.profiles-modal-actions {
+    margin-top: 12px;
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+}
+
+/* 전투 화면 복붙 모달: 더 큰 높이 + 더 넓은 폭 */
+.profiles-copy-modal .modal-content {
+    max-width: 920px;
+    width: min(920px, calc(100% - 32px));
+    max-height: 94vh;
+    background: #0b1220;
+    color: #e5e7eb;
+    border: 1px solid rgba(255, 255, 255, 0.10);
+    box-shadow: 0 16px 60px rgba(0, 0, 0, 0.55);
+}
+
+.profiles-copy-modal .modal-header {
+    background: #0b1220;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.10);
+}
+
+.profiles-copy-modal .modal-header h2 {
+    color: #f8fafc;
+}
+
+.profiles-copy-modal .modal-close {
+    color: #cbd5e1;
+}
+
+.profiles-copy-modal .modal-close:hover {
+    color: #ffffff;
+}
+
+.profiles-copy-modal .modal-body {
+    background: #0b1220;
+}
+
+.profiles-copy-modal .modal-body {
+    max-height: calc(94vh - 90px);
+}
+
+.profiles-copy-modal .profiles-text {
+    min-height: 55vh;
+}
+
 /* 티커 편집 */
 .ticker-editor-textarea {
     width: 100%;

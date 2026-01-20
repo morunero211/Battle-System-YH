@@ -770,6 +770,9 @@ class BattleApp {
             }
 
             Object.keys(templates).sort().forEach((id) => {
+                // 지원형 턴 스킵은 '지원형 템플릿(턴 스킵)'으로 제공하므로,
+                // 스킬 템플릿 목록에서는 중복/혼동 방지를 위해 숨김
+                if (id === 'SUPPORT_TURN_SKIP') return;
                 const t = templates[id];
                 const allowed = Array.isArray(t?.allowedSkillTypes) ? t.allowedSkillTypes : null;
                 if (allowed && selectedSkillType && !allowed.includes(selectedSkillType)) return;
@@ -2824,6 +2827,14 @@ class BattleApp {
 
         // 전투 화면으로 이동
         this.pageManager.showPage('combat-screen');
+
+        // 전투 시작 시: 복붙용 프로필 모달 자동 오픈(항상 접근 가능)
+        try {
+            this.battleSystem?.initProfilesCopyUi?.();
+            this.battleSystem?.showCombatProfilesModal?.({ autoFill: true });
+        } catch (e) {
+            console.warn('[App] profiles modal open failed:', e);
+        }
 
         // 전투 종료 화면 숨기기
         const endScreen = document.getElementById('combat-end');
