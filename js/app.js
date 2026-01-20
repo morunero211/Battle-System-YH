@@ -526,9 +526,11 @@ class BattleApp {
 
                 if (!c.status) c.status = 'active';
 
-                // HP / maxHp: 기존 데이터는 hp만 있는 경우가 많아서 maxHp를 채움
+                // HP / maxHp: 레거시 데이터는 maxHp가 없을 수 있음.
+                // 이때 현재 hp(전투 후 감소한 값)를 maxHp로 삼아버리면(예: 97), 이후 회복이 그 값에서 막히는 문제가 생김.
+                // 따라서 maxHp가 없으면 기본 100으로 둔다(명시적으로 maxHp가 있으면 그 값을 존중).
                 const hp = Number.isFinite(Number(c.hp)) ? Math.max(0, Math.round(Number(c.hp))) : 100;
-                const maxHp = Number.isFinite(Number(c.maxHp)) ? Math.max(1, Math.round(Number(c.maxHp))) : hp || 100;
+                const maxHp = Number.isFinite(Number(c.maxHp)) ? Math.max(1, Math.round(Number(c.maxHp))) : 100;
                 c.maxHp = maxHp;
                 // 쉴드는 base HP를 "회복"하는 개념이 아니라 추가 HP로 분리 저장
                 const shieldHp = Number.isFinite(Number(c.shieldHp)) ? Math.max(0, Math.round(Number(c.shieldHp))) : 0;

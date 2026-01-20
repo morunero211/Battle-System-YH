@@ -1434,6 +1434,15 @@ class BattleSystem {
         const allowedBaseDamage = Math.max(0, beforeBase - baseFloor);
         const hpDamage = Math.min(allowedBaseDamage, remaining);
 
+        // 50 고정으로 인해 추가 피해가 무시되는 경우(사용자 혼동 방지용 로그, 1턴 1회)
+        if (baseFloor > 0 && remaining > 0 && hpDamage === 0 && beforeBase <= baseFloor) {
+            const turnKey = Number.isFinite(Number(this.turnIndex)) ? Number(this.turnIndex) : 0;
+            if (defender._floorDamageIgnoredTurnKey !== turnKey) {
+                defender._floorDamageIgnoredTurnKey = turnKey;
+                this.addLog(`  ℹ️ ${defender.name}은(는) 전투 불능 상태로 HP가 ${baseFloor} 미만으로 내려가지 않습니다.`);
+            }
+        }
+
         const afterBase = Math.max(baseFloor, beforeBase - hpDamage);
         const afterShield = Math.max(0, beforeShield - shieldAbsorbed);
         defender.hp = Math.min(maxHp, afterBase);
