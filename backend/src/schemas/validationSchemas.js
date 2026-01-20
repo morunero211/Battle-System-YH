@@ -204,36 +204,109 @@ const zRuleSetCreate = z.object({
  * 스킬 생성
  * POST /skills
  */
-const zSkillCreate = z.object({
-  name: z.string().min(1).max(100),
-  category: z.enum(['ATTACK', 'DEFENSE', 'HEAL', 'SUPPORT']),
-  targetScope: z.enum([
-    'SINGLE_ENEMY',
-    'ALL_ALLIES',
-    'ALL_ENEMIES',
-    'ALL_ALLIES_EXCEPT_SELF',
-    'SELF'
-  ]),
-  // effects는 Prisma Json 컬럼으로 저장되며, 현재 구현된 타입만 우선 검증
-  effects: z.union([
-    z.object({
-      type: z.literal('DAMAGE'),
-      amount: z.number().int().min(1)
-    }),
-    z.object({
-      type: z.literal('BLOCK'),
-      block: z.number().int().min(0)
-    }),
-    z.object({
-      type: z.literal('HEAL'),
-      amount: z.number().int().min(1)
-    }),
-    // 지원형은 구조가 다양하므로 type만 강제하고 나머지는 허용
-    z.object({
-      type: z.literal('SUPPORT')
-    }).passthrough()
-  ])
-});
+const zSupportBasicStat = z.enum(['attack', 'agility', 'defense', 'skill', 'RANDOM_ADA']);
+
+const zSupportBasicStats = z
+  .array(zSupportBasicStat)
+  .nonempty()
+  .superRefine((stats, ctx) => {
+    const values = stats.map(String);
+    const unique = new Set(values);
+    if (unique.size !== values.length) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'basicStats에는 중복 값이 올 수 없습니다.'
+      });
+    }
+
+    const hasRandom = values.includes('RANDOM_ADA');
+    if (hasRandom && values.length !== 1) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'basicStats에 RANDOM_ADA가 포함되면 단독으로만 사용할 수 있습니다.'
+      });
+    }
+  });
+
+const zSupportEffects = z.discriminatedUnion('template', [
+  z
+    .object({
+      type: z.literal('SUPPORT'),
+      template: z.literal('BASIC'),
+      basicMode: z.enum(['BUFF', 'DEBUFF']).default('BUFF'),
+      basicStats: zSupportBasicStats.default(['attack', 'agility', 'defense', 'skill']),
+      durationRounds: z.number().int().min(1).default(1)
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal('SUPPORT'),
+      template: z.literal('TURN_SKIP'),
+      durationRounds: z.number().int().min(1).default(1)
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal('SUPPORT'),
+      template: z.literal('CANCEL'),
+      cancelKind: z.enum(['BUFF', 'DEBUFF']).default('BUFF'),
+      basicStats: zSupportBasicStats.default(['attack', 'agility', 'defense', 'skill']),
+      durationRounds: z.number().int().min(1).default(1)
+    })
+    .strict()
+]);
+
+const zSkillCreate = z
+  .object({
+    name: z.string().min(1).max(100),
+    category: z.enum(['ATTACK', 'DEFENSE', 'HEAL', 'SUPPORT']),
+    targetScope: z.enum([
+      'SINGLE_ENEMY',
+      'ALL_ALLIES',
+      'ALL_ENEMIES',
+      'ALL_ALLIES_EXCEPT_SELF',
+      'SELF'
+    ]),
+    // effects는 Prisma Json 컬럼으로 저장되며, 현재 구현된 타입만 우선 검증
+    effects: z.union([
+      z
+        .object({
+          type: z.literal('DAMAGE'),
+          amount: z.number().int().min(1)
+        })
+        .strict(),
+      z
+        .object({
+          type: z.literal('BLOCK'),
+          block: z.number().int().min(0)
+        })
+        .strict(),
+      z
+        .object({
+          type: z.literal('HEAL'),
+          amount: z.number().int().min(1)
+        })
+        .strict(),
+      zSupportEffects
+    ])
+  })
+  .superRefine((val, ctx) => {
+    const expected = {
+      ATTACK: 'DAMAGE',
+      DEFENSE: 'BLOCK',
+      HEAL: 'HEAL',
+      SUPPORT: 'SUPPORT'
+    };
+
+    const expectedType = expected[val.category];
+    if (expectedType && val.effects?.type !== expectedType) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['effects', 'type'],
+        message: `category=${val.category}인 스킬은 effects.type=${expectedType} 이어야 합니다.`
+      });
+    }
+  });
 
 /**
  * 아이템 생성
