@@ -188,7 +188,15 @@ const zRuleSetCreate = z.object({
       value: z.number().int().min(1)
     })
   ),
-  supportTable: z.array(z.any()),
+  // supportTable은 현재 엔진에서 미사용이지만, 테이블 형식은 block/heal과 동일하게 유지
+  supportTable: z
+    .array(
+      z.object({
+        stat: z.number().int().min(1).max(5),
+        value: z.number().int().min(0)
+      })
+    )
+    .default([]),
   isActive: z.boolean().optional()
 });
 
@@ -206,7 +214,25 @@ const zSkillCreate = z.object({
     'ALL_ALLIES_EXCEPT_SELF',
     'SELF'
   ]),
-  effects: z.record(z.any())
+  // effects는 Prisma Json 컬럼으로 저장되며, 현재 구현된 타입만 우선 검증
+  effects: z.union([
+    z.object({
+      type: z.literal('DAMAGE'),
+      amount: z.number().int().min(1)
+    }),
+    z.object({
+      type: z.literal('BLOCK'),
+      block: z.number().int().min(0)
+    }),
+    z.object({
+      type: z.literal('HEAL'),
+      amount: z.number().int().min(1)
+    }),
+    // 지원형은 구조가 다양하므로 type만 강제하고 나머지는 허용
+    z.object({
+      type: z.literal('SUPPORT')
+    }).passthrough()
+  ])
 });
 
 /**
