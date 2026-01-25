@@ -1578,22 +1578,112 @@ class BattleSystem {
             }
 
             const result = await response.json();
-            if (Array.isArray(result.log)) {
-                result.log.forEach((logEntry) => this.addLog(logEntry));
-            }
+
+            const hasStructured = !!(result && (result.response || result.defenseJudgment || result.counterJudgment || result.counterAgiJudgment || Number.isFinite(Number(result.shieldAmount))));
+
+            const attackerRef = pending.attackerRef;
+            const defenderRef = pending.defenderRef;
+            const attackerName = attackerRef?.name || '공격자';
+            const defenderName = defenderRef?.name || '방어자';
+
+            const beforeAttackerTotal = attackerRef ? this.getTotalHp(attackerRef) : 0;
+            const beforeDefenderTotal = defenderRef ? this.getTotalHp(defenderRef) : 0;
+
+            const shieldAmount = Number.isFinite(Number(result?.shieldAmount)) ? Math.max(0, Math.round(Number(result.shieldAmount))) : 0;
+            const effectiveBeforeDefender = Number.isFinite(Number(result?.effectiveDefenderHpBeforeDamage))
+                ? Math.max(0, Math.round(Number(result.effectiveDefenderHpBeforeDamage)))
+                : ((responseKind === 'DEFENSE_SKILL' && shieldAmount > 0) ? (beforeDefenderTotal + shieldAmount) : beforeDefenderTotal);
 
             // 반격 성공 시 공격자 HP 갱신(서버는 delta만 제공)
-            if (typeof result.attackerDamage === 'number' && pending.attackerRef) {
-                const before = this.getTotalHp(pending.attackerRef);
-                const applied = this.applyDamageWithShield(pending.attackerRef, Math.max(0, Math.round(result.attackerDamage)));
-                const after = this.getTotalHp(pending.attackerRef);
-                this.addLog(`  💔 ${pending.attackerRef.name} HP: ${before} → ${after} (쉴드 흡수 ${applied.shieldAbsorbed})`);
-                this.evaluateHpStateTransition(pending.attackerRef, { cause: '반격 피해' });
+            let appliedToAttacker = null;
+            if (typeof result.attackerDamage === 'number' && attackerRef) {
+                appliedToAttacker = this.applyDamageWithShield(attackerRef, Math.max(0, Math.round(result.attackerDamage)));
+                this.evaluateHpStateTransition(attackerRef, { cause: '반격 피해' });
             }
 
-            if (typeof result.defenderHp === 'number' && pending.defenderRef) {
-                this.setHpFromTotal(pending.defenderRef, result.defenderHp);
-                this.evaluateHpStateTransition(pending.defenderRef, { cause: '피해' });
+            if (typeof result.defenderHp === 'number' && defenderRef) {
+                this.setHpFromTotal(defenderRef, result.defenderHp);
+                this.evaluateHpStateTransition(defenderRef, { cause: '피해' });
+            }
+
+            const afterAttackerTotal = attackerRef ? this.getTotalHp(attackerRef) : 0;
+            const afterDefenderTotal = defenderRef ? this.getTotalHp(defenderRef) : 0;
+
+            if (hasStructured) {
+                const lines = [];
+
+                if (responseKind === 'PASS') {
+                    lines.push(`${defenderName} | PASS`);
+                } else if (responseKind === 'DODGE') {
+                    lines.push(`${defenderName} | 회피 시도!`);
+
+                    const dj = result?.defenseJudgment;
+                    const dodged = !!result?.dodged;
+                    lines.push(`${defenderName} | 회피 ${dodged ? '성공' : '실패'}`);
+                    if (dj && Number.isFinite(Number(dj.roll)) && Number.isFinite(Number(dj.threshold))) {
+                        lines.push(this.formatRollLine({ roll: dj.roll, threshold: dj.threshold, statLabel: '민첩', grade: dj.grade }));
+                    }
+                } else if (responseKind === 'COUNTER') {
+                    lines.push(`${defenderName} | 반격 시도!`);
+
+                    const countered = !!result?.countered;
+                    lines.push(`${defenderName} | 반격 ${countered ? '성공' : '실패'}`);
+
+                    const atkJ = result?.counterJudgment || result?.defenseJudgment;
+                    const agiJ = result?.counterAgiJudgment;
+
+                    if (atkJ && Number.isFinite(Number(atkJ.roll)) && Number.isFinite(Number(atkJ.threshold))) {
+                        lines.push(this.formatRollLine({ roll: atkJ.roll, threshold: atkJ.threshold, statLabel: '공격', grade: atkJ.grade }));
+                    }
+                    if (agiJ && Number.isFinite(Number(agiJ.roll)) && Number.isFinite(Number(agiJ.threshold))) {
+                        lines.push(this.formatRollLine({ roll: agiJ.roll, threshold: agiJ.threshold, statLabel: '민첩', grade: agiJ.grade }));
+                    }
+                } else if (responseKind === 'DEFENSE_SKILL') {
+                    lines.push(`${defenderName} | 방어 스킬(쉴드) 사용!`);
+                }
+
+                if (responseKind === 'DEFENSE_SKILL' && shieldAmount > 0) {
+                    lines.push(`🧱 쉴드 +${shieldAmount} | 총 HP ${beforeDefenderTotal} → ${effectiveBeforeDefender}`);
+                }
+
+                // 이후 결과(데미지 결과)
+                if (result?.countered) {
+                    const cd = Number.isFinite(Number(result?.counterDamage)) ? Math.max(0, Math.round(Number(result.counterDamage)))
+                        : (Number.isFinite(Number(result?.attackerDamage)) ? Math.max(0, Math.round(Number(result.attackerDamage))) : null);
+                    if (cd !== null) lines.push(`💥 반격 데미지: ${cd}`);
+                    if (attackerRef) {
+                        const absorbed = appliedToAttacker ? appliedToAttacker.shieldAbsorbed : 0;
+                        lines.push(`💚 ${attackerName} HP: ${beforeAttackerTotal} → ${afterAttackerTotal}${absorbed ? ` (쉴드 흡수 ${absorbed})` : ''}`);
+                    }
+                    if (defenderRef && beforeDefenderTotal !== afterDefenderTotal) {
+                        lines.push(`💚 ${defenderName} HP: ${effectiveBeforeDefender} → ${afterDefenderTotal}`);
+                    }
+                } else if (result?.dodged) {
+                    lines.push('💥 데미지: 0');
+                    if (defenderRef) lines.push(`💚 ${defenderName} HP: ${effectiveBeforeDefender} → ${afterDefenderTotal}`);
+                } else if (result?.success === false) {
+                    lines.push('❌ 공격 실패');
+                } else {
+                    const raw = Number.isFinite(Number(result?.rawDamage)) ? Math.max(0, Math.round(Number(result.rawDamage))) : null;
+                    const dmg = Number.isFinite(Number(result?.damage)) ? Math.max(0, Math.round(Number(result.damage))) : null;
+                    const pct = Number.isFinite(Number(result?.defensePercent)) ? Math.round(Number(result.defensePercent)) : null;
+
+                    if (pct !== null && raw !== null && dmg !== null) {
+                        if (responseKind === 'COUNTER' && result?.counterFailedPenalty) {
+                            lines.push(`⚠️ 반격 실패 페널티: 방어력 무시 (원데미지 ${raw} → 실제 ${dmg})`);
+                        } else {
+                            lines.push(`🛡️ 방어력: ${pct}% (원데미지 ${raw} → 실제 ${dmg})`);
+                        }
+                    }
+                    if (dmg !== null) lines.push(`💥 데미지: ${dmg}`);
+                    if (defenderRef) lines.push(`💚 ${defenderName} HP: ${effectiveBeforeDefender} → ${afterDefenderTotal}`);
+                }
+
+                // 공격 시작 블럭과 같은 그룹에 자연스럽게 이어붙이기 위해(1블럭 느낌), 반응 블럭은 타임스탬프를 생략
+                this.addLogBlock(lines, { timestampOnFirst: false });
+            } else if (Array.isArray(result.log)) {
+                // 세부 판정 데이터가 없으면 서버 로그를 그대로 출력
+                result.log.forEach((logEntry) => this.addLog(logEntry));
             }
 
             // 피격/방어 처리 후 방어 관련 스탯 변화 1회 소모
@@ -2292,6 +2382,40 @@ class BattleSystem {
         this.battleLog.push(`[${timestamp}] ${message}`);
     }
 
+    addLogRaw(message) {
+        this.battleLog.push(String(message ?? ''));
+    }
+
+    addLogBlock(lines = [], { timestampOnFirst = true } = {}) {
+        const list = Array.isArray(lines) ? lines.map((v) => String(v ?? '')).filter((s) => s.trim().length > 0) : [];
+        if (list.length === 0) return;
+        if (timestampOnFirst) this.addLog(list[0]);
+        else this.addLogRaw(list[0]);
+        for (let i = 1; i < list.length; i++) {
+            this.addLogRaw(list[i]);
+        }
+    }
+
+    formatGradeOrFail(grade) {
+        if (!grade) return '실패';
+        const g = String(grade);
+        return g === 'FAIL' ? '실패' : this.gradeLabelKo(g);
+    }
+
+    formatSuccessWord(grade) {
+        const g = String(grade || 'FAIL');
+        return g === 'FAIL' ? '실패' : '성공';
+    }
+
+    formatRollLine({ roll, threshold, statLabel, grade }) {
+        const r = Number.isFinite(Number(roll)) ? Math.round(Number(roll)) : 0;
+        const t = Number.isFinite(Number(threshold)) ? Math.round(Number(threshold)) : 0;
+        const label = String(statLabel || '판정');
+        const ok = this.formatSuccessWord(grade);
+        const lvl = this.formatGradeOrFail(grade);
+        return `🎲 1d100 ${r} / ${t} | ${label} ${ok} | ${lvl}`;
+    }
+
     // ===== 밸런스(프론트 폴백용, 정수) =====
     rollInt(min, max) {
         const lo = Math.ceil(Number(min));
@@ -2497,7 +2621,9 @@ class BattleSystem {
 
         for (const line of lines) {
             const msg = String(line.text || '');
-            if (msg.includes('❌')) status = 'fail';
+            if (msg.includes('❌') || msg.includes('공격 실패') || msg.includes('회피 실패') || msg.includes('반격 실패') || msg.includes('| 실패')) {
+                status = 'fail';
+            }
             if (msg.includes('✅ 공격 성공') && msg.includes('반응을 선택')) hasAwait = true;
 
             const dmgMatch = msg.match(/💥\s*데미지:\s*([0-9]+)/);
@@ -2593,7 +2719,7 @@ class BattleSystem {
     }
 
     classifyLogMessage(message) {
-        if (message.includes('❌') || message.toLowerCase().includes('오류')) return 'error';
+        if (message.includes('❌') || message.includes('실패') || message.toLowerCase().includes('오류')) return 'error';
         if (message.includes('✅')) return 'success';
         if (message.includes('💥')) return 'damage';
         if (message.includes('💚') || message.includes('HP')) return 'hp';
@@ -2659,7 +2785,26 @@ class BattleSystem {
 
                     if (response.ok) {
                         const result = await response.json();
-                        if (Array.isArray(result.log)) {
+
+                        const attackJudgment = result?.attackJudgment;
+                        if (attackJudgment && Number.isFinite(Number(attackJudgment.roll)) && Number.isFinite(Number(attackJudgment.threshold))) {
+                            const grade = attackJudgment.grade;
+                            const block = [
+                                `\n⚔️ ${attacker.name} → ${defender.name} 일반 공격`,
+                                `${attacker.name} | ${this.formatGradeOrFail(grade)}`,
+                                this.formatRollLine({ roll: attackJudgment.roll, threshold: attackJudgment.threshold, statLabel: '공격', grade })
+                            ];
+                            if (Number(attackJudgment.roll) === 1) {
+                                block.push('🌟 대성공! (주사위 1)');
+                            }
+                            if (String(grade) === 'FAIL') {
+                                block.push('결과 | 공격 실패');
+                            } else {
+                                block.push(`${defender.name} | 반응 선택 대기 (회피 / 반격 / PASS)`);
+                            }
+                            this.addLogBlock(block);
+                        } else if (Array.isArray(result.log)) {
+                            // 구버전/외부 API 대응: 서버가 문자열 로그만 주는 경우 기존 방식 유지
                             result.log.forEach((logEntry) => this.addLog(logEntry));
                         }
 
@@ -2687,6 +2832,7 @@ class BattleSystem {
                                 attackerTeam,
                                 expiresAt: Date.now() + expiresInMs,
                                 attackGrade,
+                                attackJudgment: result?.attackJudgment || null,
                                 pendingState: result.pendingState
                             };
 
@@ -2706,11 +2852,14 @@ class BattleSystem {
             }
 
             // ===== 폴백(로컬 계산) =====
-            this.addLog(`\n⚔️ ${attacker.name} → ${defender.name} 공격!`);
+            this.addLogBlock([
+                `\n⚔️ ${attacker.name} → ${defender.name} 일반 공격`,
+                `${attacker.name} | 판정 시도(로컬)`
+            ]);
 
             const attackRoll = Math.floor(Math.random() * 100) + 1;
             const attackPower = (attacker.attack ?? attacker.atk ?? 1) * 10 + (attacker.skill ?? attacker.skillStat ?? 1) * 5;
-            this.addLog(`  🎲 공격 판정: ${attackRoll} (필요: ${attackPower})`);
+            this.addLogRaw(`🎲 1d100 ${attackRoll} / ${attackPower} | 공격 ${attackRoll > attackPower ? '실패' : '성공'} | ${attackRoll > attackPower ? '실패' : '성공'}`);
 
             // 공격 판정(공격/스킬 스탯)을 사용했으므로 1회 소모
             this.consumeStatMods(attacker, 'ON_ATTACK');
@@ -2718,11 +2867,11 @@ class BattleSystem {
 
             const isGreatSuccess = attackRoll === 1;
             if (isGreatSuccess) {
-                this.addLog('  🌟 대성공! (주사위 1)');
+                this.addLogRaw('🌟 대성공! (주사위 1)');
             }
 
             if (attackRoll > attackPower) {
-                this.addLog(`  ❌ 공격 실패!`);
+                this.addLogRaw('결과 | 공격 실패');
                 return { awaitingResponse: false };
             }
 
@@ -2746,13 +2895,13 @@ class BattleSystem {
             // 피격(방어 스탯)을 사용했으므로 1회 소모
             this.consumeStatMods(defender, 'ON_DEFEND');
 
-            this.addLog(`  🧮 스탯: 공격 ATK ${atkStat} / 방어 DEF ${defStat}`);
-            this.addLog(`  🛡️ 방어력: ${defensePercent}% (원데미지 ${rawDamage} → 실제 ${finalDamage})`);
-            this.addLog(`  💥 데미지: ${finalDamage}`);
+            this.addLogRaw(`🧮 스탯: 공격 ATK ${atkStat} / 방어 DEF ${defStat}`);
+            this.addLogRaw(`🛡️ 방어력: ${defensePercent}% (원데미지 ${rawDamage} → 실제 ${finalDamage})`);
+            this.addLogRaw(`💥 데미지: ${finalDamage}`);
             if (beforeShield > 0 || applied.shieldAbsorbed > 0) {
-                this.addLog(`  🧱 쉴드: ${beforeShield} → ${this.getShieldHp(defender)} (흡수 ${applied.shieldAbsorbed})`);
+                this.addLogRaw(`🧱 쉴드: ${beforeShield} → ${this.getShieldHp(defender)} (흡수 ${applied.shieldAbsorbed})`);
             }
-            this.addLog(`  💚 ${defender.name} HP: ${Math.min(this.getMaxHp(defender), beforeTotal)}/${this.getMaxHp(defender)} → ${Math.min(this.getMaxHp(defender), afterTotal)}/${this.getMaxHp(defender)}`);
+            this.addLogRaw(`💚 ${defender.name} HP: ${Math.min(this.getMaxHp(defender), beforeTotal)}/${this.getMaxHp(defender)} → ${Math.min(this.getMaxHp(defender), afterTotal)}/${this.getMaxHp(defender)}`);
             return { awaitingResponse: false };
         } catch (error) {
             console.error('전투 계산 에러:', error);
