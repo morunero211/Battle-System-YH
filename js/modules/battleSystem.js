@@ -1613,7 +1613,7 @@ class BattleSystem {
                 const lines = [];
 
                 if (responseKind === 'PASS') {
-                    lines.push(`${defenderName} | PASS`);
+                    lines.push(`${defenderName} | PASS 시도!`);
                 } else if (responseKind === 'DODGE') {
                     lines.push(`${defenderName} | 회피 시도!`);
 
@@ -2613,7 +2613,20 @@ class BattleSystem {
 
     summarizeGroup(lines) {
         const first = lines[0];
-        const title = first ? String(first.text || '').replace(/^\n+/, '').trim() : '행동';
+        const rawFirst = first ? String(first.text || '').replace(/^\n+/, '').trim() : '';
+
+        // 블럭 헤더를 더 고정 포맷으로: "{공격자} | {성공수준}" 라인이 있으면 제목으로 우선 사용
+        // (예: "철수 | 성공", "철수 | 대성공" 등)
+        const headerCandidate = (Array.isArray(lines) ? lines : [])
+            .map((l) => String(l?.text || '').replace(/^\n+/, '').trim())
+            .find((t) => {
+                if (!t.includes(' | ')) return false;
+                if (t.startsWith('🎲')) return false;
+                if (t.includes('회피') || t.includes('반격') || t.includes('PASS')) return false;
+                return /\|\s*(대성공|하드|성공|실패)\s*$/.test(t);
+            });
+
+        const title = headerCandidate || (rawFirst || '행동');
 
         let status = 'neutral';
         let damage = null;
@@ -2636,6 +2649,10 @@ class BattleSystem {
         if (damage !== null && status !== 'fail') status = 'resolved';
 
         const metaParts = [];
+        // 제목이 "공격자 | 성공수준"인 경우, 원래 첫 줄(행동 라인)을 메타로 붙여 맥락 유지
+        if (headerCandidate && rawFirst && rawFirst !== headerCandidate) {
+            metaParts.push(rawFirst.replace(/^\n+/, '').trim());
+        }
         if (damage !== null) metaParts.push(`데미지 ${damage}`);
         metaParts.push(`${lines.length}줄`);
 
