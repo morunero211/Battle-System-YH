@@ -1316,20 +1316,24 @@ class BattleSystem {
         counterBtn.addEventListener('click', () => this.submitDefenseResponse('COUNTER'));
         if (defenseSkillBtn) defenseSkillBtn.addEventListener('click', () => this.submitDefenseResponse('DEFENSE_SKILL'));
         passBtn.addEventListener('click', () => this.submitDefenseResponse('PASS'));
-        closeBtn.addEventListener('click', () => this.submitDefenseResponse('PASS'));
-
-        // 백드롭 클릭은 PASS로 처리
-        modal.addEventListener('click', (e) => {
-            if (e.target === modal) this.submitDefenseResponse('PASS');
+        closeBtn.addEventListener('click', () => {
+            // 강제 선택 UX: 닫기로 PASS 처리하지 않음
+            this.app?.showToast?.('반응을 선택해주세요. (회피 / 반격 / PASS)', 'info');
         });
 
-        // ESC는 PASS로 처리(대기 상태일 때만)
+        // 백드롭 클릭은 무시(자동 PASS 방지)
+        modal.addEventListener('click', (e) => {
+            if (e.target !== modal) return;
+            this.app?.showToast?.('반응을 선택해주세요. (회피 / 반격 / PASS)', 'info');
+        });
+
+        // ESC는 닫지 않음(자동 PASS 방지)
         document.addEventListener('keydown', (e) => {
             if (e.key !== 'Escape') return;
             const open = modal.style.display !== 'none';
             if (!open) return;
             if (!this.pendingDefenseResponse) return;
-            this.submitDefenseResponse('PASS');
+            this.app?.showToast?.('반응을 선택해주세요. (회피 / 반격 / PASS)', 'info');
         });
 
         this.defenseUiInitialized = true;
