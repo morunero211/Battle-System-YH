@@ -31,6 +31,16 @@ class BattleSystem {
         // ===== 복붙(프로필) 모달 =====
         this.profilesCopyUiInitialized = false;
 
+        // ===== HP 수동 수정(오류용) =====
+        this.manualHpEditUiInitialized = false;
+        this.manualHpEditMode = false;
+        this.manualHpEditCancelHandler = null;
+
+        // ===== 전투 이탈(캐릭터 제외) =====
+        this.battleExitUiInitialized = false;
+        this.battleExitMode = false;
+        this.battleExitCancelHandler = null;
+
         // ===== 스킬 템플릿(조건+이펙트) =====
         // 캐릭터에 `skillTemplateId`를 넣으면 이 템플릿을 사용합니다.
         // (없으면 기존 스킬 로직/분기 그대로 사용)
@@ -212,6 +222,423 @@ class BattleSystem {
         this.profilesCopyUiInitialized = true;
     }
 
+    // ===== HP 수동 수정(오류용) =====
+    setPrimaryActionButtonsEnabled(enabled) {
+        const ids = ['action-attack', 'action-ultimate', 'action-chase', 'admin-skip-turn'];
+        ids.forEach((id) => {
+            const el = document.getElementById(id);
+            if (!el) return;
+            el.disabled = !enabled;
+        });
+    }
+
+    initManualHpEditUi() {
+        if (this.manualHpEditUiInitialized) return;
+        const btn = document.getElementById('combat-hp-edit-open');
+        if (!btn) return;
+
+        btn.addEventListener('click', () => {
+            this.beginManualHpEditFlow();
+        });
+
+        this.manualHpEditUiInitialized = true;
+    }
+
+    initBattleExitUi() {
+        if (this.battleExitUiInitialized) return;
+        const btn = document.getElementById('combat-exit-open');
+        if (!btn) return;
+
+        btn.addEventListener('click', () => {
+            this.beginBattleExitFlow();
+        });
+
+        this.battleExitUiInitialized = true;
+    }
+
+    beginManualHpEditFlow() {
+        if (this.manualHpEditMode) return;
+
+        if (this.battleExitMode) {
+            this.app?.showToast?.('현재 전투 이탈 대상 선택 중입니다.', 'warning');
+            return;
+        }
+
+        // 공격/스킬 대상 선택 모드와 충돌 방지
+        if (this.app?.battleActions?.targetSelectionMode) {
+            this.app?.showToast?.('현재 대상 선택 중입니다. 먼저 취소/완료 후 HP 수정을 실행하세요.', 'warning');
+            return;
+        }
+
+        // 방어자 응답 대기 중에는 혼선을 방지
+        if (this.pendingDefenseResponse) {
+            this.app?.showToast?.('방어자 응답 대기 중에는 HP 수정을 할 수 없습니다.', 'warning');
+            return;
+        }
+
+        this.manualHpEditMode = true;
+        this.setPrimaryActionButtonsEnabled(false);
+        this.addLog('HP 수정(오류용): 캐릭터를 선택하세요. (ESC 취소)');
+
+        const onKeydown = (e) => {
+            if (e.key !== 'Escape') return;
+            if (!this.manualHpEditMode) return;
+            this.cancelManualHpEditFlow('취소');
+        };
+        document.addEventListener('keydown', onKeydown);
+        this.manualHpEditCancelHandler = onKeydown;
+
+        this.enableManualHpEditSelection();
+    }
+
+    cleanupManualHpEditFlow() {
+        if (this.manualHpEditCancelHandler) {
+            document.removeEventListener('keydown', this.manualHpEditCancelHandler);
+            this.manualHpEditCancelHandler = null;
+        }
+        this.manualHpEditMode = false;
+        this.setPrimaryActionButtonsEnabled(true);
+    }
+
+    cancelManualHpEditFlow(reason = '') {
+        this.cleanupManualHpEditFlow();
+        if (reason) this.addLog(`HP 수정(오류용): ${reason}`);
+        // inline 스타일/리스너 정리를 위해 렌더로 원상복구
+        this.renderBattle();
+    }
+
+    enableManualHpEditSelection() {
+        const teamNames = ['hero', 'gov', 'villain'];
+        teamNames.forEach((team, idx) => {
+            const container = document.getElementById(`team${idx + 1}-characters-combat`);
+            if (!container) return;
+            const cards = container.querySelectorAll('[data-char-id]');
+            cards.forEach((card) => {
+                card.style.cursor = 'pointer';
+                card.style.opacity = '1';
+                card.style.pointerEvents = 'auto';
+
+                const charId = card.dataset.charId;
+                const teamKey = card.dataset.team || team;
+
+                card.addEventListener('click', () => {
+                    this.openManualHpEditPrompt(teamKey, charId);
+                }, { once: true });
+            });
+        });
+    }
+
+    beginBattleExitFlow() {
+        if (this.battleExitMode) return;
+
+        if (this.manualHpEditMode) {
+            this.app?.showToast?.('현재 HP 수정 대상 선택 중입니다.', 'warning');
+            return;
+        }
+
+        // 공격/스킬 대상 선택 모드와 충돌 방지
+        if (this.app?.battleActions?.targetSelectionMode) {
+            this.app?.showToast?.('현재 대상 선택 중입니다. 먼저 취소/완료 후 전투 이탈을 실행하세요.', 'warning');
+            return;
+        }
+
+        // 방어자 응답 대기 중에는 혼선을 방지
+        if (this.pendingDefenseResponse) {
+            this.app?.showToast?.('방어자 응답 대기 중에는 전투 이탈을 할 수 없습니다.', 'warning');
+            return;
+        }
+
+        this.battleExitMode = true;
+        this.setPrimaryActionButtonsEnabled(false);
+        this.addLog('전투 이탈: 제외할 캐릭터를 선택하세요. (ESC 취소)');
+
+        const onKeydown = (e) => {
+            if (e.key !== 'Escape') return;
+            if (!this.battleExitMode) return;
+            this.cancelBattleExitFlow('취소');
+        };
+        document.addEventListener('keydown', onKeydown);
+        this.battleExitCancelHandler = onKeydown;
+
+        this.enableBattleExitSelection();
+    }
+
+    cleanupBattleExitFlow() {
+        if (this.battleExitCancelHandler) {
+            document.removeEventListener('keydown', this.battleExitCancelHandler);
+            this.battleExitCancelHandler = null;
+        }
+        this.battleExitMode = false;
+        this.setPrimaryActionButtonsEnabled(true);
+    }
+
+    cancelBattleExitFlow(reason = '') {
+        this.cleanupBattleExitFlow();
+        if (reason) this.addLog(`전투 이탈: ${reason}`);
+        this.renderBattle();
+    }
+
+    enableBattleExitSelection() {
+        const teamNames = ['hero', 'gov', 'villain'];
+        teamNames.forEach((team, idx) => {
+            const container = document.getElementById(`team${idx + 1}-characters-combat`);
+            if (!container) return;
+            const cards = container.querySelectorAll('[data-char-id]');
+            cards.forEach((card) => {
+                card.style.cursor = 'pointer';
+                card.style.opacity = '1';
+                card.style.pointerEvents = 'auto';
+
+                const charId = card.dataset.charId;
+                const teamKey = card.dataset.team || team;
+                card.addEventListener('click', () => {
+                    this.confirmBattleExit(teamKey, charId);
+                }, { once: true });
+            });
+        });
+    }
+
+    pruneTurnOrderAfterRosterChange() {
+        if (!Array.isArray(this.turnOrder) || this.turnOrder.length === 0) return;
+
+        const beforeCurrent = this.turnOrder[this.turnIndex] || null;
+        this.turnOrder = this.turnOrder.filter((e) => e?.char && this.isCombatCapable(e.char));
+        if (this.turnOrder.length === 0) {
+            this.turnIndex = 0;
+            return;
+        }
+
+        if (beforeCurrent?.char?.id) {
+            const idx = this.turnOrder.findIndex((e) => String(e?.char?.id) === String(beforeCurrent.char.id));
+            this.turnIndex = idx >= 0 ? idx : Math.min(this.turnIndex, this.turnOrder.length - 1);
+        } else {
+            this.turnIndex = Math.min(this.turnIndex, this.turnOrder.length - 1);
+        }
+
+        const entry = this.getCurrentTurnEntry();
+        if (entry) {
+            const tIdx = ['hero', 'gov', 'villain'].indexOf(entry.teamKey);
+            this.currentTeamTurn = tIdx >= 0 ? tIdx : 0;
+        }
+    }
+
+    rebuildTurnOrderPreserveCurrentActor() {
+        const before = this.getCurrentTurnEntry();
+        const beforeId = before?.char?.id ? String(before.char.id) : null;
+        const beforeTeam = before?.teamKey ? String(before.teamKey) : null;
+
+        this.rebuildTurnOrder({ log: false });
+
+        if (!beforeId || !beforeTeam || !Array.isArray(this.turnOrder) || this.turnOrder.length === 0) {
+            return;
+        }
+
+        const idx = this.turnOrder.findIndex((e) => String(e?.teamKey) === beforeTeam && String(e?.char?.id) === beforeId);
+        if (idx >= 0) {
+            this.turnIndex = idx;
+            const entry = this.getCurrentTurnEntry();
+            if (entry) {
+                const tIdx = ['hero', 'gov', 'villain'].indexOf(entry.teamKey);
+                this.currentTeamTurn = tIdx >= 0 ? tIdx : 0;
+            }
+        }
+    }
+
+    async confirmBattleExit(teamKey, charId) {
+        if (!this.battleExitMode) return;
+
+        // 선택 모드 종료
+        this.cleanupBattleExitFlow();
+
+        const list = Array.isArray(this.combatCharacters?.[teamKey]) ? this.combatCharacters[teamKey] : [];
+        const char = list.find((c) => String(c?.id) === String(charId));
+        if (!char) {
+            this.addLog('전투 이탈: 대상을 찾지 못했습니다.');
+            this.renderBattle();
+            return;
+        }
+
+        const beforeBase = this.getBaseHp(char);
+        const beforeShield = this.getShieldHp(char);
+        const maxHp = this.getMaxHp(char);
+
+        // 이미 이탈 상태면: 이탈 해제(복귀)
+        if (char.battleExcluded) {
+            const ok = await this.app?.showConfirm?.({
+                title: '전투 이탈 해제',
+                message: [
+                    `${char.name}을(를) 전투에 다시 참여시키겠습니까?`,
+                    '',
+                    `현재 HP: ${beforeBase}/${maxHp} (쉴드 ${beforeShield})`,
+                    '',
+                    '효과:',
+                    '- 턴 순서/공격/스킬 대상에 다시 포함됩니다.',
+                    '- 전투 종료 시 로스터 HP 저장(커밋)에 다시 포함됩니다.'
+                ].join('\n'),
+                okText: '복귀',
+                cancelText: '취소'
+            });
+
+            if (!ok) {
+                this.addLog('전투 이탈 해제: 취소');
+                this.renderBattle();
+                return;
+            }
+
+            char.battleExcluded = false;
+            char.battleRejoinedAtTurn = this.currentTurn;
+
+            this.addLog(`↩️ 전투 이탈 해제: ${char.name} 복귀 (턴 ${this.currentTurn})`);
+
+            // 턴 순서에 다시 포함(현재 액터는 최대한 유지)
+            this.rebuildTurnOrderPreserveCurrentActor();
+            this.renderBattle();
+            this.checkBattleEnd();
+            return;
+        }
+
+        const ok = await this.app?.showConfirm?.({
+            title: '전투 이탈 처리',
+            message: [
+                `${char.name}을(를) 전투에서 제외할까요?`,
+                '',
+                `현재 HP: ${beforeBase}/${maxHp} (쉴드 ${beforeShield})`,
+                '',
+                '효과:',
+                '- 이후 턴 순서/공격/스킬 대상에서 제외됩니다.',
+                '- 전투 종료 시 로스터 HP 저장(커밋)에서도 제외됩니다.',
+                '- 지금까지 감소/변경된 HP 기록(전투 로그/기록)은 그대로 남습니다.'
+            ].join('\n'),
+            okText: '제외',
+            cancelText: '취소'
+        });
+
+        if (!ok) {
+            this.addLog('전투 이탈: 취소');
+            this.renderBattle();
+            return;
+        }
+
+        char.battleExcluded = true;
+        char.battleExcludedAtTurn = this.currentTurn;
+
+        // 방어자 응답 대기 중에 이탈시키면 상태가 꼬일 수 있으니 안전하게 정리
+        this.pendingDefenseResponse = null;
+        if (typeof this.hideDefenseResponsePanel === 'function') {
+            try { this.hideDefenseResponsePanel(); } catch { /* ignore */ }
+        }
+
+        this.addLog(`🚪 전투 이탈: ${char.name} 제외 처리 (턴 ${this.currentTurn}, HP ${beforeBase}/${maxHp} +${beforeShield})`);
+
+        this.pruneTurnOrderAfterRosterChange();
+        this.renderBattle();
+        this.checkBattleEnd();
+    }
+
+    async openManualHpEditPrompt(teamKey, charId) {
+        if (!this.manualHpEditMode) return;
+
+        // 선택 모드 종료(중복 클릭/다른 UI 충돌 방지)
+        this.cleanupManualHpEditFlow();
+
+        const list = Array.isArray(this.combatCharacters?.[teamKey]) ? this.combatCharacters[teamKey] : [];
+        const char = list.find((c) => String(c?.id) === String(charId));
+
+        if (!char) {
+            this.addLog('HP 수정(오류용): 대상을 찾지 못했습니다.');
+            this.renderBattle();
+            return;
+        }
+
+        const maxHp = this.getMaxHp(char);
+        const startBase = Math.round(Number(char?.battleStartBaseHp) || 0);
+        const minHp = startBase > 50 ? 50 : 0;
+        const beforeBase = this.getBaseHp(char);
+        const beforeShield = this.getShieldHp(char);
+
+        const msg = [
+            `${char.name}`,
+            `현재 HP: ${beforeBase}/${maxHp} (쉴드 ${beforeShield})`,
+            `입력 범위: ${minHp} ~ ${maxHp}`,
+            (startBase > 50 ? '규칙: 시작 HP > 50 캐릭터는 HP가 50 미만으로 내려가지 않습니다.' : '')
+        ].filter(Boolean).join('\n');
+
+        const nextBase = await this.app?.showNumberPrompt?.({
+            title: 'HP 수동 수정(오류용)',
+            message: msg,
+            initialValue: beforeBase,
+            min: minHp,
+            max: maxHp,
+            okText: '적용',
+            cancelText: '취소'
+        });
+
+        if (nextBase === null) {
+            this.addLog('HP 수정(오류용): 취소');
+            this.renderBattle();
+            return;
+        }
+
+        // 오류 정정용: 사망/전투불능 상태 해제(선택)
+        if (char.battleDead && nextBase > 0) {
+            const ok = await this.app?.showConfirm?.({
+                title: '사망 상태 해제',
+                message: `${char.name}은(는) 현재 사망 상태입니다. HP를 ${nextBase}로 변경하면서 사망을 해제할까요?`,
+                okText: '해제',
+                cancelText: '유지'
+            });
+            if (ok) {
+                char.battleDead = false;
+                if (String(char.status) === 'dead') char.status = 'active';
+            }
+        }
+
+        if (char.battleIncapacitated && nextBase > 50) {
+            const ok = await this.app?.showConfirm?.({
+                title: '전투 불능 해제',
+                message: `${char.name}은(는) 현재 전투 불능 상태입니다. HP를 ${nextBase}로 변경하면서 전투 불능을 해제할까요?`,
+                okText: '해제',
+                cancelText: '유지'
+            });
+            if (ok) {
+                char.battleIncapacitated = false;
+            }
+        }
+
+        let nextShield = beforeShield;
+        const wantsShield = await this.app?.showConfirm?.({
+            title: '쉴드 HP 수정',
+            message: `쉴드(방어 스킬)를 같이 수정할까요?\n\n현재 쉴드: ${beforeShield}`,
+            okText: '수정',
+            cancelText: '유지'
+        });
+        if (wantsShield) {
+            const shield = await this.app?.showNumberPrompt?.({
+                title: '쉴드 HP 수동 수정(오류용)',
+                message: `${char.name}\n현재 쉴드: ${beforeShield}\n입력 범위: 0 ~ 999`,
+                initialValue: beforeShield,
+                min: 0,
+                max: 999,
+                okText: '적용',
+                cancelText: '취소'
+            });
+            if (shield !== null) {
+                nextShield = shield;
+            }
+        }
+
+        char.hp = nextBase;
+        char.shieldHp = nextShield;
+
+        this.ensureHpSplit(char);
+        this.evaluateHpStateTransition(char, { cause: '수동 수정' });
+
+        const afterBase = this.getBaseHp(char);
+        const afterShield = this.getShieldHp(char);
+        this.addLog(`HP 수동 수정(오류용): ${char.name} HP ${beforeBase} → ${afterBase} (쉴드 ${beforeShield} → ${afterShield})`);
+        this.renderBattle();
+    }
+
     cloneCharacterForBattle(source) {
         if (!source) return null;
         try {
@@ -249,6 +676,10 @@ class BattleSystem {
             const list = Array.isArray(this.combatCharacters?.[teamKey]) ? this.combatCharacters[teamKey] : [];
             list.forEach((combatChar) => {
                 if (!combatChar?.id) return;
+
+                // 전투 이탈자는 전투 종료 시 HP 계산/저장(로스터 커밋)에서 제외
+                if (combatChar.battleExcluded) return;
+
                 const rosterChar = this.getRosterCharacterById(combatChar.id);
                 if (!rosterChar) return;
 
@@ -1258,7 +1689,8 @@ class BattleSystem {
 
         const stateTags = [
             char?.battleDead ? '<span class="tag" style="background:#7f1d1d; color:#fff;">사망</span>' : '',
-            char?.battleIncapacitated ? '<span class="tag" style="background:#4a5568; color:#fff;">전투불능</span>' : ''
+            char?.battleIncapacitated ? '<span class="tag" style="background:#4a5568; color:#fff;">전투불능</span>' : '',
+            char?.battleExcluded ? '<span class="tag" style="background:#1f2937; color:#fff;">이탈</span>' : ''
         ].filter(Boolean).join('');
 
         const shieldBadge = shieldHp > 0 ? `<span class="shield-badge" title="방어 스킬(쉴드)">🧱 ${shieldHp}</span>` : '';
@@ -1267,7 +1699,7 @@ class BattleSystem {
         const isCurrent = this.isCurrentActor(team, char.id);
 
         return `
-            <div class="combat-char-card${isCurrent ? ' is-current' : ''}" data-char-id="${char.id}" data-team="${team}">
+            <div class="combat-char-card${isCurrent ? ' is-current' : ''}${char?.battleExcluded ? ' is-excluded' : ''}" data-char-id="${char.id}" data-team="${team}">
                 <div class="char-top">
                     <div class="char-name">${char.name}${shieldBadge ? ` ${shieldBadge}` : ''}</div>
                     <div class="char-tags">${(tags || '<span class="tag tag-empty">-</span>')}${stateTags ? ` ${stateTags}` : ''}</div>
@@ -1332,6 +1764,7 @@ class BattleSystem {
 
     isCombatCapable(char) {
         if (!char) return false;
+        if (char.battleExcluded) return false;
         if (char.battleDead) return false;
         if (char.battleIncapacitated) return false;
         return this.getTotalHp(char) > 0;
@@ -2715,16 +3148,19 @@ class BattleSystem {
             // 전투 참가자 HP(기본/쉴드) 스냅샷
             const finalHp = {};
             const finalShieldHp = {};
+            const excluded = {};
             ['hero', 'gov', 'villain'].forEach((teamKey) => {
                 const list = Array.isArray(this.combatCharacters?.[teamKey]) ? this.combatCharacters[teamKey] : [];
                 list.forEach((c) => {
                     if (!c || !c.id) return;
                     finalHp[c.id] = this.getBaseHp(c);
                     finalShieldHp[c.id] = this.getShieldHp(c);
+                    if (c.battleExcluded) excluded[c.id] = true;
                 });
             });
             lastRecord.finalHp = finalHp;
             lastRecord.finalShieldHp = finalShieldHp;
+            lastRecord.excluded = excluded;
         }
 
         // 참가자만 Firestore에 별도 저장
@@ -2742,7 +3178,9 @@ class BattleSystem {
                         hp: this.getBaseHp(c),
                         shieldHp: this.getShieldHp(c),
                         totalHp: this.getTotalHp(c),
-                        usedUltimate: !!used[String(c.id)]
+                        usedUltimate: !!used[String(c.id)],
+                        excluded: !!c.battleExcluded,
+                        excludedAtTurn: Number.isFinite(Number(c.battleExcludedAtTurn)) ? Number(c.battleExcludedAtTurn) : null
                     }));
             });
 

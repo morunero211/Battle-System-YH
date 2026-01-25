@@ -1610,6 +1610,9 @@ class BattleApp {
         this.elements.saveCustomChar?.addEventListener('click', () => this.saveCustomCharacter());
         this.elements.modalDelete?.addEventListener('click', () => this.deleteCharacter());
 
+        // 캐릭터 소속(진형) 변경 시: 제목에도 즉시 반영
+        this.elements.charTeam?.addEventListener('change', () => this.updateCharacterModalTitleWithTeam());
+
         // 스킬 사용 횟수(잠금/해제/초기화)
         document.getElementById('skill-uses-reset')?.addEventListener('click', () => {
             if (!this.currentEditCharId) return;
@@ -1663,9 +1666,9 @@ class BattleApp {
             this.showToast('스킬을 잠금 처리했습니다.', 'success');
         });
         
-        this.elements.modal?.addEventListener('click', (e) => {
+        this.elements.modal?.addEventListener('click', async (e) => {
             if (e.target === this.elements.modal) {
-                this.closeModal();
+                await this.requestCloseCharacterModalByBackdrop();
             }
         });
 
@@ -2045,6 +2048,41 @@ class BattleApp {
             screen.classList.remove('screen-active');
         });
         document.getElementById(pageId)?.classList.add('screen-active');
+
+        // 캐릭터 목록/상태를 다른 화면에서 수정한 뒤 홈으로 돌아오면,
+        // 기존 DOM이 남아 "상태 변경이 목록에 적용되지 않음"처럼 보일 수 있어 즉시 갱신합니다.
+        if (pageId === 'character-selection') {
+            this.refreshSelectionUi?.();
+        }
+    }
+
+    isHangulStartingName(name) {
+        const s = String(name ?? '').trim();
+        if (!s) return false;
+        return /^[가-힣]/.test(s);
+    }
+
+    compareNamesKoreanFirst(aName, bName) {
+        const a = String(aName ?? '');
+        const b = String(bName ?? '');
+        const aKo = this.isHangulStartingName(a) ? 0 : 1;
+        const bKo = this.isHangulStartingName(b) ? 0 : 1;
+        if (aKo !== bKo) return aKo - bKo;
+        return a.localeCompare(b, 'ko', { sensitivity: 'base' });
+    }
+
+    /**
+     * 캐릭터 선택(메인) 화면 UI만 갱신 (저장/동기화 없이)
+     */
+    refreshSelectionUi() {
+        try {
+            this.renderTeam(0, this.elements.team1List);
+            this.renderTeam(1, this.elements.team2List);
+            this.renderTeam(2, this.elements.team3List);
+            this.updateSelectedDisplay();
+        } catch (e) {
+            console.warn('refreshSelectionUi failed:', e);
+        }
     }
 
     /**
@@ -2071,7 +2109,7 @@ class BattleApp {
         container.innerHTML = '';
 
         const characters = (Array.isArray(team?.characters) ? team.characters.slice() : [])
-            .sort((a, b) => String(a?.name || '').localeCompare(String(b?.name || ''), 'ko'));
+            .sort((a, b) => this.compareNamesKoreanFirst(a?.name, b?.name));
 
         characters.forEach((char) => {
             const item = document.createElement('div');
@@ -2088,6 +2126,8 @@ class BattleApp {
             checkbox.type = 'checkbox';
             checkbox.checked = this.isCharacterSelected(teamIndex, char.id);
             checkbox.disabled = char.status !== 'active'; // 비활성 캐릭터는 선택 불가
+            // 체크박스 클릭은 블록 클릭 토글과 중복되면 안 됨
+            checkbox.addEventListener('click', (e) => e.stopPropagation());
             checkbox.addEventListener('change', (e) => {
                 this.toggleCharacterSelection(teamIndex, char.id, e.target.checked);
             });
@@ -2140,6 +2180,7 @@ class BattleApp {
 
             // 📍 블록 전체 클릭하면 체크박스 토글
             item.addEventListener('click', (e) => {
+                if (e.target === checkbox || e.target?.tagName === 'INPUT') return;
                 if (e.target !== removeBtn && e.target.tagName !== 'BUTTON' && char.status === 'active') {
                     checkbox.checked = !checkbox.checked;
                     this.toggleCharacterSelection(teamIndex, char.id, checkbox.checked);
@@ -2288,7 +2329,8 @@ class BattleApp {
         this.currentEditCharId = null;
         this.clearCustomForm();
         if (this.elements.charTeam) this.elements.charTeam.value = String(teamIndex);
-        if (this.elements.modalTitle) this.elements.modalTitle.textContent = '캐릭터 생성';
+        this._characterModalTitleBase = '캐릭터 생성';
+        this.updateCharacterModalTitleWithTeam();
         if (this.elements.modalDelete) this.elements.modalDelete.classList.add('hidden');
         if (this.elements.modal) this.elements.modal.style.display = 'block';
         ['skill-uses-reset', 'skill-uses-unlock', 'skill-uses-lock'].forEach((id) => {
@@ -2305,6 +2347,9 @@ class BattleApp {
         if (bm) bm.checked = true;
         const ck = document.querySelector('input[name="supportCancelKindDefault"][value="BUFF"]');
         if (ck) ck.checked = true;
+
+        // 배경 클릭 닫기 확인용 스냅샷
+        this.captureCharacterModalSnapshot();
     }
 
     /**
@@ -2332,6 +2377,15 @@ class BattleApp {
         if (this.elements.charTeam) this.elements.charTeam.value = String(teamIndex);
         if (this.elements.charHp) this.elements.charHp.value = char.hp;
         if (this.elements.skillDescription) this.elements.skillDescription.value = char.skillDescription || '';
+
+        // 수정 전 HP 표시
+        const hpOriginal = document.getElementById('char-hp-original');
+        if (hpOriginal) {
+            const base = Number.isFinite(Number(char?.hp)) ? Math.round(Number(char.hp)) : 0;
+            const max = Number.isFinite(Number(char?.maxHp)) ? Math.round(Number(char.maxHp)) : 100;
+            hpOriginal.textContent = `수정 전 HP: ${base}/${max}`;
+            hpOriginal.style.display = 'block';
+        }
 
         // 스탯 설정
         ['attack', 'defense', 'agility', 'skill'].forEach(stat => {
@@ -2424,7 +2478,8 @@ class BattleApp {
         const statusRadio = document.querySelector(`input[name="status"][value="${char.status || 'active'}"]`);
         if (statusRadio) statusRadio.checked = true;
 
-        if (this.elements.modalTitle) this.elements.modalTitle.textContent = '캐릭터 수정';
+        this._characterModalTitleBase = '캐릭터 수정';
+        this.updateCharacterModalTitleWithTeam();
         if (this.elements.modalDelete) this.elements.modalDelete.classList.remove('hidden');
         
         if (this.elements.modal) {
@@ -2436,6 +2491,9 @@ class BattleApp {
             this.elements.skillTemplateId.value = String(char.skillTemplateId || '');
         }
         this.renderSkillTemplateEditor(char);
+
+        // 배경 클릭 닫기 확인용 스냅샷
+        this.captureCharacterModalSnapshot();
     }
 
     /**
@@ -2445,6 +2503,85 @@ class BattleApp {
         if (this.elements.modal) this.elements.modal.style.display = 'none';
         this.currentEditTeam = null;
         this.currentEditCharId = null;
+        this._characterModalSnapshot = null;
+        this._characterModalTitleBase = null;
+    }
+
+    getTeamLabelByIndex(teamIndex) {
+        const n = Number(teamIndex);
+        if (n === 0) return '히어로';
+        if (n === 1) return '정부';
+        if (n === 2) return '빌런';
+        return '팀';
+    }
+
+    updateCharacterModalTitleWithTeam() {
+        const base = String(this._characterModalTitleBase || this.elements?.modalTitle?.textContent || '');
+        const teamIndex = (() => {
+            const v = this.elements?.charTeam?.value;
+            const n = Number.parseInt(String(v ?? ''), 10);
+            return Number.isFinite(n) ? n : (this.currentEditTeam ?? 0);
+        })();
+        const teamLabel = this.getTeamLabelByIndex(teamIndex);
+        if (this.elements?.modalTitle) {
+            this.elements.modalTitle.textContent = base ? `${base} · ${teamLabel}` : teamLabel;
+        }
+    }
+
+    captureCharacterModalSnapshot() {
+        // 모달 내부 폼 상태를 저장해서, 배경 클릭 닫기 시 변경 여부(dirty)를 판단
+        this._characterModalSnapshot = this.getCharacterModalStateSnapshot();
+    }
+
+    getCharacterModalStateSnapshot() {
+        const getRadio = (name) => document.querySelector(`input[name="${name}"]:checked`)?.value ?? '';
+        const getCheck = (selector) => Array.from(document.querySelectorAll(selector)).filter(el => el.checked).map(el => String(el.value)).sort();
+
+        return {
+            name: String(this.elements.charName?.value ?? ''),
+            team: String(this.elements.charTeam?.value ?? ''),
+            hp: String(this.elements.charHp?.value ?? ''),
+            status: String(getRadio('status') ?? ''),
+            attack: String(getRadio('attack') ?? ''),
+            defense: String(getRadio('defense') ?? ''),
+            agility: String(getRadio('agility') ?? ''),
+            skill: String(getRadio('skill') ?? ''),
+            skillType: String(document.querySelector('input[name="skillType"]:checked')?.value ?? ''),
+            skillTargetMode: String(getRadio('skillTargetMode') ?? ''),
+            skillIncludeSelf: !!document.querySelector('input[name="skillIncludeSelf"]')?.checked,
+            skillDescription: String(this.elements.skillDescription?.value ?? ''),
+            skillUsesMax: String(document.getElementById('skill-uses-max')?.value ?? ''),
+            supportTemplate: String(document.querySelector('input[name="supportTemplateDefault"]:checked')?.value ?? ''),
+            supportBasicMode: String(document.querySelector('input[name="supportBasicModeDefault"]:checked')?.value ?? ''),
+            supportCancelKind: String(document.querySelector('input[name="supportCancelKindDefault"]:checked')?.value ?? ''),
+            supportBasicStats: getCheck('input[name="supportBasicStat"]'),
+            skillTemplateId: String(this.elements.skillTemplateId?.value ?? ''),
+            skillTemplateOptions: getCheck('#skill-template-options input[type="checkbox"]')
+        };
+    }
+
+    isCharacterModalDirty() {
+        const snap = this._characterModalSnapshot;
+        if (!snap) return false;
+        const now = this.getCharacterModalStateSnapshot();
+        return JSON.stringify(snap) !== JSON.stringify(now);
+    }
+
+    async requestCloseCharacterModalByBackdrop() {
+        // 박스 밖 클릭으로 닫기: 변경이 있으면 재확인
+        if (!this.elements?.modal || this.elements.modal.style.display === 'none') return;
+        if (!this.isCharacterModalDirty()) {
+            this.closeModal();
+            return;
+        }
+
+        const ok = await this.showConfirm({
+            title: '취소 확인',
+            message: '작성 중인 내용이 저장되지 않습니다. 닫을까요?',
+            okText: '확인',
+            cancelText: '취소'
+        });
+        if (ok) this.closeModal();
     }
 
     /**
@@ -2456,6 +2593,13 @@ class BattleApp {
             this.elements.charTeam.value = String(this.currentEditTeam);
         }
         if (this.elements.charHp) this.elements.charHp.value = 100;
+
+        // 생성 모드에서는 "수정 전 HP" 표시 숨김
+        const hpOriginal = document.getElementById('char-hp-original');
+        if (hpOriginal) {
+            hpOriginal.style.display = 'none';
+            hpOriginal.textContent = '';
+        }
         if (this.elements.skillDescription) this.elements.skillDescription.value = '';
         
         ['attack', 'defense', 'agility', 'skill'].forEach(stat => {
@@ -2521,14 +2665,23 @@ class BattleApp {
     enforceSingleSkillType() {
         const boxes = Array.from(document.querySelectorAll('input[name="skillType"]'));
         if (boxes.length === 0) return;
-        const handler = async (e) => {
-            const checked = boxes.filter(cb => cb.checked);
-            if (checked.length > 1) {
-                // 방금 체크한 항목을 되돌림
-                e.target.checked = false;
-                await this.showAlert({ title: '제한', message: '스킬 타입은 한 개만 선택할 수 있습니다.' });
-            }
-        };
+
+        // 여러 번 호출되어도 리스너가 중복 등록되지 않도록 핸들러를 고정
+        if (!this._singleSkillTypeHandler) {
+            this._singleSkillTypeHandler = async (e) => {
+                const boxesNow = Array.from(document.querySelectorAll('input[name="skillType"]'));
+                const checked = boxesNow.filter(cb => cb.checked);
+                if (checked.length > 1) {
+                    // 방금 체크한 항목을 되돌림
+                    e.target.checked = false;
+                    await this.showAlert({ title: '제한', message: '스킬 타입은 한 개만 선택할 수 있습니다.' });
+                }
+            };
+        }
+
+        const handler = this._singleSkillTypeHandler;
+
+        // 기존 등록 제거 후 재등록(중복 방지)
         boxes.forEach(cb => {
             cb.removeEventListener('change', handler);
             cb.addEventListener('change', handler);
@@ -2706,6 +2859,10 @@ class BattleApp {
             this.renderAllTeams();
         }
 
+        // 다른 화면(특히 캐릭터 목록)에서 수정한 경우에도,
+        // 메인 선택 화면 DOM이 오래된 채로 남지 않도록 항상 선택 UI를 최신화합니다.
+        this.refreshSelectionUi?.();
+
         this.closeModal();
         this.showToast(this.currentEditCharId ? '캐릭터가 수정되었습니다!' : '캐릭터가 생성되었습니다!', 'success');
     }
@@ -2833,9 +2990,18 @@ class BattleApp {
         // 전투 시작 시: 복붙용 프로필 모달 자동 오픈(항상 접근 가능)
         try {
             this.battleSystem?.initProfilesCopyUi?.();
+            this.battleSystem?.initManualHpEditUi?.();
+            this.battleSystem?.initBattleExitUi?.();
             this.battleSystem?.showCombatProfilesModal?.({ autoFill: true });
         } catch (e) {
             console.warn('[App] profiles modal open failed:', e);
+        }
+
+        // 전투 중 HP 수동 수정(오류용) UI 초기화
+        try {
+            this.battleSystem?.initManualHpEditUi?.();
+        } catch (e) {
+            console.warn('[App] manual hp edit ui init failed:', e);
         }
 
         // 전투 종료 화면 숨기기
@@ -3620,7 +3786,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         all.sort((a, b) => {
-            const byName = String(a.char?.name || '').localeCompare(String(b.char?.name || ''), 'ko');
+            const byName = this.compareNamesKoreanFirst(a.char?.name, b.char?.name);
             if (byName !== 0) return byName;
             return Number(a.teamIndex) - Number(b.teamIndex);
         });

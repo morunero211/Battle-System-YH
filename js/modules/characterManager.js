@@ -48,15 +48,17 @@ class CharacterManager {
             checkbox.type = 'checkbox';
             checkbox.checked = this.app.isCharacterSelected(teamIndex, char.id);
             checkbox.disabled = char.status !== 'active';
+            // 체크박스 클릭은 블록 클릭 토글과 중복되면 안 됨
+            checkbox.addEventListener('click', (e) => e.stopPropagation());
             checkbox.addEventListener('change', (e) => {
                 this.app.toggleCharacterSelection(teamIndex, char.id, e.target.checked);
             });
 
             const info = document.createElement('div');
             info.className = 'character-info';
-            info.addEventListener('click', () => {
+            info.addEventListener('click', (e) => {
                 // 캐릭터 선택(메인) 화면에서는 수정 금지
-                if (!isSelectionScreen && event?.target?.tagName !== 'BUTTON') {
+                if (!isSelectionScreen && e?.target?.tagName !== 'BUTTON') {
                     this.app.modalManager.openEditCharacterModal(teamIndex, char.id);
                 }
             });
@@ -97,6 +99,7 @@ class CharacterManager {
 
             // 블록 전체 클릭하면 체크박스 토글
             item.addEventListener('click', (e) => {
+                if (e.target === checkbox || e.target?.tagName === 'INPUT') return;
                 if (e.target !== removeBtn && e.target.tagName !== 'BUTTON' && char.status === 'active') {
                     checkbox.checked = !checkbox.checked;
                     this.app.toggleCharacterSelection(teamIndex, char.id, checkbox.checked);

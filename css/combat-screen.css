@@ -184,6 +184,21 @@ main #combat-screen {
     box-shadow: 0 6px 18px rgba(220, 38, 38, 0.16);
 }
 
+.combat-char-card.is-excluded {
+    opacity: 0.55;
+    filter: grayscale(1);
+    border-style: dashed;
+}
+
+.combat-char-card.is-excluded .char-name {
+    text-decoration: line-through;
+}
+
+.combat-char-card.is-excluded:hover {
+    border-color: #94a3b8;
+    background: #f1f5f9;
+}
+
 .combat-char-card:hover {
     border-color: #667eea;
     background: #ffffff;

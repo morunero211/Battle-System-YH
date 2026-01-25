@@ -829,6 +829,17 @@ body.dark-theme .combat-char-card:hover {
     background: #2a3a4a;
 }
 
+body.dark-theme .combat-char-card.is-excluded {
+    opacity: 0.55;
+    filter: grayscale(1);
+    border-style: dashed;
+}
+
+body.dark-theme .combat-char-card.is-excluded:hover {
+    border-color: #64748b;
+    background: #1f2937;
+}
+
 body.dark-theme .char-name-stat {
     color: #e2e8f0;
 }

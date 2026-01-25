@@ -1401,6 +1401,13 @@ textarea:focus {
     box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
 }
 
+/* 폼 필드 힌트(예: 수정 전 HP) */
+.field-hint {
+    margin-top: 6px;
+    font-size: 12px;
+    color: #64748b;
+}
+
 .form-actions {
     display: grid;
     grid-template-columns: 1fr 1fr;
