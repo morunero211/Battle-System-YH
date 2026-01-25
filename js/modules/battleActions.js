@@ -640,9 +640,15 @@ class BattleActions {
     }
 
     computeAverageHp(teamKeys) {
-        const chars = teamKeys.flatMap((k) => this.app.battleSystem.combatCharacters[k] || []);
+        const bs = this.app?.battleSystem;
+        const chars = teamKeys
+            .flatMap((k) => bs?.combatCharacters?.[k] || [])
+            .filter((c) => c && !c.battleExcluded);
         const count = chars.length;
-        const sumHp = chars.reduce((acc, c) => acc + Math.max(0, Math.round(Number(c.hp) || 0)), 0);
+        const sumHp = chars.reduce((acc, c) => {
+            const hp = bs?.getBaseHp ? bs.getBaseHp(c) : (Number.isFinite(Number(c.hp)) ? Math.round(Number(c.hp)) : 0);
+            return acc + Math.max(0, hp);
+        }, 0);
         const avgHp = count > 0 ? (sumHp / count) : 0;
         return { avgHp, sumHp, count };
     }
@@ -681,16 +687,19 @@ class BattleActions {
             // 참가자 HP(기본/쉴드) 스냅샷
             const finalHp = {};
             const finalShieldHp = {};
+            const excluded = {};
             ['hero', 'gov', 'villain'].forEach((teamKey) => {
                 const list = Array.isArray(this.app.battleSystem?.combatCharacters?.[teamKey]) ? this.app.battleSystem.combatCharacters[teamKey] : [];
                 list.forEach((c) => {
                     if (!c || !c.id) return;
                     finalHp[c.id] = this.app.battleSystem.getBaseHp ? this.app.battleSystem.getBaseHp(c) : (Number.isFinite(Number(c.hp)) ? Math.round(Number(c.hp)) : 0);
                     finalShieldHp[c.id] = this.app.battleSystem.getShieldHp ? this.app.battleSystem.getShieldHp(c) : (Number.isFinite(Number(c.shieldHp)) ? Math.round(Number(c.shieldHp)) : 0);
+                    if (c.battleExcluded) excluded[c.id] = true;
                 });
             });
             lastRecord.finalHp = finalHp;
             lastRecord.finalShieldHp = finalShieldHp;
+            lastRecord.excluded = excluded;
             lastRecord.scores = {
                 allyAvgHp: outcome.ally.avgHp,
                 allySumHp: outcome.ally.sumHp,
@@ -737,7 +746,9 @@ class BattleActions {
                         hp: bs?.getBaseHp ? bs.getBaseHp(c) : (Number.isFinite(Number(c.hp)) ? Math.round(Number(c.hp)) : 0),
                         shieldHp: bs?.getShieldHp ? bs.getShieldHp(c) : (Number.isFinite(Number(c.shieldHp)) ? Math.round(Number(c.shieldHp)) : 0),
                         totalHp: bs?.getTotalHp ? bs.getTotalHp(c) : null,
-                        usedUltimate: !!used[String(c.id)]
+                        usedUltimate: !!used[String(c.id)],
+                        excluded: !!c.battleExcluded,
+                        excludedAtTurn: Number.isFinite(Number(c.battleExcludedAtTurn)) ? Number(c.battleExcludedAtTurn) : null
                     }));
             });
 

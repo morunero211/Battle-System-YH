@@ -350,7 +350,7 @@ class BattleSystem {
 
         this.battleExitMode = true;
         this.setPrimaryActionButtonsEnabled(false);
-        this.addLog('전투 이탈: 제외할 캐릭터를 선택하세요. (ESC 취소)');
+        this.addLog('전투 이탈/복귀: 캐릭터를 선택하세요. (ESC 취소)');
 
         const onKeydown = (e) => {
             if (e.key !== 'Escape') return;
@@ -472,8 +472,9 @@ class BattleSystem {
                     `현재 HP: ${beforeBase}/${maxHp} (쉴드 ${beforeShield})`,
                     '',
                     '효과:',
-                    '- 턴 순서/공격/스킬 대상에 다시 포함됩니다.',
-                    '- 전투 종료 시 로스터 HP 저장(커밋)에 다시 포함됩니다.'
+                    '- 턴/타겟/승패 판정에 다시 포함',
+                    '- 전투 종료 후 HP 저장(커밋)에 다시 포함',
+                    '- 전투 기록은 그대로 유지'
                 ].join('\n'),
                 okText: '복귀',
                 cancelText: '취소'
@@ -505,9 +506,9 @@ class BattleSystem {
                 `현재 HP: ${beforeBase}/${maxHp} (쉴드 ${beforeShield})`,
                 '',
                 '효과:',
-                '- 이후 턴 순서/공격/스킬 대상에서 제외됩니다.',
-                '- 전투 종료 시 로스터 HP 저장(커밋)에서도 제외됩니다.',
-                '- 지금까지 감소/변경된 HP 기록(전투 로그/기록)은 그대로 남습니다.'
+                '- 턴/타겟/승패 판정에서 제외',
+                '- 전투 종료 후 HP 저장(커밋)에서도 제외',
+                '- 전투 기록/로그는 그대로 남음'
             ].join('\n'),
             okText: '제외',
             cancelText: '취소'
@@ -1155,6 +1156,25 @@ class BattleSystem {
         this.usedUltimate = {};
         this.pendingDefenseResponse = null;
 
+        // 이전 전투/모달에서 남을 수 있는 UI 모드/비활성 상태를 초기화
+        if (this.manualHpEditCancelHandler) {
+            try { document.removeEventListener('keydown', this.manualHpEditCancelHandler); } catch { /* ignore */ }
+            this.manualHpEditCancelHandler = null;
+        }
+        if (this.battleExitCancelHandler) {
+            try { document.removeEventListener('keydown', this.battleExitCancelHandler); } catch { /* ignore */ }
+            this.battleExitCancelHandler = null;
+        }
+        this.manualHpEditMode = false;
+        this.battleExitMode = false;
+        this.setPrimaryActionButtonsEnabled(true);
+        if (typeof this.hideDefenseResponsePanel === 'function') {
+            try { this.hideDefenseResponsePanel(); } catch { /* ignore */ }
+        }
+        if (typeof this.setActionButtonsEnabled === 'function') {
+            try { this.setActionButtonsEnabled(true); } catch { /* ignore */ }
+        }
+
         // 전투 시작 시 상태이상 초기화(전투 내 효과는 전투 종료 시 사라짐)
         ['hero', 'gov', 'villain'].forEach((k) => {
             (this.combatCharacters?.[k] || []).forEach((c) => {
@@ -1184,10 +1204,16 @@ class BattleSystem {
         ['hero', 'gov', 'villain'].forEach((k) => {
             (this.combatCharacters?.[k] || []).forEach((c) => {
                 if (!c) return;
+                // 전투 시작 시 기존 방어막(쉴드)은 항상 리셋
+                c.shieldHp = 0;
                 // 전투 시작 시점의 HP를 기준으로 룰이 결정됨(매 전투마다 재설정)
                 c.battleStartBaseHp = Math.round(Number(this.getBaseHp(c)) || 0);
                 c.battleIncapacitated = false;
                 c.battleDead = false;
+                c.battleExcluded = false;
+                c.battleExcludedAtTurn = null;
+                c.battleRejoinedAtTurn = null;
+                this.ensureHpSplit?.(c);
             });
         });
 

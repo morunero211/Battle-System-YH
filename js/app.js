@@ -3998,6 +3998,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const used = (battle && typeof battle.usedUltimate === 'object') ? battle.usedUltimate : {};
         const finalHp = (battle && typeof battle.finalHp === 'object') ? battle.finalHp : {};
         const finalShield = (battle && typeof battle.finalShieldHp === 'object') ? battle.finalShieldHp : {};
+        const excluded = (battle && typeof battle.excluded === 'object') ? battle.excluded : {};
 
         return teamChars
             .filter(Boolean)
@@ -4015,7 +4016,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 const usedFlag = (id != null && used) ? !!used[String(id)] : false;
                 const usedText = usedFlag ? '✅' : '❌';
 
-                return `${name} (HP ${hpText}${shieldText}, 스킬 ${usedText})`;
+                const excludedFlag = (id != null && excluded) ? !!excluded[String(id)] : false;
+                const excludedText = excludedFlag ? ' (이탈)' : '';
+
+                return `${name} (HP ${hpText}${shieldText}, 스킬 ${usedText})${excludedText}`;
             })
             .join(', ');
     }
