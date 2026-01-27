@@ -3,6 +3,16 @@
  * 턴제 전투 로직 관리
  */
 
+/**
+ * @typedef {'hero'|'gov'|'villain'} TeamKey
+ */
+
+/**
+ * 전투에서 사용하는 팀 키 고정 목록
+ * @type {ReadonlyArray<TeamKey>}
+ */
+const TEAM_KEYS = Object.freeze(['hero', 'gov', 'villain']);
+
 class BattleSystem {
     constructor(app) {
         this.app = app;
@@ -670,10 +680,9 @@ class BattleSystem {
     }
 
     commitCombatStateToRoster({ persistDeathStatus = true } = {}) {
-        const teamOrder = ['hero', 'gov', 'villain'];
         const updates = [];
 
-        teamOrder.forEach((teamKey) => {
+        TEAM_KEYS.forEach((teamKey) => {
             const list = Array.isArray(this.combatCharacters?.[teamKey]) ? this.combatCharacters[teamKey] : [];
             list.forEach((combatChar) => {
                 if (!combatChar?.id) return;
@@ -1176,7 +1185,7 @@ class BattleSystem {
         }
 
         // 전투 시작 시 상태이상 초기화(전투 내 효과는 전투 종료 시 사라짐)
-        ['hero', 'gov', 'villain'].forEach((k) => {
+        TEAM_KEYS.forEach((k) => {
             (this.combatCharacters?.[k] || []).forEach((c) => {
                 if (c) c.statusEffects = [];
             });
@@ -1201,7 +1210,7 @@ class BattleSystem {
         };
 
         // 전투 시작 HP 기준(>50이면 50에서 전투 불능, <=50이면 0에서 사망)
-        ['hero', 'gov', 'villain'].forEach((k) => {
+        TEAM_KEYS.forEach((k) => {
             (this.combatCharacters?.[k] || []).forEach((c) => {
                 if (!c) return;
                 // 전투 시작 시 기존 방어막(쉴드)은 항상 리셋
@@ -1225,8 +1234,7 @@ class BattleSystem {
     }
 
     getAliveParticipants() {
-        const teamOrder = ['hero', 'gov', 'villain'];
-        return teamOrder.flatMap((teamKey) => {
+        return TEAM_KEYS.flatMap((teamKey) => {
             const list = Array.isArray(this.combatCharacters?.[teamKey]) ? this.combatCharacters[teamKey] : [];
             return list
                 .filter((c) => this.isCombatCapable(c))
@@ -3345,7 +3353,7 @@ class BattleSystem {
             const finalHp = {};
             const finalShieldHp = {};
             const excluded = {};
-            ['hero', 'gov', 'villain'].forEach((teamKey) => {
+            TEAM_KEYS.forEach((teamKey) => {
                 const list = Array.isArray(this.combatCharacters?.[teamKey]) ? this.combatCharacters[teamKey] : [];
                 list.forEach((c) => {
                     if (!c || !c.id) return;
@@ -3362,8 +3370,7 @@ class BattleSystem {
         // 참가자만 Firestore에 별도 저장
         try {
             const used = this.usedUltimate || {};
-            const teamOrder = ['hero', 'gov', 'villain'];
-            const participants = teamOrder.flatMap((teamKey) => {
+            const participants = TEAM_KEYS.flatMap((teamKey) => {
                 const list = Array.isArray(this.combatCharacters?.[teamKey]) ? this.combatCharacters[teamKey] : [];
                 return list
                     .filter((c) => c && c.id)
