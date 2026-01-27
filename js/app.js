@@ -3860,6 +3860,25 @@ document.addEventListener('DOMContentLoaded', () => {
                 : '';
 
             const targetAndSupport = getTargetAndSupportLabel(char);
+            const skillLineHtml = (skillTags && targetAndSupport)
+                ? `
+                    <div class="char-card-skillline">
+                        <div class="char-card-skill-types char-skill-tags">${skillTags}</div>
+                        <div class="char-card-skill-sep">|</div>
+                        <div class="char-card-target">${this.escapeHtml(targetAndSupport)}</div>
+                    </div>
+                `
+                : (skillTags)
+                    ? `
+                        <div class="char-card-skillline">
+                            <div class="char-card-skill-types char-skill-tags">${skillTags}</div>
+                        </div>
+                    `
+                    : `
+                        <div class="char-card-skillline">
+                            <div class="char-card-target">${this.escapeHtml(targetAndSupport || '-')}</div>
+                        </div>
+                    `;
 
             const maxHp = Number.isFinite(Number(char?.maxHp)) ? Math.max(1, Math.round(Number(char.maxHp))) : 100;
             const baseHp = Number.isFinite(Number(char?.hp)) ? Math.max(0, Math.round(Number(char.hp))) : 0;
@@ -3899,10 +3918,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <div class="char-card-stat"><span class="k">방어</span><span class="v">${this.escapeHtml(char.defense || 3)}</span></div>
                     <div class="char-card-stat"><span class="k">스킬</span><span class="v">${this.escapeHtml(char.skill || 3)}</span></div>
                 </div>
-                <div class="char-card-skill">
-                    <div class="char-card-skill-types char-skill-tags">${skillTags || '-'}</div>
-                    <div class="char-card-target">${this.escapeHtml(targetAndSupport || '-')}</div>
-                </div>
+                <div class="char-card-skill">${skillLineHtml}</div>
             `;
 
             // 클릭 이벤트 바인드 - 캐릭터 목록 페이지에서는 "선택"이 아니라 "세부/수정 모달"만

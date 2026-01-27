@@ -371,8 +371,8 @@ textarea:focus {
     display: grid;
     /* 기본은 3열: 카드가 넓게 보이도록 */
     grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 12px;
-    padding: 16px;
+    gap: 10px;
+    padding: 14px;
     align-items: stretch;
 }
 
@@ -392,15 +392,15 @@ textarea:focus {
     background: #ffffff;
     border: 1px solid #e3e6f0;
     border-radius: 14px;
-    padding: 12px 12px 10px;
+    padding: 10px 10px 8px;
     cursor: pointer;
     transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
     box-shadow: 0 6px 18px rgba(0, 0, 0, 0.05);
     /* 가로를 더 길게(세로는 더 짧게) */
-    aspect-ratio: 2 / 1;
+    aspect-ratio: 3 / 1;
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: 6px;
 }
 
 /* 소속별 테두리(왼쪽 얇은 라인) */
@@ -452,7 +452,7 @@ textarea:focus {
 }
 
 .char-card-hpbar {
-    height: 10px;
+    height: 8px;
     border-radius: 999px;
     overflow: hidden;
     background: #e2e8f0;
@@ -494,7 +494,7 @@ textarea:focus {
     background: #f8fafc;
     border: 1px solid #e3e6f0;
     border-radius: 10px;
-    padding: 6px 8px;
+    padding: 5px 8px;
     display: flex;
     align-items: baseline;
     justify-content: space-between;
@@ -503,27 +503,32 @@ textarea:focus {
 }
 
 .char-card-stat .k {
-    font-size: 12px;
+    font-size: 11px;
     color: #64748b;
 }
 
 .char-card-stat .v {
-    font-size: 15px;
+    font-size: 14px;
     color: #0f172a;
 }
 
 .char-card-skill {
+    margin-top: 0;
+}
+
+.char-card-skillline {
     display: flex;
-    flex-direction: column;
-    gap: 6px;
-    margin-top: auto;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
 }
 
 .char-card-skill-types {
     display: flex;
     gap: 6px;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     align-items: center;
+    white-space: nowrap;
 }
 
 /* 카드 안에서 스킬 유형(태그)은 더 크게 */
@@ -533,19 +538,21 @@ textarea:focus {
     border-radius: 8px;
 }
 
+.char-card-skill-sep {
+    font-size: 13px;
+    font-weight: 900;
+    color: #94a3b8;
+    flex: 0 0 auto;
+}
+
 .char-card-target {
-    font-size: 14px;
+    font-size: 13px;
     font-weight: 900;
     color: #475569;
+    min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
-    white-space: normal;
-    line-height: 1.2;
-    display: -webkit-box;
-    -webkit-box-orient: vertical;
-    line-clamp: 2;
-    -webkit-line-clamp: 2;
-    overflow-wrap: anywhere;
+    white-space: nowrap;
 }
 
 @media (max-width: 520px) {
@@ -554,7 +561,7 @@ textarea:focus {
     }
     .char-card {
         aspect-ratio: auto;
-        min-height: 140px;
+        min-height: 126px;
     }
 }
 
