@@ -3855,9 +3855,15 @@ document.addEventListener('DOMContentLoaded', () => {
             const teamMeta = getTeamMeta(teamIndex);
             card.classList.add(teamMeta.className);
 
-            const skillTags = Array.isArray(char.skillTypes)
-                ? char.skillTypes.map(type => `<span class="skill-tag ${getSkillTagClass(type)}">${type}</span>`).join('')
-                : '';
+            const skillTypes = Array.isArray(char.skillTypes)
+                ? char.skillTypes.map(v => String(v || '').trim()).filter(Boolean)
+                : [];
+
+            const skillTags = (skillTypes.length <= 0)
+                ? ''
+                : (skillTypes.length === 1)
+                    ? `<span class="skill-tag ${getSkillTagClass(skillTypes[0])}">${this.escapeHtml(skillTypes[0])}</span>`
+                    : `<span class="skill-tag ${getSkillTagClass(skillTypes[0])}">${this.escapeHtml(skillTypes[0])}+${skillTypes.length - 1}</span>`;
 
             const targetAndSupport = getTargetAndSupportLabel(char);
             const skillLineHtml = (skillTags && targetAndSupport)
