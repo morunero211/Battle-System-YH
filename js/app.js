@@ -3894,10 +3894,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 </div>
 
                 <div class="char-card-stats">
-                    <div class="char-card-stat"><span class="k">공</span><span class="v">${this.escapeHtml(char.attack || 3)}</span></div>
-                    <div class="char-card-stat"><span class="k">민</span><span class="v">${this.escapeHtml(char.agility || 3)}</span></div>
-                    <div class="char-card-stat"><span class="k">방</span><span class="v">${this.escapeHtml(char.defense || 3)}</span></div>
-                    <div class="char-card-stat"><span class="k">스</span><span class="v">${this.escapeHtml(char.skill || 3)}</span></div>
+                    <div class="char-card-stat"><span class="k">공격</span><span class="v">${this.escapeHtml(char.attack || 3)}</span></div>
+                    <div class="char-card-stat"><span class="k">민첩</span><span class="v">${this.escapeHtml(char.agility || 3)}</span></div>
+                    <div class="char-card-stat"><span class="k">방어</span><span class="v">${this.escapeHtml(char.defense || 3)}</span></div>
+                    <div class="char-card-stat"><span class="k">스킬</span><span class="v">${this.escapeHtml(char.skill || 3)}</span></div>
                 </div>
                 <div class="char-card-skill">
                     <div class="char-card-skill-types char-skill-tags">${skillTags || '-'}</div>
