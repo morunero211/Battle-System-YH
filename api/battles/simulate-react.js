@@ -30,10 +30,12 @@ function prunePendingReactions(now = Date.now()) {
 
 function gradeLabel(grade) {
   switch (grade) {
-    case 'EXTREME':
+    case 'CRITICAL':
       return '대성공';
+    case 'EXTREME':
+      return '극단적 성공';
     case 'HARD':
-      return '하드';
+      return '어려운 성공';
     case 'SUCCESS':
       return '성공';
     case 'FAIL':
@@ -44,6 +46,8 @@ function gradeLabel(grade) {
 
 function gradeValue(grade) {
   switch (grade) {
+    case 'CRITICAL':
+      return 4;
     case 'EXTREME':
       return 3;
     case 'HARD':

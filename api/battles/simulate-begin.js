@@ -36,10 +36,12 @@ function clampStat(stat) {
 
 function gradeLabel(grade) {
   switch (grade) {
-    case 'EXTREME':
+    case 'CRITICAL':
       return '대성공';
+    case 'EXTREME':
+      return '극단적 성공';
     case 'HARD':
-      return '하드';
+      return '어려운 성공';
     case 'SUCCESS':
       return '성공';
     case 'FAIL':
@@ -96,8 +98,10 @@ module.exports = async function handler(req, res) {
     log.push(`\n⚔️ ${attackerName} → ${defenderName} 공격 시도!`);
     log.push(`  🎯 공격 판정: ${attackJudgment.roll} / ${attackJudgment.threshold} (${gradeLabel(attackJudgment.grade)})`);
 
-    if (attackJudgment.grade === 'EXTREME') {
+    if (attackJudgment.grade === 'CRITICAL') {
       log.push('  🌟 대성공! (주사위 1)');
+    } else if (attackJudgment.grade === 'EXTREME') {
+      log.push('  🔥 극단적 성공!');
     }
 
     if (attackJudgment.grade === 'FAIL') {

@@ -1439,8 +1439,10 @@ class BattleSystem {
 
     gradeLabelKo(grade) {
         switch (grade) {
-            case 'EXTREME':
+            case 'CRITICAL':
                 return '대성공';
+            case 'EXTREME':
+                return '극단적 성공';
             case 'HARD':
                 return '어려운 성공';
             case 'SUCCESS':
@@ -2750,7 +2752,7 @@ class BattleSystem {
                 if (!t.includes(' | ')) return false;
                 if (t.startsWith('🎲')) return false;
                 if (t.includes('회피') || t.includes('반격') || t.includes('PASS')) return false;
-                return /\|\s*(대성공|하드|성공|실패)\s*$/.test(t);
+                return /\|\s*(대성공|극단적 성공|어려운 성공|하드|성공|실패)\s*$/.test(t);
             });
 
         const title = headerCandidate || (rawFirst || '행동');

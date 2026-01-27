@@ -26,13 +26,17 @@ const STAT_THRESHOLDS = {
 };
 
 // 판정 등급 계산
-// - 대성공(EXTREME): 주사위 1일 때만
+// - 대성공(CRITICAL): 주사위 1일 때만
+// - 극단(EXTREME): 기준치의 20% 이하
 // - 하드(HARD): 기준치의 50% 이하
 function getJudgmentGrade(roll, threshold) {
   if (roll > threshold) {
     return 'FAIL';
   }
   if (roll === 1) {
+    return 'CRITICAL';
+  }
+  if (roll <= threshold * 0.2) {
     return 'EXTREME';
   }
   if (roll <= threshold * 0.5) {
