@@ -525,6 +525,52 @@ body.dark-theme .character-list-table {
     border-color: #2d3e4f;
 }
 
+/* 캐릭터 목록: 카드(다크) */
+body.dark-theme .character-list-table.is-cards {
+    background: #1a2a3a;
+}
+
+body.dark-theme .char-card {
+    background: #1f2f3f;
+    border-color: #2d3e4f;
+    color: #e2e8f0;
+    box-shadow: 0 10px 26px rgba(0, 0, 0, 0.35);
+}
+
+body.dark-theme .char-card.team-hero { box-shadow: inset 4px 0 0 #3b82f6, 0 10px 26px rgba(0, 0, 0, 0.35); }
+body.dark-theme .char-card.team-gov { box-shadow: inset 4px 0 0 #8b5cf6, 0 10px 26px rgba(0, 0, 0, 0.35); }
+body.dark-theme .char-card.team-villain { box-shadow: inset 4px 0 0 #ef4444, 0 10px 26px rgba(0, 0, 0, 0.35); }
+
+body.dark-theme .char-card:hover {
+    border-color: #667eea;
+    box-shadow: 0 16px 38px rgba(102, 126, 234, 0.18);
+}
+
+body.dark-theme .char-card-team {
+    color: #cbd5e1;
+}
+
+body.dark-theme .char-card-name {
+    color: #f8fafc;
+}
+
+body.dark-theme .char-card-stat {
+    background: #232d3a;
+    border-color: #2d3e4f;
+}
+
+body.dark-theme .char-card-stat .k {
+    color: #94a3b8;
+}
+
+body.dark-theme .char-card-stat .v {
+    color: #e2e8f0;
+}
+
+body.dark-theme .char-card-target {
+    color: #a0aec0;
+}
+
 body.dark-theme .char-table-row {
     background: #1f2f3f;
     border-color: #2d3e4f;

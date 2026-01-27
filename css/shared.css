@@ -366,6 +366,123 @@ textarea:focus {
     font-size: 15px;
 }
 
+/* 캐릭터 목록: 카드(가로로 긴 4:6 느낌) 레이아웃 */
+.character-list-table.is-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 14px;
+    align-items: stretch;
+}
+
+.char-card {
+    background: #ffffff;
+    border: 1px solid #e3e6f0;
+    border-radius: 14px;
+    padding: 14px 14px 12px;
+    cursor: pointer;
+    transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.05);
+    aspect-ratio: 3 / 2;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+/* 소속별 테두리(왼쪽 얇은 라인) */
+.char-card.team-hero { box-shadow: inset 4px 0 0 #60a5fa, 0 6px 18px rgba(0, 0, 0, 0.05); }
+.char-card.team-gov { box-shadow: inset 4px 0 0 #a78bfa, 0 6px 18px rgba(0, 0, 0, 0.05); }
+.char-card.team-villain { box-shadow: inset 4px 0 0 #f87171, 0 6px 18px rgba(0, 0, 0, 0.05); }
+
+.char-card:hover {
+    border-color: #667eea;
+    transform: translateY(-2px);
+    box-shadow: 0 12px 28px rgba(102, 126, 234, 0.16);
+}
+
+.char-card-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+.char-card-team {
+    font-weight: 900;
+    color: #334155;
+    font-size: 14px;
+}
+
+.char-card-name {
+    font-weight: 1000;
+    font-size: 18px;
+    color: #1f2937;
+    letter-spacing: -0.2px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.char-card-stats {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 8px;
+}
+
+.char-card-stat {
+    background: #f8fafc;
+    border: 1px solid #e3e6f0;
+    border-radius: 10px;
+    padding: 8px 8px;
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 6px;
+    font-weight: 900;
+}
+
+.char-card-stat .k {
+    font-size: 12px;
+    color: #64748b;
+}
+
+.char-card-stat .v {
+    font-size: 15px;
+    color: #0f172a;
+}
+
+.char-card-skill {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: auto;
+}
+
+.char-card-skill-types {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+.char-card-target {
+    font-size: 13px;
+    font-weight: 850;
+    color: #475569;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+@media (max-width: 520px) {
+    .character-list-table.is-cards {
+        grid-template-columns: 1fr;
+    }
+    .char-card {
+        aspect-ratio: auto;
+        min-height: 160px;
+    }
+}
+
 .char-table-row {
     display: grid;
     grid-template-columns: 88px 190px 60px 56px 56px 56px 56px 150px 170px 120px;

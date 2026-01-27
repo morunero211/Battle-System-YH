@@ -3786,23 +3786,8 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         
         this.elements.characterListContent.innerHTML = '';
-
-        // 헤더
-        const header = document.createElement('div');
-        header.className = 'char-table-row header';
-        header.innerHTML = `
-            <div class="char-table-cell">소속</div>
-            <div class="char-table-cell">이름</div>
-            <div class="char-table-cell">HP</div>
-            <div class="char-table-cell">공격</div>
-            <div class="char-table-cell">민첩</div>
-            <div class="char-table-cell">방어</div>
-            <div class="char-table-cell">스킬</div>
-            <div class="char-table-cell">스킬타입</div>
-            <div class="char-table-cell">대상/지원</div>
-            <div class="char-table-cell status-cell">상태</div>
-        `;
-        this.elements.characterListContent.appendChild(header);
+        // 카드 레이아웃 활성화(기존 테이블 CSS도 남겨둠)
+        this.elements.characterListContent.classList.add('is-cards');
 
         const getTeamMeta = (teamIndex) => {
             if (Number(teamIndex) === 1) return { label: '🏛️ 정부', className: 'team-gov' };
@@ -3862,48 +3847,52 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         all.forEach(({ teamIndex, char }) => {
-                const row = document.createElement('div');
-                row.className = 'char-table-row';
-                row.dataset.teamIndex = teamIndex;
-                row.dataset.charId = char.id;
-                row.style.display = 'grid';  // 기본적으로 표시
+            const card = document.createElement('div');
+            card.className = 'char-card';
+            card.dataset.teamIndex = teamIndex;
+            card.dataset.charId = char.id;
 
-                const teamMeta = getTeamMeta(teamIndex);
-                row.classList.add(teamMeta.className);
-                
-                const skillTags = Array.isArray(char.skillTypes)
-                    ? char.skillTypes.map(type => `<span class="skill-tag ${getSkillTagClass(type)}">${type}</span>`).join('')
-                    : '';
+            const teamMeta = getTeamMeta(teamIndex);
+            card.classList.add(teamMeta.className);
 
-                const targetAndSupport = getTargetAndSupportLabel(char);
+            const skillTags = Array.isArray(char.skillTypes)
+                ? char.skillTypes.map(type => `<span class="skill-tag ${getSkillTagClass(type)}">${type}</span>`).join('')
+                : '';
 
-                const statusClass = char.status || 'active';
-                const statusText = {
-                    'active': '✅ 활동중',
-                    'dead': '💀 사망',
-                    'missing': '❓ 실종'
-                }[statusClass];
+            const targetAndSupport = getTargetAndSupportLabel(char);
 
-                row.innerHTML = `
-                    <div class="char-table-cell">${teamLabels[teamIndex]}</div>
-                    <div class="char-table-cell">${char.name}</div>
-                    <div class="char-table-cell">${char.hp}</div>
-                    <div class="char-table-cell">${char.attack || 3}</div>
-                    <div class="char-table-cell">${char.agility || 3}</div>
-                    <div class="char-table-cell">${char.defense || 3}</div>
-                    <div class="char-table-cell">${char.skill || 3}</div>
-                    <div class="char-table-cell char-skill-tags">${skillTags || '-'}</div>
-                    <div class="char-table-cell">${this.escapeHtml(targetAndSupport || '-')}</div>
-                    <div class="char-table-cell status-cell"><span class="char-status ${statusClass}">${statusText}</span></div>
-                `;
-                
-                // 클릭 이벤트 바인드 - 캐릭터 목록 페이지에서는 "선택"이 아니라 "세부/수정 모달"만
-                const clickHandler = () => {
-                    this.openEditCharacterModal(teamIndex, char.id);
-                };
-                row.addEventListener('click', clickHandler);
-                
-                this.elements.characterListContent.appendChild(row);
+            const statusClass = char.status || 'active';
+            const statusText = {
+                'active': '✅ 활동중',
+                'dead': '💀 사망',
+                'missing': '❓ 실종'
+            }[statusClass];
+
+            card.innerHTML = `
+                <div class="char-card-top">
+                    <div class="char-card-team">${teamLabels[teamIndex]}</div>
+                    <div class="char-card-status"><span class="char-status ${statusClass}">${statusText}</span></div>
+                </div>
+                <div class="char-card-name">${this.escapeHtml(char.name || '')}</div>
+                <div class="char-card-stats">
+                    <div class="char-card-stat"><span class="k">HP</span><span class="v">${this.escapeHtml(char.hp)}</span></div>
+                    <div class="char-card-stat"><span class="k">공</span><span class="v">${this.escapeHtml(char.attack || 3)}</span></div>
+                    <div class="char-card-stat"><span class="k">민</span><span class="v">${this.escapeHtml(char.agility || 3)}</span></div>
+                    <div class="char-card-stat"><span class="k">방</span><span class="v">${this.escapeHtml(char.defense || 3)}</span></div>
+                    <div class="char-card-stat"><span class="k">스</span><span class="v">${this.escapeHtml(char.skill || 3)}</span></div>
+                </div>
+                <div class="char-card-skill">
+                    <div class="char-card-skill-types char-skill-tags">${skillTags || '-'}</div>
+                    <div class="char-card-target">${this.escapeHtml(targetAndSupport || '-')}</div>
+                </div>
+            `;
+
+            // 클릭 이벤트 바인드 - 캐릭터 목록 페이지에서는 "선택"이 아니라 "세부/수정 모달"만
+            card.addEventListener('click', () => {
+                this.openEditCharacterModal(teamIndex, char.id);
+            });
+
+            this.elements.characterListContent.appendChild(card);
         });
         
         this.filterCharacterList();
@@ -3919,17 +3908,18 @@ document.addEventListener('DOMContentLoaded', () => {
         const skillTypeFilter = this.elements.skillTypeFilter?.value || '';
         const teamFilter = this.elements.teamFilter?.value || '';
 
-        const rows = this.elements.characterListContent.querySelectorAll('.char-table-row:not(.header)');
-        
-        rows.forEach(row => {
-            const teamIndex = parseInt(row.dataset.teamIndex);
-            const charId = row.dataset.charId;
+        const items = this.elements.characterListContent.querySelectorAll('.char-card, .char-table-row:not(.header)');
+
+        items.forEach((item) => {
+            const teamIndex = Number.parseInt(String(item.dataset.teamIndex ?? ''), 10);
+            const charId = String(item.dataset.charId ?? '');
             
             if (isNaN(teamIndex) || !charId) {
                 return;
             }
             
-            const char = this.teams[teamIndex].characters.find(c => c.id === charId);
+            const team = this.teams?.[teamIndex];
+            const char = team?.characters?.find(c => String(c?.id) === String(charId));
             if (!char) {
                 return;
             }
@@ -3937,7 +3927,8 @@ document.addEventListener('DOMContentLoaded', () => {
             let show = true;
 
             // 검색어 필터
-            if (searchQuery && !char.name.toLowerCase().includes(searchQuery)) {
+            const name = String(char.name || '').toLowerCase();
+            if (searchQuery && !name.includes(searchQuery)) {
                 show = false;
             }
 
@@ -3951,7 +3942,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 show = false;
             }
 
-            row.style.display = show ? 'grid' : 'none';
+            // 기본 display는 CSS가 담당하고, 필터는 숨김만 제어
+            item.style.display = show ? '' : 'none';
         });
     }
 
