@@ -3785,15 +3785,51 @@ document.addEventListener('DOMContentLoaded', () => {
             <div class="char-table-cell">방어</div>
             <div class="char-table-cell">스킬</div>
             <div class="char-table-cell">스킬타입</div>
+            <div class="char-table-cell">대상/지원</div>
             <div class="char-table-cell status-cell">상태</div>
         `;
         this.elements.characterListContent.appendChild(header);
 
+        const getTeamMeta = (teamIndex) => {
+            if (Number(teamIndex) === 1) return { label: '🏛️ 정부', className: 'team-gov' };
+            if (Number(teamIndex) === 2) return { label: '🦹 빌런', className: 'team-villain' };
+            return { label: '🦸 히어로', className: 'team-hero' };
+        };
+
+        const getSkillTagClass = (type) => {
+            const t = String(type || '').trim();
+            if (t === '공격형') return 'skill-tag--attack';
+            if (t === '방어형') return 'skill-tag--defense';
+            if (t === '지원형') return 'skill-tag--support';
+            if (t === '치료형') return 'skill-tag--heal';
+            return '';
+        };
+
+        const getTargetAndSupportLabel = (char) => {
+            const mode = (char?.skillTarget?.mode === 'multi') ? '다수' : '단일';
+            const includeSelf = mode === '다수' ? !!char?.skillTarget?.includeSelf : false;
+            const targetLabel = includeSelf ? '다수(본인)' : mode;
+
+            const types = Array.isArray(char?.skillTypes) ? char.skillTypes : [];
+            const isSupport = types.includes('지원형');
+            if (!isSupport) return targetLabel;
+
+            const tpl = String(char?.supportConfig?.template || 'BASIC').toUpperCase();
+            if (tpl === 'TURN_SKIP') return `${targetLabel} · 턴스킵`;
+            if (tpl === 'CANCEL') {
+                const ck = String(char?.supportConfig?.cancelKind || 'BUFF').toUpperCase();
+                const kind = ck === 'DEBUFF' ? '디버프' : '버프';
+                return `${targetLabel} · 캔슬(${kind})`;
+            }
+            const bm = String(char?.supportConfig?.basicMode || 'BUFF').toUpperCase();
+            return `${targetLabel} · ${bm === 'DEBUFF' ? '디버프' : '버프'}`;
+        };
+
         // 팀 라벨 맵
         const teamLabels = {
-            0: '👤 히어로',
-            1: '👤 정부',
-            2: '👤 빌런'
+            0: getTeamMeta(0).label,
+            1: getTeamMeta(1).label,
+            2: getTeamMeta(2).label
         };
 
         // 모든 캐릭터(이름 기준 ㄱㄴㄷ 정렬)
@@ -3817,10 +3853,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 row.dataset.teamIndex = teamIndex;
                 row.dataset.charId = char.id;
                 row.style.display = 'grid';  // 기본적으로 표시
+
+                const teamMeta = getTeamMeta(teamIndex);
+                row.classList.add(teamMeta.className);
                 
-                const skillTags = char.skillTypes ? char.skillTypes.map(type => 
-                    `<span class="skill-tag">${type}</span>`
-                ).join('') : '';
+                const skillTags = Array.isArray(char.skillTypes)
+                    ? char.skillTypes.map(type => `<span class="skill-tag ${getSkillTagClass(type)}">${type}</span>`).join('')
+                    : '';
+
+                const targetAndSupport = getTargetAndSupportLabel(char);
 
                 const statusClass = char.status || 'active';
                 const statusText = {
@@ -3838,6 +3879,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <div class="char-table-cell">${char.defense || 3}</div>
                     <div class="char-table-cell">${char.skill || 3}</div>
                     <div class="char-table-cell char-skill-tags">${skillTags || '-'}</div>
+                    <div class="char-table-cell">${this.escapeHtml(targetAndSupport || '-')}</div>
                     <div class="char-table-cell status-cell"><span class="char-status ${statusClass}">${statusText}</span></div>
                 `;
                 

@@ -531,6 +531,11 @@ body.dark-theme .char-table-row {
     color: #e2e8f0;
 }
 
+/* 소속별 테두리(다크) */
+body.dark-theme .char-table-row.team-hero { box-shadow: inset 4px 0 0 #3b82f6; }
+body.dark-theme .char-table-row.team-gov { box-shadow: inset 4px 0 0 #8b5cf6; }
+body.dark-theme .char-table-row.team-villain { box-shadow: inset 4px 0 0 #ef4444; }
+
 body.dark-theme .char-table-row:hover {
     border-color: #667eea;
 }
@@ -544,11 +549,24 @@ body.dark-theme .char-table-cell {
     color: #e2e8f0;
 }
 
+body.dark-theme .char-table-cell + .char-table-cell {
+    border-left: 1px solid #2d3e4f;
+}
+
+body.dark-theme .char-table-row.header .char-table-cell + .char-table-cell {
+    border-left-color: rgba(255, 255, 255, 0.28);
+}
+
 body.dark-theme .skill-tag {
     background: #232d3a;
-    color: #667eea;
+    color: #e2e8f0;
     border-color: #2d3e4f;
 }
+
+body.dark-theme .skill-tag.skill-tag--attack { background: #3a2a1f; color: #fdba74; border-color: #7c2d12; }
+body.dark-theme .skill-tag.skill-tag--defense { background: #1f2a3a; color: #93c5fd; border-color: #1e3a8a; }
+body.dark-theme .skill-tag.skill-tag--support { background: #132b2f; color: #67e8f9; border-color: #155e75; }
+body.dark-theme .skill-tag.skill-tag--heal { background: #132a1c; color: #86efac; border-color: #166534; }
 
 body.dark-theme .char-status {
     font-weight: 600;
