@@ -502,8 +502,8 @@ body.dark-theme main {
 .main-layout {
     display: grid;
     /* 오른쪽 패널을 더 줄이고, 좌측이 남는 공간을 채우도록 */
-    grid-template-columns: minmax(760px, 1fr) 300px;
-    gap: 24px;
+    grid-template-columns: minmax(820px, 1fr) 260px;
+    gap: 18px;
     align-items: start;
 }
 

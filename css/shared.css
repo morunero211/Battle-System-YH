@@ -369,18 +369,30 @@ textarea:focus {
 /* 캐릭터 목록: 카드(가로로 긴 4:6 느낌) 레이아웃 */
 .character-list-table.is-cards {
     display: grid;
-    /* 한 줄에 더 많은 카드가 보이도록 최소 폭을 낮춤(대략 4열 목표) */
-    grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
-    gap: 12px;
-    padding: 14px;
+    /* 기본은 4열: 카드 폭을 억지로 줄이지 않고 남는 공간을 넓게 사용 */
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 14px;
+    padding: 18px;
     align-items: stretch;
+}
+
+@media (max-width: 1280px) {
+    .character-list-table.is-cards {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 980px) {
+    .character-list-table.is-cards {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
 }
 
 .char-card {
     background: #ffffff;
     border: 1px solid #e3e6f0;
     border-radius: 14px;
-    padding: 12px 12px 10px;
+    padding: 14px 14px 12px;
     cursor: pointer;
     transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
     box-shadow: 0 6px 18px rgba(0, 0, 0, 0.05);
@@ -434,7 +446,7 @@ textarea:focus {
     background: #f8fafc;
     border: 1px solid #e3e6f0;
     border-radius: 10px;
-    padding: 6px 7px;
+    padding: 8px 8px;
     display: flex;
     align-items: baseline;
     justify-content: space-between;
@@ -448,7 +460,7 @@ textarea:focus {
 }
 
 .char-card-stat .v {
-    font-size: 14px;
+    font-size: 15px;
     color: #0f172a;
 }
 
