@@ -38,6 +38,8 @@ class BattleSystem {
         // battleLog가 변경되지 않는 렌더(접기/펼치기 등)에서 파싱/그룹핑 비용을 줄입니다.
         this._logBlocksCache = null; // { totalLen, startIndex, maxLines, blocks }
 
+        // ===== 전투 화면 DOM 캐시(성능) =====
+        this._combatDomCache = null; // { heroContainer, govContainer, villainContainer }
         // ===== 2-step 방어자 응답 =====
         this.pendingDefenseResponse = null; // { pendingId, attackerRef, defenderRef, targetTeam, attackerTeam, expiresAt }
         this.defenseUiInitialized = false;
@@ -90,6 +92,20 @@ class BattleSystem {
                 ]
             }
         };
+    }
+
+    getCombatDom() {
+        const cached = this._combatDomCache;
+        const ok = cached?.heroContainer?.isConnected && cached?.govContainer?.isConnected && cached?.villainContainer?.isConnected;
+        if (ok) return cached;
+
+        const dom = {
+            heroContainer: document.getElementById('team1-characters-combat'),
+            govContainer: document.getElementById('team2-characters-combat'),
+            villainContainer: document.getElementById('team3-characters-combat')
+        };
+        this._combatDomCache = dom;
+        return dom;
     }
 
     // ===== 복붙(프로필) 모달 =====
@@ -1774,27 +1790,28 @@ class BattleSystem {
      * 전투 렌더링
      */
     renderBattle() {
-        // 히어로 팀
-        const heroContainer = document.getElementById('team1-characters-combat');
+        const { heroContainer, govContainer, villainContainer } = this.getCombatDom();
+
+        // 현재 액터는 1회만 계산(카드 수만큼 turnOrder 스캔 방지)
+        const current = this.getCurrentTurnEntry();
+        const currentTeamKey = current?.teamKey ? String(current.teamKey) : null;
+        const currentCharId = current?.char?.id != null ? String(current.char.id) : null;
+
         if (heroContainer) {
             heroContainer.innerHTML = this.combatCharacters.hero
-                .map(char => this.createCharacterDisplay(char, 'hero'))
+                .map((char) => this.createCharacterDisplay(char, 'hero', { currentTeamKey, currentCharId }))
                 .join('');
         }
 
-        // 정부 팀
-        const govContainer = document.getElementById('team2-characters-combat');
         if (govContainer) {
             govContainer.innerHTML = this.combatCharacters.gov
-                .map(char => this.createCharacterDisplay(char, 'gov'))
+                .map((char) => this.createCharacterDisplay(char, 'gov', { currentTeamKey, currentCharId }))
                 .join('');
         }
 
-        // 빌런 팀
-        const villainContainer = document.getElementById('team3-characters-combat');
         if (villainContainer) {
             villainContainer.innerHTML = this.combatCharacters.villain
-                .map(char => this.createCharacterDisplay(char, 'villain'))
+                .map((char) => this.createCharacterDisplay(char, 'villain', { currentTeamKey, currentCharId }))
                 .join('');
         }
 
@@ -1806,10 +1823,12 @@ class BattleSystem {
     /**
      * 캐릭터 표시 생성
      */
-    createCharacterDisplay(char, team) {
+    createCharacterDisplay(char, team, { currentTeamKey = null, currentCharId = null } = {}) {
+        // HP/쉴드 정규화는 1회만 수행
+        this.ensureHpSplit(char);
         const maxHp = this.getMaxHp(char);
-        const baseHp = this.getBaseHp(char);
-        const shieldHp = this.getShieldHp(char);
+        const baseHp = Math.max(0, Math.min(maxHp, Math.round(Number(char?.hp) || 0)));
+        const shieldHp = Math.max(0, Math.round(Number(char?.shieldHp) || 0));
         const hpPercent = Math.max(0, Math.min(100, Math.round((baseHp / maxHp) * 100)));
         const tags = (char.skillTypes || []).map(type => {
             if (type === '공격형') return '<span class="tag tag-attack">공격형</span>';
@@ -1828,7 +1847,12 @@ class BattleSystem {
         const shieldBadge = shieldHp > 0 ? `<span class="shield-badge" title="방어 스킬(쉴드)">🧱 ${shieldHp}</span>` : '';
         const shieldText = shieldHp > 0 ? `<span class="hp-shield-text">+${shieldHp}</span>` : '';
 
-        const isCurrent = this.isCurrentActor(team, char.id);
+        const isCurrent = (currentTeamKey && currentCharId)
+            ? (String(team) === currentTeamKey && String(char?.id) === currentCharId)
+            : this.isCurrentActor(team, char.id);
+
+        // 스탯은 statusEffects 순회를 최소화(4회 -> 1회)
+        const eff = this.getEffectiveStatsForDisplay(char);
 
         return `
             <div class="combat-char-card${isCurrent ? ' is-current' : ''}${char?.battleExcluded ? ' is-excluded' : ''}" data-char-id="${char.id}" data-team="${team}">
@@ -1844,13 +1868,47 @@ class BattleSystem {
                     </div>
                 </div>
                 <div class="stat-row">
-                    <span>⚔️ ${this.getEffectiveStat(char, 'attack')}</span>
-                    <span>🛡️ ${this.getEffectiveStat(char, 'defense')}</span>
-                    <span>💨 ${this.getEffectiveStat(char, 'agility')}</span>
-                    <span>⭐ ${this.getEffectiveStat(char, 'skill')}</span>
+                    <span>⚔️ ${eff.attack}</span>
+                    <span>🛡️ ${eff.defense}</span>
+                    <span>💨 ${eff.agility}</span>
+                    <span>⭐ ${eff.skill}</span>
                 </div>
             </div>
         `;
+    }
+
+    getEffectiveStatsForDisplay(char) {
+        // getEffectiveStat 4회 호출을 1회 순회로 대체(결과는 동일)
+        const baseAttack = this.clampStat1to5(this.getBaseStatValue(char, 'attack'));
+        const baseDefense = this.clampStat1to5(this.getBaseStatValue(char, 'defense'));
+        const baseAgility = this.clampStat1to5(this.getBaseStatValue(char, 'agility'));
+        const baseSkill = this.clampStat1to5(this.getBaseStatValue(char, 'skill'));
+
+        let dAttack = 0;
+        let dDefense = 0;
+        let dAgility = 0;
+        let dSkill = 0;
+
+        const effects = this.getActiveStatusEffects(char);
+        for (const e of effects) {
+            const mods = e?.statMods;
+            if (!mods) continue;
+            const a = Number(mods.attack || 0);
+            const d = Number(mods.defense || 0);
+            const g = Number(mods.agility || 0);
+            const s = Number(mods.skill || 0);
+            if (Number.isFinite(a)) dAttack += a;
+            if (Number.isFinite(d)) dDefense += d;
+            if (Number.isFinite(g)) dAgility += g;
+            if (Number.isFinite(s)) dSkill += s;
+        }
+
+        return {
+            attack: this.clampStat1to5(baseAttack + dAttack),
+            defense: this.clampStat1to5(baseDefense + dDefense),
+            agility: this.clampStat1to5(baseAgility + dAgility),
+            skill: this.clampStat1to5(baseSkill + dSkill)
+        };
     }
 
     // ===== 스킬(프론트) 공용 헬퍼 =====
