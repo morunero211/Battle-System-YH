@@ -34,6 +34,10 @@ class BattleSystem {
         this.logUiInitialized = false;
         this.collapsedLogGroups = new Set();
 
+        // ===== 로그 블럭 캐시(성능) =====
+        // battleLog가 변경되지 않는 렌더(접기/펼치기 등)에서 파싱/그룹핑 비용을 줄입니다.
+        this._logBlocksCache = null; // { totalLen, startIndex, maxLines, blocks }
+
         // ===== 2-step 방어자 응답 =====
         this.pendingDefenseResponse = null; // { pendingId, attackerRef, defenderRef, targetTeam, attackerTeam, expiresAt }
         this.defenseUiInitialized = false;
@@ -2418,10 +2422,12 @@ class BattleSystem {
     addLog(message) {
         const timestamp = new Date().toLocaleTimeString('ko-KR');
         this.battleLog.push(`[${timestamp}] ${message}`);
+        this._logBlocksCache = null;
     }
 
     addLogRaw(message) {
         this.battleLog.push(String(message ?? ''));
+        this._logBlocksCache = null;
     }
 
     addLogBlock(lines = [], { timestampOnFirst = true } = {}) {
@@ -2432,6 +2438,29 @@ class BattleSystem {
         for (let i = 1; i < list.length; i++) {
             this.addLogRaw(list[i]);
         }
+    }
+
+    getLogBlocks({ maxLines = 200 } = {}) {
+        const totalLen = Array.isArray(this.battleLog) ? this.battleLog.length : 0;
+        const startIndex = Math.max(0, totalLen - maxLines);
+
+        const cache = this._logBlocksCache;
+        if (
+            cache &&
+            cache.totalLen === totalLen &&
+            cache.startIndex === startIndex &&
+            cache.maxLines === maxLines &&
+            Array.isArray(cache.blocks)
+        ) {
+            return { startIndex, blocks: cache.blocks };
+        }
+
+        const entries = this.battleLog.slice(startIndex);
+        const parsedEntries = entries.map((raw) => this.parseLogLine(raw));
+        const blocks = this.groupLogEntries(parsedEntries, startIndex);
+
+        this._logBlocksCache = { totalLen, startIndex, maxLines, blocks };
+        return { startIndex, blocks };
     }
 
     formatGradeOrFail(grade) {
@@ -2507,12 +2536,7 @@ class BattleSystem {
         if (logEl) {
             this.initLogUi();
 
-            const maxLines = 200;
-            const startIndex = Math.max(0, this.battleLog.length - maxLines);
-            const entries = this.battleLog.slice(startIndex);
-
-            const parsedEntries = entries.map((raw) => this.parseLogLine(raw));
-            const blocks = this.groupLogEntries(parsedEntries, startIndex);
+            const { blocks } = this.getLogBlocks({ maxLines: 200 });
 
             logEl.innerHTML = blocks
                 .map((block) => {
@@ -2635,11 +2659,7 @@ class BattleSystem {
     }
 
     getCurrentLogGroupIds() {
-        const maxLines = 200;
-        const startIndex = Math.max(0, this.battleLog.length - maxLines);
-        const entries = this.battleLog.slice(startIndex);
-        const parsedEntries = entries.map((raw) => this.parseLogLine(raw));
-        const blocks = this.groupLogEntries(parsedEntries, startIndex);
+        const { blocks } = this.getLogBlocks({ maxLines: 200 });
         return blocks.filter((b) => b.type === 'group').map((b) => b.id);
     }
 
