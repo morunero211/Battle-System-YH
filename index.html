@@ -134,7 +134,12 @@
 
                         <!-- 선택된 캐릭터 표시 -->
                         <div class="selected-characters-section">
-                            <h3 class="selected-title">선택된 캐릭터 (<span id="selected-count">0</span>명)</h3>
+                            <div style="display:flex; align-items:center; justify-content:space-between; gap:10px;">
+                                <h3 class="selected-title" style="margin:0;">선택된 캐릭터 (<span id="selected-count">0</span>명)</h3>
+                                <button id="clear-selected-characters" class="btn-management" type="button" title="선택된 캐릭터를 모두 해제합니다">
+                                    <span>🧹</span> 전체 취소
+                                </button>
+                            </div>
                             <div class="selected-characters-list">
                                 <div id="hero-selected" class="selected-team">
                                     <div class="team-label">

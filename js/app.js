@@ -249,6 +249,7 @@ class BattleApp {
             
             // 선택된 캐릭터
             selectedCount: document.getElementById('selected-count'),
+            clearSelectedCharacters: document.getElementById('clear-selected-characters'),
             heroSelected: document.getElementById('hero-selected'),
             govSelected: document.getElementById('gov-selected'),
             villainSelected: document.getElementById('villain-selected'),
@@ -1591,6 +1592,19 @@ class BattleApp {
         this.elements.team1Search?.addEventListener('input', (e) => this.handleSearch(0, e.target.value));
         this.elements.team2Search?.addEventListener('input', (e) => this.handleSearch(1, e.target.value));
         this.elements.team3Search?.addEventListener('input', (e) => this.handleSearch(2, e.target.value));
+
+        // 캐릭터 선택: 전체 취소
+        this.elements.clearSelectedCharacters?.addEventListener('click', () => {
+            const total = Object.values(this.selectedCharacters || {}).reduce((sum, arr) => sum + (Array.isArray(arr) ? arr.length : 0), 0);
+            if (total <= 0) {
+                this.showToast?.('선택된 캐릭터가 없습니다.', 'info');
+                return;
+            }
+
+            this.selectedCharacters = { hero: [], gov: [], villain: [] };
+            this.refreshSelectionUi?.();
+            this.showToast?.('선택을 모두 해제했습니다.', 'success');
+        });
 
         // 헤더 클릭 시 홈으로(버튼/입력 클릭은 제외)
         this.elements.header?.addEventListener('click', (e) => {
