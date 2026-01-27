@@ -571,6 +571,15 @@ body.dark-theme .char-card-target {
     color: #a0aec0;
 }
 
+body.dark-theme .char-card-hpbar {
+    background: #111827;
+    border-color: #2d3e4f;
+}
+
+body.dark-theme .char-card-hptext {
+    color: #cbd5e1;
+}
+
 body.dark-theme .char-table-row {
     background: #1f2f3f;
     border-color: #2d3e4f;

@@ -3861,6 +3861,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const targetAndSupport = getTargetAndSupportLabel(char);
 
+            const maxHp = Number.isFinite(Number(char?.maxHp)) ? Math.max(1, Math.round(Number(char.maxHp))) : 100;
+            const baseHp = Number.isFinite(Number(char?.hp)) ? Math.max(0, Math.round(Number(char.hp))) : 0;
+            const hpPercent = Math.max(0, Math.min(100, Math.round((baseHp / maxHp) * 100)));
+            const hpLevelClass = (hpPercent <= 10)
+                ? 'hp-level--red'
+                : (hpPercent <= 25)
+                    ? 'hp-level--orange'
+                    : (hpPercent <= 50)
+                        ? 'hp-level--yellow'
+                        : 'hp-level--green';
+
             const statusClass = char.status || 'active';
             const statusText = {
                 'active': '✅ 활동중',
@@ -3874,8 +3885,15 @@ document.addEventListener('DOMContentLoaded', () => {
                     <div class="char-card-status"><span class="char-status ${statusClass}">${statusText}</span></div>
                 </div>
                 <div class="char-card-name">${this.escapeHtml(char.name || '')}</div>
+
+                <div class="char-card-hp">
+                    <div class="char-card-hpbar" aria-label="HP ${baseHp}/${maxHp}">
+                        <span class="char-card-hpfill ${hpLevelClass}" style="width:${hpPercent}%;"></span>
+                    </div>
+                    <div class="char-card-hptext">${this.escapeHtml(baseHp)}/${this.escapeHtml(maxHp)}</div>
+                </div>
+
                 <div class="char-card-stats">
-                    <div class="char-card-stat"><span class="k">HP</span><span class="v">${this.escapeHtml(char.hp)}</span></div>
                     <div class="char-card-stat"><span class="k">공</span><span class="v">${this.escapeHtml(char.attack || 3)}</span></div>
                     <div class="char-card-stat"><span class="k">민</span><span class="v">${this.escapeHtml(char.agility || 3)}</span></div>
                     <div class="char-card-stat"><span class="k">방</span><span class="v">${this.escapeHtml(char.defense || 3)}</span></div>

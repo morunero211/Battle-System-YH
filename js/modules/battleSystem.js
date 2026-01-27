@@ -1830,6 +1830,12 @@ class BattleSystem {
         const baseHp = Math.max(0, Math.min(maxHp, Math.round(Number(char?.hp) || 0)));
         const shieldHp = Math.max(0, Math.round(Number(char?.shieldHp) || 0));
         const hpPercent = Math.max(0, Math.min(100, Math.round((baseHp / maxHp) * 100)));
+        const hpColor = (() => {
+            if (hpPercent <= 10) return '#ef4444';
+            if (hpPercent <= 25) return '#fb923c';
+            if (hpPercent <= 50) return '#facc15';
+            return '#22c55e';
+        })();
         const tags = (char.skillTypes || []).map(type => {
             if (type === '공격형') return '<span class="tag tag-attack">공격형</span>';
             if (type === '방어형') return '<span class="tag tag-defense">방어형</span>';
@@ -1863,7 +1869,7 @@ class BattleSystem {
                 <div class="hp-row">
                     <div class="hp-label">HP ${baseHp}/${maxHp}${shieldText ? ` ${shieldText}` : ''}</div>
                     <div class="hp-bar${shieldHp > 0 ? ' has-shield' : ''}">
-                        <span class="hp-base" style="width: ${hpPercent}%;"></span>
+                        <span class="hp-base" style="width: ${hpPercent}%; background: ${hpColor};"></span>
                         ${shieldHp > 0 ? '<span class="hp-shield-overlay"></span>' : ''}
                     </div>
                 </div>

@@ -636,9 +636,11 @@ class BattleRoom {
    * HP 색상
    */
   getHPColor(percent) {
-    if (percent > 50) return '#48bb78'; // 초록
-    if (percent > 25) return '#f6ad55'; // 주황
-    return '#f56565'; // 빨강
+    const p = Number(percent) || 0;
+    if (p <= 10) return '#ef4444'; // 빨강
+    if (p <= 25) return '#fb923c'; // 주황
+    if (p <= 50) return '#facc15'; // 노랑
+    return '#22c55e'; // 초록
   }
 
   /**
