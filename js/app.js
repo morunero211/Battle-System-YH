@@ -530,7 +530,13 @@ class BattleApp {
                 // 이때 현재 hp(전투 후 감소한 값)를 maxHp로 삼아버리면(예: 97), 이후 회복이 그 값에서 막히는 문제가 생김.
                 // 따라서 maxHp가 없으면 기본 100으로 둔다(명시적으로 maxHp가 있으면 그 값을 존중).
                 const hp = Number.isFinite(Number(c.hp)) ? Math.max(0, Math.round(Number(c.hp))) : 100;
-                const maxHp = Number.isFinite(Number(c.maxHp)) ? Math.max(1, Math.round(Number(c.maxHp))) : 100;
+                let maxHp = Number.isFinite(Number(c.maxHp)) ? Math.max(1, Math.round(Number(c.maxHp))) : 100;
+
+                // 보호 로직: 일부 레거시/동기화 데이터에서 "현재 HP"가 maxHp로 잘못 저장되어(예: 97) 회복 상한이 줄어드는 사례가 있음.
+                // 이 프로젝트의 기본 규칙(최대 100)에 따라, 90~99처럼 애매하게 깎인 값은 100으로 복구한다.
+                // (저HP 캐릭터(<=89) 같은 명시적 설정은 존중)
+                if (maxHp >= 90 && maxHp < 100) maxHp = 100;
+
                 c.maxHp = maxHp;
                 // 쉴드는 base HP를 "회복"하는 개념이 아니라 추가 HP로 분리 저장
                 const shieldHp = Number.isFinite(Number(c.shieldHp)) ? Math.max(0, Math.round(Number(c.shieldHp))) : 0;

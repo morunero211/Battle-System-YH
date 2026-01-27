@@ -1917,7 +1917,12 @@ class BattleSystem {
     }
 
     getMaxHp(char) {
-        return Number.isFinite(Number(char?.maxHp)) ? Math.max(1, Math.round(Number(char.maxHp))) : 100;
+        const raw = Number(char?.maxHp);
+        const maxHp = Number.isFinite(raw) ? Math.max(1, Math.round(raw)) : 100;
+        // 보호 로직: 레거시/동기화 문제로 maxHp가 97 같은 값으로 "현재 HP"에 끌려가 저장되는 경우가 있음.
+        // 기본 최대 100 규칙을 우선해 90~99는 100으로 복구.
+        if (maxHp >= 90 && maxHp < 100) return 100;
+        return maxHp;
     }
 
     ensureHpSplit(char) {
