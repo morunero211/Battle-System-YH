@@ -696,6 +696,14 @@ class BattleApp {
             if (!enabled) includeSelf.checked = false;
         };
 
+        // 모달 열기(openAdd/openEdit)에서 라디오 상태를 코드로 세팅할 때,
+        // change 이벤트가 발생하지 않아 세부 옵션(지원형 등)이 숨김 상태로 남는 문제를 방지.
+        this._syncSkillConfigUI = () => {
+            apply();
+            applySupportVisibility();
+            applySupportRandomStatLock();
+        };
+
         modeRadios.forEach(r => r.addEventListener('change', apply));
         apply();
 
@@ -707,8 +715,7 @@ class BattleApp {
         document.querySelectorAll('input[name="supportBasicStat"]').forEach((el) => {
             el.addEventListener('change', applySupportRandomStatLock);
         });
-        applySupportVisibility();
-        applySupportRandomStatLock();
+        this._syncSkillConfigUI();
     }
 
     initSkillUsesUI() {
@@ -2368,6 +2375,9 @@ class BattleApp {
         const ck = document.querySelector('input[name="supportCancelKindDefault"][value="BUFF"]');
         if (ck) ck.checked = true;
 
+        // 모달 오픈 직후 현재 선택값에 맞춰 세부 옵션 표시를 동기화
+        this._syncSkillConfigUI?.();
+
         // 배경 클릭 닫기 확인용 스냅샷
         this.captureCharacterModalSnapshot();
     }
@@ -2506,6 +2516,10 @@ class BattleApp {
             this.elements.modal.style.display = 'block';
         }
         this.enforceSingleSkillType();
+
+        // openEdit에서 라디오/체크 상태는 코드로 세팅되므로, 표시/숨김 UI를 강제로 동기화
+        this._syncSkillConfigUI?.();
+
         // 스킬 템플릿/조건/옵션 미리보기
         if (this.elements.skillTemplateId) {
             this.elements.skillTemplateId.value = String(char.skillTemplateId || '');
