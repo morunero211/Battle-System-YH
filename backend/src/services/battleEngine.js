@@ -96,7 +96,7 @@ const ATTACK_SKILL_DAMAGE_BY_STAT = {
 // 방어 스탯(1~5) -> 방어력%(완만 버전). 필요 시 여기만 조정.
 // index: defStat (1..5)
 // HARD 밸런스(조금 더 버티게): 기본공격 상향에 맞춰 방어 감소율도 소폭 상향
-const DEFENSE_REDUCTION_PCT_BY_STAT = [0, 3, 8, 15, 20, 26];
+const DEFENSE_REDUCTION_PCT_BY_STAT = [0, 4, 10, 15, 20, 26];
 
 // 맞았을 때 최소 데미지(0 허용하고 싶으면 0으로)
 const MIN_DAMAGE_ON_HIT = 1;
