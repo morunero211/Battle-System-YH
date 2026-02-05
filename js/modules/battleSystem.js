@@ -1423,6 +1423,21 @@ class BattleSystem {
         return !!st?.canUse;
     }
 
+    findDefenseSkillReactorForTeam(teamKey, preferredTarget = null) {
+        if (!teamKey) return null;
+        const list = Array.isArray(this.combatCharacters?.[teamKey]) ? this.combatCharacters[teamKey] : [];
+        const alive = list.filter((c) => this.isCombatCapable(c));
+
+        // 1) 우선: 피격자 본인이 방어형 + 사용 가능이면 본인이 반응
+        if (preferredTarget) {
+            const preferred = alive.find((c) => String(c?.id) === String(preferredTarget?.id));
+            if (preferred && this.canUseDefenseSkillAsReaction(preferred)) return preferred;
+        }
+
+        // 2) 그 외: 같은 팀의 방어형 중 사용 가능한 첫 번째
+        return alive.find((c) => this.canUseDefenseSkillAsReaction(c)) || null;
+    }
+
     gradeLabelKo(grade) {
         switch (grade) {
             case 'CRITICAL':
@@ -1500,8 +1515,8 @@ class BattleSystem {
         // 방어 스킬 버튼은 "방어형" + "스킬 횟수 남음"일 때만 노출
         const defenseSkillBtn = document.getElementById('defense-response-defense-skill');
         if (defenseSkillBtn) {
-            const defenderRef = this.pendingDefenseResponse?.defenderRef;
-            const canUse = this.canUseDefenseSkillAsReaction(defenderRef);
+            const reactorRef = this.pendingDefenseResponse?.reactorRef || this.pendingDefenseResponse?.defenderRef;
+            const canUse = this.canUseDefenseSkillAsReaction(reactorRef);
             defenseSkillBtn.style.display = (allowed.includes('DEFENSE_SKILL') && canUse) ? 'inline-flex' : 'none';
         }
 
@@ -1545,17 +1560,18 @@ class BattleSystem {
 
             // 로컬 반응(공격형 스킬 대응 등)
             if (mode === 'LOCAL_SKILL_REACTION') {
+                const reactor = pending.reactorRef || pending.defenderRef;
+
                 // 방어 스킬(쉴드) 반응: 방어자가 스킬 사용(횟수 차감) 후 로컬로 쉴드 적용
                 if (responseKind === 'DEFENSE_SKILL') {
-                    const defender = pending.defenderRef;
                     const actions = this.app?.battleActions;
-                    if (!this.canUseDefenseSkillAsReaction(defender)) {
+                    if (!this.canUseDefenseSkillAsReaction(reactor)) {
                         this.addLog('ℹ️ 방어 스킬을 사용할 수 없습니다(방어형이 아니거나 횟수 소진).');
                         return;
                     }
 
                     if (actions?.consumeSkillUse) {
-                        const consumed = actions.consumeSkillUse(defender);
+                        const consumed = actions.consumeSkillUse(reactor);
                         if (!consumed?.consumed) {
                             this.addLog('ℹ️ 방어 스킬 사용 불가: 사용 횟수 소진/잠금 상태');
                             return;
@@ -1572,9 +1588,9 @@ class BattleSystem {
                 }
 
                 // 방어 스킬을 썼다면: 스킬 스탯 1회 소모 + 공통 패널티
-                if (responseKind === 'DEFENSE_SKILL' && pending.defenderRef) {
-                    this.consumeStatMods(pending.defenderRef, 'ON_SKILL');
-                    this.applyUnifiedSkillPenalty(pending.defenderRef);
+                if (responseKind === 'DEFENSE_SKILL' && reactor) {
+                    this.consumeStatMods(reactor, 'ON_SKILL');
+                    this.applyUnifiedSkillPenalty(reactor);
                 }
 
                 this.renderBattle();
@@ -1772,6 +1788,33 @@ class BattleSystem {
         this.addLog(`  🧱 쉴드: ${beforeShield} → ${this.getShieldHp(defender)} (총 HP ${beforeTotal} → ${afterTotal})`);
 
         return { added, rolled };
+    }
+
+    applyDefenseSkillReactionMulti(reactor, targets) {
+        const list = Array.isArray(targets) ? targets.filter(Boolean) : [];
+        const n = list.length;
+        if (!reactor || n === 0) return null;
+
+        const skillStat = this.getEffectiveStat(reactor, 'skill');
+        const rolled = this.rollShieldSkillAmountByStat(skillStat);
+        const shieldBase = Math.max(0, Math.round(Number(rolled.raw) || 0));
+        const perTarget = Math.floor(shieldBase / n);
+
+        this.addLog(`  🛡️ ${reactor.name} 방어 스킬(반응) 발동! (대상 ${n}명)`);
+        this.addLog(`  🎲 쉴드량: ${rolled.min} + (1~${rolled.extraMax})[${rolled.bonus}] = ${rolled.baseRaw} → x${rolled.multiplier} = ${rolled.raw} (최대 ${rolled.max})`);
+        this.addLog(`  👥 반응 분배: floor(${shieldBase} / ${n}) = ${perTarget} (각 대상)`);
+
+        const applied = [];
+        list.forEach((t) => {
+            const beforeShield = this.getShieldHp(t);
+            const beforeTotal = this.getTotalHp(t);
+            const added = this.addShieldHp(t, perTarget);
+            const afterTotal = this.getTotalHp(t);
+            this.addLog(`  🎯 ${t.name}: 쉴드 ${beforeShield} → ${this.getShieldHp(t)} (+${added}) (총 HP ${beforeTotal} → ${afterTotal})`);
+            applied.push({ target: t, added });
+        });
+
+        return { perTarget, shieldBase, rolled, applied };
     }
 
     /**
@@ -3073,16 +3116,24 @@ class BattleSystem {
             return;
         }
 
-        // 공격형 스킬을 맞을 때: 방어형에게 DEFENSE_SKILL(쉴드) 반응 찬스 제공
-        if (!this.pendingDefenseResponse && this.canUseDefenseSkillAsReaction(defender)) {
+        // 공격형 스킬을 맞을 때: (본인/아군 포함) 같은 팀의 방어형에게 DEFENSE_SKILL(쉴드) 반응 찬스 제공
+        const reactor = !this.pendingDefenseResponse
+            ? this.findDefenseSkillReactorForTeam(targetTeam, defender)
+            : null;
+
+        if (!this.pendingDefenseResponse && reactor) {
             this.pendingDefenseResponse = {
                 mode: 'LOCAL_SKILL_REACTION',
                 attackerRef: attacker,
+                reactorRef: reactor,
                 defenderRef: defender,
                 targetTeam,
                 allowedResponses: ['DEFENSE_SKILL', 'PASS'],
                 onResolve: (choice) => {
                     if (choice === 'DEFENSE_SKILL') {
+                        if (reactor && defender && String(reactor.id) !== String(defender.id)) {
+                            this.addLog(`  🛡️ ${reactor.name}이(가) ${defender.name}을(를) 보호합니다!`);
+                        }
                         this.applyDefenseSkillReactionSingle(defender);
                     }
 
@@ -3124,7 +3175,8 @@ class BattleSystem {
                 }
             };
 
-            this.showDefenseResponsePanel(attacker.name, defender.name);
+            // 패널은 "누가 반응하는지"를 중심으로 표시
+            this.showDefenseResponsePanel(attacker.name, reactor.name);
             return { awaitingResponse: true };
         }
 
@@ -3190,6 +3242,83 @@ class BattleSystem {
         if (!isAttackSkill) {
             this.addLog('  ℹ️ 공격형 스킬이 아니라 데미지를 주지 않습니다.');
             return;
+        }
+
+        // 궁극기(다수)도 피격 팀의 방어형이 반응(쉴드)할 수 있도록 확장
+        const inferredTeamKey = targets[0]?.id != null ? this.findTeamKeyByCharId(targets[0].id) : null;
+        const sameTeam = inferredTeamKey
+            ? targets.every((t) => String(this.findTeamKeyByCharId(t?.id)) === String(inferredTeamKey))
+            : false;
+        const multiReactor = (!this.pendingDefenseResponse && sameTeam)
+            ? this.findDefenseSkillReactorForTeam(inferredTeamKey, null)
+            : null;
+
+        if (!this.pendingDefenseResponse && multiReactor) {
+            this.pendingDefenseResponse = {
+                mode: 'LOCAL_SKILL_REACTION',
+                attackerRef: attacker,
+                reactorRef: multiReactor,
+                defenderRef: targets[0],
+                targetTeam: inferredTeamKey,
+                allowedResponses: ['DEFENSE_SKILL', 'PASS'],
+                onResolve: (choice) => {
+                    if (choice === 'DEFENSE_SKILL') {
+                        this.applyDefenseSkillReactionMulti(multiReactor, targets);
+                    }
+
+                    this.addLog('  💫 궁극기는 100% 명중합니다!');
+
+                    const skillStat = this.getEffectiveStat(attacker, 'skill');
+                    const rolled = this.rollAttackSkillRawDamage(skillStat);
+
+                    const perTargetRaw = Math.floor((Number(rolled.raw) || 0) / n);
+                    this.addLog(`  🎲 스킬 데미지: ${rolled.min} + (1~${rolled.extraMax})[${rolled.bonus}] = ${rolled.baseRaw} → x${rolled.multiplier} = ${rolled.raw} (최대 ${rolled.max})`);
+                    this.addLog(`  👥 다수 분배: floor(${rolled.raw} / ${n}) = ${perTargetRaw} (각 대상 원데미지)`);
+
+                    targets.forEach((defender) => {
+                        const defStat = this.getEffectiveStat(defender, 'defense');
+                        const defensePercent = this.getDefenseReductionPercent(defStat);
+                        const damage = this.applyDefenseReduction(perTargetRaw, defensePercent);
+
+                        if (perTargetRaw <= 0) {
+                            this.addLog(`  ⚠️ ${defender.name}: 분배 원데미지가 0이라 피해가 없습니다.`);
+                            return;
+                        }
+
+                        this.addLog(`  🎯 대상: ${defender.name}`);
+                        this.addLog(`    🛡️ 방어력: ${defensePercent}% (원데미지 ${perTargetRaw} → 실제 ${damage})`);
+
+                        const beforeTotal = this.getTotalHp(defender);
+                        const beforeShield = this.getShieldHp(defender);
+                        const applied = this.applyDamageWithShield(defender, damage);
+                        const afterTotal = this.getTotalHp(defender);
+
+                        // 피격(방어 스탯) 사용 후 1회 소모
+                        this.consumeStatMods(defender, 'ON_DEFEND');
+
+                        this.addLog(`    💥 데미지: ${damage}`);
+                        if (beforeShield > 0 || applied.shieldAbsorbed > 0) {
+                            this.addLog(`    🧱 쉴드: ${beforeShield} → ${this.getShieldHp(defender)} (흡수 ${applied.shieldAbsorbed})`);
+                        }
+                        this.addLog(`    💔 ${defender.name} HP: ${Math.min(this.getMaxHp(defender), beforeTotal)}/${this.getMaxHp(defender)} → ${Math.min(this.getMaxHp(defender), afterTotal)}/${this.getMaxHp(defender)}`);
+
+                        if (defender.hp <= 0) {
+                            this.addLog(`    💀 ${defender.name}이(가) 쓰러졌습니다!`);
+                        }
+                    });
+
+                    if (attacker && attacker.id) {
+                        this.usedUltimate[attacker.id] = true;
+                    }
+
+                    // 궁극기(다수)도 스킬 스탯을 사용하므로 1회 소모
+                    this.consumeStatMods(attacker, 'ON_SKILL');
+                    this.applyUnifiedSkillPenalty(attacker);
+                }
+            };
+
+            this.showDefenseResponsePanel(attacker.name, multiReactor.name);
+            return { awaitingResponse: true };
         }
 
         this.addLog('  💫 궁극기는 100% 명중합니다!');
