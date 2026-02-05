@@ -79,11 +79,11 @@ const BASIC_RAW_DAMAGE_BY_ATK_STAT = {
 // 4: 22 | 18 (+1~4)
 // 5: 25 | 20 (+1~5)
 const ATTACK_SKILL_DAMAGE_BY_STAT = {
-  1: { min: 10, extraMax: 3 },
-  2: { min: 13, extraMax: 3 },
-  3: { min: 15, extraMax: 4 },
-  4: { min: 18, extraMax: 4 },
-  5: { min: 20, extraMax: 5 }
+  1: { min: 14, extraMax: 4 },
+  2: { min: 17, extraMax: 4 },
+  3: { min: 19, extraMax: 5 },
+  4: { min: 22, extraMax: 5 },
+  5: { min: 24, extraMax: 6 }
 };
 
 // 방어 스탯(1~5) -> 방어력%(완만 버전). 필요 시 여기만 조정.

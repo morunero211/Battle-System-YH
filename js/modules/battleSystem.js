@@ -2091,11 +2091,11 @@ class BattleSystem {
     rollHealSkillAmountByStat(skillStat) {
         const stat = this.clampStat1to5(skillStat);
         const table = {
-            1: { min: 4, extraMax: 3 },
-            2: { min: 9, extraMax: 3 },
-            3: { min: 11, extraMax: 4 },
-            4: { min: 14, extraMax: 4 },
-            5: { min: 16, extraMax: 5 }
+            1: { min: 7, extraMax: 4 },
+            2: { min: 12, extraMax: 4 },
+            3: { min: 14, extraMax: 5 },
+            4: { min: 17, extraMax: 5 },
+            5: { min: 19, extraMax: 6 }
         };
         const profile = table[stat] || table[1];
         const bonus = this.rollInt(1, profile.extraMax);
@@ -2106,11 +2106,11 @@ class BattleSystem {
     rollShieldSkillAmountByStat(skillStat) {
         const stat = this.clampStat1to5(skillStat);
         const table = {
-            1: { min: 8, extraMax: 3 },
-            2: { min: 11, extraMax: 3 },
-            3: { min: 13, extraMax: 4 },
-            4: { min: 16, extraMax: 4 },
-            5: { min: 18, extraMax: 5 }
+            1: { min: 11, extraMax: 4 },
+            2: { min: 14, extraMax: 4 },
+            3: { min: 16, extraMax: 5 },
+            4: { min: 19, extraMax: 5 },
+            5: { min: 21, extraMax: 6 }
         };
         const profile = table[stat] || table[1];
         const bonus = this.rollInt(1, profile.extraMax);
@@ -2120,7 +2120,7 @@ class BattleSystem {
 
     getSupportDebuffAmountBySkillStat(skillStat) {
         const stat = this.clampStat1to5(skillStat);
-        const table = { 1: 6, 2: 7, 3: 8, 4: 9, 5: 10 };
+        const table = { 1: 7, 2: 8, 3: 9, 4: 10, 5: 11 };
         return table[stat] ?? table[1];
     }
 
@@ -2532,11 +2532,11 @@ class BattleSystem {
     rollAttackSkillRawDamage(skillStat) {
         const stat = Math.max(1, Math.min(5, Math.round(Number(skillStat) || 1)));
         const table = {
-            1: { min: 10, extraMax: 3 },
-            2: { min: 13, extraMax: 3 },
-            3: { min: 15, extraMax: 4 },
-            4: { min: 18, extraMax: 4 },
-            5: { min: 20, extraMax: 5 }
+            1: { min: 14, extraMax: 4 },
+            2: { min: 17, extraMax: 4 },
+            3: { min: 19, extraMax: 5 },
+            4: { min: 22, extraMax: 5 },
+            5: { min: 24, extraMax: 6 }
         };
         const profile = table[stat] || table[1];
         const bonus = this.rollInt(1, profile.extraMax);
