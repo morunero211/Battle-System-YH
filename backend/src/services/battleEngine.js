@@ -60,21 +60,22 @@ function rollInt(min, max) {
 
 // ===== 전투 밸런스(정수 기반) =====
 // 즉시 실행용 배수(요청 반영)
-// - 기본공격(일반 공격/반격 포함): x2
+// - 기본공격(일반 공격/반격 포함): 기본 범위 조정으로 처리 (최대 26)
 // - 공격형 스킬(스킬 공격): x1.5
-const BASIC_ATTACK_DAMAGE_MULTIPLIER = 2;
+const BASIC_ATTACK_DAMAGE_MULTIPLIER = 1;
 const ATTACK_SKILL_DAMAGE_MULTIPLIER = 1.5;
 
 // 기본공격 rawDamage 범위(요청 반영):
-// - 공격 스탯 1,2 = 7 ~ 20
-// - 공격 스탯 3,4 = 8 ~ 20
-// - 공격 스탯 5   = 10 ~ 20
+// - 기존 최대치 13 → 2배면 26이 최대치
+// - 공격 스탯 1,2 = 7 ~ 26
+// - 공격 스탯 3,4 = 8 ~ 26
+// - 공격 스탯 5   = 10 ~ 26
 const BASIC_RAW_DAMAGE_BY_ATK_STAT = {
-  1: { min: 7, max: 20 },
-  2: { min: 7, max: 20 },
-  3: { min: 8, max: 20 },
-  4: { min: 8, max: 20 },
-  5: { min: 10, max: 20 }
+  1: { min: 7, max: 26 },
+  2: { min: 7, max: 26 },
+  3: { min: 8, max: 26 },
+  4: { min: 8, max: 26 },
+  5: { min: 10, max: 26 }
 };
 
 // 공격형 스킬 데미지 테이블(이미지 기반)

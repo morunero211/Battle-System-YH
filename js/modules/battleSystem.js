@@ -2990,12 +2990,12 @@ class BattleSystem {
             const defStat = Math.max(1, Math.min(5, Math.round(Number(defender.defense ?? defender.def ?? 1))));
 
             // 기본공격 rawDamage(요청 반영):
-            // - atk 1~2 = 7~20
-            // - atk 3~4 = 8~20
-            // - atk 5   = 10~20
+            // - 기존 최대치 13 → 2배면 26이 최대치
+            // - atk 1~2 = 7~26
+            // - atk 3~4 = 8~26
+            // - atk 5   = 10~26
             const minRaw = atkStat >= 5 ? 10 : (atkStat >= 3 ? 8 : 7);
-            const baseRawDamage = this.rollInt(minRaw, 20);
-            const rawDamage = Math.max(0, Math.round(baseRawDamage * 2));
+            const rawDamage = this.rollInt(minRaw, 26);
             const defensePercent = this.getDefenseReductionPercent(defStat);
             const finalDamage = this.applyDefenseReduction(rawDamage, defensePercent);
 
@@ -3008,7 +3008,7 @@ class BattleSystem {
             this.consumeStatMods(defender, 'ON_DEFEND');
 
             this.addLogRaw(`🧮 스탯: 공격 ATK ${atkStat} / 방어 DEF ${defStat}`);
-            this.addLogRaw(`🛡️ 방어력: ${defensePercent}% (원데미지 ${baseRawDamage} → x2 = ${rawDamage} → 실제 ${finalDamage})`);
+            this.addLogRaw(`🛡️ 방어력: ${defensePercent}% (원데미지 ${rawDamage} → 실제 ${finalDamage})`);
             this.addLogRaw(`💥 데미지: ${finalDamage}`);
             if (beforeShield > 0 || applied.shieldAbsorbed > 0) {
                 this.addLogRaw(`🧱 쉴드: ${beforeShield} → ${this.getShieldHp(defender)} (흡수 ${applied.shieldAbsorbed})`);
