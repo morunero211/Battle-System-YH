@@ -582,8 +582,7 @@ class BattleSystem {
         }
 
         const maxHp = this.getMaxHp(char);
-        const startBase = Math.round(Number(char?.battleStartBaseHp) || 0);
-        const minHp = startBase > 50 ? 50 : 0;
+    const minHp = 0;
         const beforeBase = this.getBaseHp(char);
         const beforeShield = this.getShieldHp(char);
 
@@ -591,7 +590,6 @@ class BattleSystem {
             `${char.name}`,
             `현재 HP: ${beforeBase}/${maxHp} (쉴드 ${beforeShield})`,
             `입력 범위: ${minHp} ~ ${maxHp}`,
-            (startBase > 50 ? '규칙: 시작 HP > 50 캐릭터는 HP가 50 미만으로 내려가지 않습니다.' : '')
         ].filter(Boolean).join('\n');
 
         const nextBase = await this.app?.showNumberPrompt?.({
@@ -621,18 +619,6 @@ class BattleSystem {
             if (ok) {
                 char.battleDead = false;
                 if (String(char.status) === 'dead') char.status = 'active';
-            }
-        }
-
-        if (char.battleIncapacitated && nextBase > 50) {
-            const ok = await this.app?.showConfirm?.({
-                title: '전투 불능 해제',
-                message: `${char.name}은(는) 현재 전투 불능 상태입니다. HP를 ${nextBase}로 변경하면서 전투 불능을 해제할까요?`,
-                okText: '해제',
-                cancelText: '유지'
-            });
-            if (ok) {
-                char.battleIncapacitated = false;
             }
         }
 
@@ -1102,7 +1088,7 @@ class BattleSystem {
                 const rolled = this.rollAttackSkillRawDamage(skillStat);
                 const perTargetRaw = ef.split === 'evenFloor' ? Math.floor((Number(rolled.raw) || 0) / n) : Number(rolled.raw) || 0;
 
-                this.addLog(`  🎲 스킬 데미지: ${rolled.min} + (1~${rolled.extraMax})[${rolled.bonus}] = ${rolled.raw} (최대 ${rolled.max})`);
+                this.addLog(`  🎲 스킬 데미지: ${rolled.min} + (1~${rolled.extraMax})[${rolled.bonus}] = ${rolled.baseRaw} → x${rolled.multiplier} = ${rolled.raw} (최대 ${rolled.max})`);
                 if (ef.split === 'evenFloor') this.addLog(`  👥 다수 분배: floor(${rolled.raw} / ${n}) = ${perTargetRaw} (각 대상 원데미지)`);
 
                 list.forEach((defender) => {
@@ -1229,7 +1215,7 @@ class BattleSystem {
                 .filter(Boolean)
         };
 
-        // 전투 시작 HP 기준(>50이면 50에서 전투 불능, <=50이면 0에서 사망)
+        // 전투 시작 HP 기록(로그/표시용): 전투 종료 조건은 HP 0(사망)만 사용
         TEAM_KEYS.forEach((k) => {
             (this.combatCharacters?.[k] || []).forEach((c) => {
                 if (!c) return;
@@ -1782,7 +1768,7 @@ class BattleSystem {
         const added = this.addShieldHp(defender, rolled.raw);
         const afterTotal = this.getTotalHp(defender);
 
-        this.addLog(`  🛡️ 방어 스킬(반응) 발동: ${rolled.min} + (1~${rolled.extraMax})[${rolled.bonus}] = ${rolled.raw} (최대 ${rolled.max})`);
+        this.addLog(`  🛡️ 방어 스킬(반응) 발동: ${rolled.min} + (1~${rolled.extraMax})[${rolled.bonus}] = ${rolled.baseRaw} → x${rolled.multiplier} = ${rolled.raw} (최대 ${rolled.max})`);
         this.addLog(`  🧱 쉴드: ${beforeShield} → ${this.getShieldHp(defender)} (총 HP ${beforeTotal} → ${afterTotal})`);
 
         return { added, rolled };
@@ -1976,11 +1962,9 @@ class BattleSystem {
     ensureBattleStartHpIfMissing(char) {
         if (!char) return;
         if (!Number.isFinite(Number(char.battleStartBaseHp))) {
-            // 중요 규칙: "시작 HP > 50" 여부는 전투 시작 시점에서만 결정되어야 함.
-            // 전투 도중(특히 치유 후) 누락된 값을 현재 HP로 추정하면, 잘못해서 >50 규칙이 발동할 수 있음.
-            // 따라서 누락 케이스의 안전한 기본값은 50 이하로 캡해서 설정한다.
+            // 전투 중 누락된 값은 현재 base HP로 보정(표시/로그용)
             const inferred = Math.round(Number(this.getBaseHp(char)) || 0);
-            char.battleStartBaseHp = Math.min(50, inferred);
+            char.battleStartBaseHp = Math.max(0, inferred);
         }
     }
 
@@ -1989,7 +1973,6 @@ class BattleSystem {
         this.ensureHpSplit(char);
         this.ensureBattleStartHpIfMissing(char);
 
-        const startBase = Math.round(Number(char.battleStartBaseHp) || 0);
         const baseHp = this.getBaseHp(char);
         const totalHp = this.getTotalHp(char);
 
@@ -2000,30 +1983,14 @@ class BattleSystem {
             return;
         }
 
-        // 시작 HP가 50 초과면, 전투 중 baseHP가 50 이하가 되는 순간 전투 불능
-        if (startBase > 50) {
-            // 전투 중에는 baseHP가 50 미만으로 내려가지 않도록 고정
-            const maxHp = this.getMaxHp(char);
-            if (baseHp < 50) {
-                char.hp = Math.min(maxHp, 50);
-            }
-
-            // 전투 불능은 최초 1회만 로그/전환
-            if (!char.battleIncapacitated && this.getBaseHp(char) <= 50) {
-                char.battleIncapacitated = true;
-                this.addLog(`  🟡 ${char.name} 전투 불능! (시작 HP ${startBase} > 50, 현재 HP ${this.getBaseHp(char)} ≤ 50)${cause ? ` · ${cause}` : ''}`);
-            }
-            return;
-        }
-
-        // 시작 HP가 50 이하이면, 전투 중 totalHP가 0 이하가 되는 순간 사망
+        // 전투 중 totalHP가 0 이하가 되는 순간 사망
         if (totalHp <= 0) {
             char.battleDead = true;
             char.hp = 0;
             char.shieldHp = 0;
             // 로스터에도 표시될 수 있도록 상태를 dead로 둠(기존 시스템과 호환)
             char.status = 'dead';
-            this.addLog(`  💀 ${char.name} 사망! (시작 HP ${startBase} ≤ 50, 현재 HP 0)${cause ? ` · ${cause}` : ''}`);
+            this.addLog(`  💀 ${char.name} 사망! (현재 HP 0)${cause ? ` · ${cause}` : ''}`);
         }
     }
 
@@ -2060,26 +2027,11 @@ class BattleSystem {
         const beforeShield = this.getShieldHp(defender);
         const beforeBase = this.getBaseHp(defender);
 
-        const startBase = Math.round(Number(defender?.battleStartBaseHp) || 0);
-        const baseFloor = startBase > 50 ? 50 : 0;
-
         const shieldAbsorbed = Math.min(beforeShield, dmg);
         const remaining = dmg - shieldAbsorbed;
 
-        // 시작 baseHP가 50 초과인 캐릭터는 전투 중 baseHP가 50 미만으로 내려가지 않음
-        const allowedBaseDamage = Math.max(0, beforeBase - baseFloor);
-        const hpDamage = Math.min(allowedBaseDamage, remaining);
-
-        // 50 고정으로 인해 추가 피해가 무시되는 경우(사용자 혼동 방지용 로그, 1턴 1회)
-        if (baseFloor > 0 && remaining > 0 && hpDamage === 0 && beforeBase <= baseFloor) {
-            const turnKey = Number.isFinite(Number(this.turnIndex)) ? Number(this.turnIndex) : 0;
-            if (defender._floorDamageIgnoredTurnKey !== turnKey) {
-                defender._floorDamageIgnoredTurnKey = turnKey;
-                this.addLog(`  ℹ️ ${defender.name}은(는) 전투 불능 상태로 HP가 ${baseFloor} 미만으로 내려가지 않습니다.`);
-            }
-        }
-
-        const afterBase = Math.max(baseFloor, beforeBase - hpDamage);
+        const hpDamage = Math.min(beforeBase, remaining);
+        const afterBase = Math.max(0, beforeBase - hpDamage);
         const afterShield = Math.max(0, beforeShield - shieldAbsorbed);
         defender.hp = Math.min(maxHp, afterBase);
         defender.shieldHp = Math.max(0, afterShield);
@@ -2107,7 +2059,7 @@ class BattleSystem {
         const afterBase = Math.min(maxHp, base + heal);
         target.hp = afterBase;
         target.shieldHp = shield;
-        // 힐로는 전투 불능/사망 상태가 되돌아가지 않음(상태는 고정)
+        // 힐로는 사망 상태가 되돌아가지 않음(상태는 고정)
         return afterBase - base;
     }
 
@@ -2138,38 +2090,67 @@ class BattleSystem {
 
     rollHealSkillAmountByStat(skillStat) {
         const stat = this.clampStat1to5(skillStat);
+        const mult = 1.3;
         const table = {
-            1: { min: 4, extraMax: 3 },
-            2: { min: 9, extraMax: 3 },
-            3: { min: 11, extraMax: 4 },
-            4: { min: 14, extraMax: 4 },
-            5: { min: 16, extraMax: 5 }
+            1: { min: 7, extraMax: 4 },
+            2: { min: 12, extraMax: 4 },
+            3: { min: 14, extraMax: 5 },
+            4: { min: 17, extraMax: 5 },
+            5: { min: 19, extraMax: 6 }
         };
         const profile = table[stat] || table[1];
         const bonus = this.rollInt(1, profile.extraMax);
-        const raw = Math.floor(profile.min + bonus);
-        return { stat, min: profile.min, extraMax: profile.extraMax, bonus, raw, max: profile.min + profile.extraMax };
+        const baseRaw = Math.floor(profile.min + bonus);
+        const raw = Math.max(0, Math.round(baseRaw * mult));
+        return {
+            stat,
+            min: profile.min,
+            extraMax: profile.extraMax,
+            bonus,
+            baseRaw,
+            raw,
+            multiplier: mult,
+            max: Math.max(0, Math.round((profile.min + profile.extraMax) * mult))
+        };
     }
 
     rollShieldSkillAmountByStat(skillStat) {
         const stat = this.clampStat1to5(skillStat);
+        const mult = 1.5;
         const table = {
-            1: { min: 8, extraMax: 3 },
-            2: { min: 11, extraMax: 3 },
-            3: { min: 13, extraMax: 4 },
-            4: { min: 16, extraMax: 4 },
-            5: { min: 18, extraMax: 5 }
+            1: { min: 11, extraMax: 4 },
+            2: { min: 14, extraMax: 4 },
+            3: { min: 16, extraMax: 5 },
+            4: { min: 19, extraMax: 5 },
+            5: { min: 21, extraMax: 6 }
         };
         const profile = table[stat] || table[1];
         const bonus = this.rollInt(1, profile.extraMax);
-        const raw = Math.floor(profile.min + bonus);
-        return { stat, min: profile.min, extraMax: profile.extraMax, bonus, raw, max: profile.min + profile.extraMax };
+        const baseRaw = Math.floor(profile.min + bonus);
+        const raw = Math.max(0, Math.round(baseRaw * mult));
+        return {
+            stat,
+            min: profile.min,
+            extraMax: profile.extraMax,
+            bonus,
+            baseRaw,
+            raw,
+            multiplier: mult,
+            max: Math.max(0, Math.round((profile.min + profile.extraMax) * mult))
+        };
     }
 
     getSupportDebuffAmountBySkillStat(skillStat) {
+        return this.rollSupportAmountBySkillStat(skillStat).amount;
+    }
+
+    rollSupportAmountBySkillStat(skillStat) {
         const stat = this.clampStat1to5(skillStat);
-        const table = { 1: 6, 2: 7, 3: 8, 4: 9, 5: 10 };
-        return table[stat] ?? table[1];
+        const mult = 1.3;
+        const table = { 1: 7, 2: 8, 3: 9, 4: 10, 5: 11 };
+        const baseAmount = table[stat] ?? table[1];
+        const amount = Math.max(0, Math.round(Number(baseAmount) * mult));
+        return { stat, baseAmount, amount, multiplier: mult };
     }
 
     supportAmountToStatDelta(amount) {
@@ -2226,9 +2207,9 @@ class BattleSystem {
         this.addLog(`\n🤝 ${attacker.name} 지원형 스킬 사용! (대상 ${n}명)`);
 
         const skillStat = this.getEffectiveStat(attacker, 'skill');
-        const amount = this.getSupportDebuffAmountBySkillStat(skillStat);
-        const delta = this.supportAmountToStatDelta(amount);
-        this.addLog(`  📎 총 디버프량: ±${amount} (스탯 환산 ±${delta})`);
+        const rolled = this.rollSupportAmountBySkillStat(skillStat);
+        const delta = this.supportAmountToStatDelta(rolled.amount);
+        this.addLog(`  📎 총 디버프량: ±${rolled.baseAmount} → x${rolled.multiplier} = ±${rolled.amount} (스탯 환산 ±${delta})`);
 
         const alliance = this.getAlliance(attackerTeamKey);
         const allies = new Set(alliance.allies);
@@ -2565,7 +2546,7 @@ class BattleSystem {
     // 방어 스탯(1~5) -> 방어력%(완만 버전)
     getDefenseReductionPercent(defStat) {
         const stat = Math.max(1, Math.min(5, Math.round(Number(defStat) || 1)));
-        const table = [0, 0, 5, 11, 15, 20];
+        const table = [0, 4, 10, 15, 20, 26];
         return table[stat] ?? 0;
     }
 
@@ -2573,29 +2554,33 @@ class BattleSystem {
         const base = Math.max(0, Math.floor(Number(rawDamage) || 0));
         if (base === 0) return 0;
         const pct = Math.max(0, Math.min(80, Math.round(Number(defensePercent) || 0)));
-        const reduced = Math.floor((base * (100 - pct)) / 100);
+        const reduced = Math.round((base * (100 - pct)) / 100);
         return Math.max(1, reduced);
     }
 
     rollAttackSkillRawDamage(skillStat) {
         const stat = Math.max(1, Math.min(5, Math.round(Number(skillStat) || 1)));
+        const mult = 1.5;
         const table = {
-            1: { min: 10, extraMax: 3 },
-            2: { min: 13, extraMax: 3 },
-            3: { min: 15, extraMax: 4 },
-            4: { min: 18, extraMax: 4 },
-            5: { min: 20, extraMax: 5 }
+            1: { min: 14, extraMax: 4 },
+            2: { min: 17, extraMax: 4 },
+            3: { min: 19, extraMax: 5 },
+            4: { min: 22, extraMax: 5 },
+            5: { min: 24, extraMax: 6 }
         };
         const profile = table[stat] || table[1];
         const bonus = this.rollInt(1, profile.extraMax);
-        const raw = Math.floor(profile.min + bonus);
+        const baseRaw = Math.floor(profile.min + bonus);
+        const raw = Math.max(0, Math.round(baseRaw * mult));
         return {
             stat,
             min: profile.min,
             extraMax: profile.extraMax,
             bonus,
+            baseRaw,
             raw,
-            max: profile.min + profile.extraMax
+            multiplier: mult,
+            max: Math.max(0, Math.round((profile.min + profile.extraMax) * mult))
         };
     }
 
@@ -3034,11 +3019,12 @@ class BattleSystem {
             const defStat = Math.max(1, Math.min(5, Math.round(Number(defender.defense ?? defender.def ?? 1))));
 
             // 기본공격 rawDamage(요청 반영):
-            // - atk 1~2 = 3~13
-            // - atk 3~4 = 4~13
-            // - atk 5   = 5~13
-            const minRaw = atkStat >= 5 ? 5 : (atkStat >= 3 ? 4 : 3);
-            const rawDamage = this.rollInt(minRaw, 13);
+            // - 기존 최대치 13 → 2배면 26이 최대치
+            // - atk 1~2 = 7~26
+            // - atk 3~4 = 8~26
+            // - atk 5   = 10~26
+            const minRaw = atkStat >= 5 ? 10 : (atkStat >= 3 ? 8 : 7);
+            const rawDamage = this.rollInt(minRaw, 26);
             const defensePercent = this.getDefenseReductionPercent(defStat);
             const finalDamage = this.applyDefenseReduction(rawDamage, defensePercent);
 
@@ -3110,7 +3096,7 @@ class BattleSystem {
                     const defensePercent2 = this.getDefenseReductionPercent(defStat2);
                     const damage2 = this.applyDefenseReduction(rolled2.raw, defensePercent2);
 
-                    this.addLog(`  🎲 스킬 데미지: ${rolled2.min} + (1~${rolled2.extraMax})[${rolled2.bonus}] = ${rolled2.raw} (최대 ${rolled2.max})`);
+                    this.addLog(`  🎲 스킬 데미지: ${rolled2.min} + (1~${rolled2.extraMax})[${rolled2.bonus}] = ${rolled2.baseRaw} → x${rolled2.multiplier} = ${rolled2.raw} (최대 ${rolled2.max})`);
                     this.addLog(`  🛡️ 방어력: ${defensePercent2}% (원데미지 ${rolled2.raw} → 실제 ${damage2})`);
                     this.addLog(`  💥 데미지: ${damage2}`);
 
@@ -3152,7 +3138,7 @@ class BattleSystem {
         const defensePercent = this.getDefenseReductionPercent(defStat);
         const damage = this.applyDefenseReduction(rolled.raw, defensePercent);
 
-        this.addLog(`  🎲 스킬 데미지: ${rolled.min} + (1~${rolled.extraMax})[${rolled.bonus}] = ${rolled.raw} (최대 ${rolled.max})`);
+        this.addLog(`  🎲 스킬 데미지: ${rolled.min} + (1~${rolled.extraMax})[${rolled.bonus}] = ${rolled.baseRaw} → x${rolled.multiplier} = ${rolled.raw} (최대 ${rolled.max})`);
         this.addLog(`  🛡️ 방어력: ${defensePercent}% (원데미지 ${rolled.raw} → 실제 ${damage})`);
         this.addLog(`  💥 데미지: ${damage}`);
         
@@ -3212,7 +3198,7 @@ class BattleSystem {
         const rolled = this.rollAttackSkillRawDamage(skillStat);
 
         const perTargetRaw = Math.floor((Number(rolled.raw) || 0) / n);
-        this.addLog(`  🎲 스킬 데미지: ${rolled.min} + (1~${rolled.extraMax})[${rolled.bonus}] = ${rolled.raw} (최대 ${rolled.max})`);
+        this.addLog(`  🎲 스킬 데미지: ${rolled.min} + (1~${rolled.extraMax})[${rolled.bonus}] = ${rolled.baseRaw} → x${rolled.multiplier} = ${rolled.raw} (최대 ${rolled.max})`);
         this.addLog(`  👥 다수 분배: floor(${rolled.raw} / ${n}) = ${perTargetRaw} (각 대상 원데미지)`);
 
         targets.forEach((defender) => {
@@ -3277,7 +3263,7 @@ class BattleSystem {
         const shieldBase = rolled.raw;
         const perTarget = Math.floor(shieldBase / n);
 
-        this.addLog(`  🎲 쉴드량: ${rolled.min} + (1~${rolled.extraMax})[${rolled.bonus}] = ${rolled.raw} (최대 ${rolled.max})`);
+        this.addLog(`  🎲 쉴드량: ${rolled.min} + (1~${rolled.extraMax})[${rolled.bonus}] = ${rolled.baseRaw} → x${rolled.multiplier} = ${rolled.raw} (최대 ${rolled.max})`);
         this.addLog(`  👥 다수 분배: floor(${shieldBase} / ${n}) = ${perTarget} (각 대상)`);
 
         list.forEach((t) => {
@@ -3316,7 +3302,7 @@ class BattleSystem {
         const healBase = rolled.raw;
         const perTarget = Math.floor(healBase / n);
 
-        this.addLog(`  🎲 회복량: ${rolled.min} + (1~${rolled.extraMax})[${rolled.bonus}] = ${rolled.raw} (최대 ${rolled.max})`);
+        this.addLog(`  🎲 회복량: ${rolled.min} + (1~${rolled.extraMax})[${rolled.bonus}] = ${rolled.baseRaw} → x${rolled.multiplier} = ${rolled.raw} (최대 ${rolled.max})`);
         this.addLog(`  👥 다수 분배: floor(${healBase} / ${n}) = ${perTarget} (각 대상)`);
 
         list.forEach((t) => {

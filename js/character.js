@@ -62,7 +62,7 @@ class Character {
 
     /**
      * 피해를 입힌다
-     * HP: 전원 100, 50 깎이면 전투 불능, 50 이상일 때 0까지 사망
+        * HARD 룰: HP 0이 되면 전투 불능/사망 처리
      * @param {number} damage - 받을 피해량
      * @returns {number} 실제 받은 피해량
      */
@@ -74,16 +74,12 @@ class Character {
         actualDamage = Math.max(0, actualDamage);
         
         this.currentHp -= actualDamage;
-        
-        // HP가 50 이상이면 50까지 내려가야 함 (전투 불능 경계)
-        if (this.currentHp < 0) {
-            this.currentHp = 0;
-        }
-        
-        // 전투 불능 판정: HP가 50 이하
-        if (this.currentHp <= 50) {
-            this.isAlive = false;
-        }
+
+        // 최소 0으로 클램프
+        if (this.currentHp < 0) this.currentHp = 0;
+
+        // 전투 불능/사망 판정: HP 0
+        this.isAlive = this.currentHp > 0;
         
         return actualDamage;
     }

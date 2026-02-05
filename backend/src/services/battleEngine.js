@@ -59,16 +59,25 @@ function rollInt(min, max) {
 }
 
 // ===== 전투 밸런스(정수 기반) =====
+// 즉시 실행용 배수(요청 반영)
+// - 기본공격(일반 공격/반격 포함): 기본 범위 조정으로 처리 (최대 26)
+// - 공격형 스킬(스킬 공격): x1.5
+const BASIC_ATTACK_DAMAGE_MULTIPLIER = 1;
+const ATTACK_SKILL_DAMAGE_MULTIPLIER = 1.5;
+const DEFENSE_SKILL_BLOCK_MULTIPLIER = 1.5;
+const HEAL_SKILL_AMOUNT_MULTIPLIER = 1.3;
+
 // 기본공격 rawDamage 범위(요청 반영):
-// - 공격 스탯 1,2 = 3 ~ 13
-// - 공격 스탯 3,4 = 4 ~ 13
-// - 공격 스탯 5   = 5 ~ 13
+// - 기존 최대치 13 → 2배면 26이 최대치
+// - 공격 스탯 1,2 = 7 ~ 26
+// - 공격 스탯 3,4 = 8 ~ 26
+// - 공격 스탯 5   = 10 ~ 26
 const BASIC_RAW_DAMAGE_BY_ATK_STAT = {
-  1: { min: 3, max: 13 },
-  2: { min: 3, max: 13 },
-  3: { min: 4, max: 13 },
-  4: { min: 4, max: 13 },
-  5: { min: 5, max: 13 }
+  1: { min: 7, max: 26 },
+  2: { min: 7, max: 26 },
+  3: { min: 8, max: 26 },
+  4: { min: 8, max: 26 },
+  5: { min: 10, max: 26 }
 };
 
 // 공격형 스킬 데미지 테이블(이미지 기반)
@@ -79,18 +88,17 @@ const BASIC_RAW_DAMAGE_BY_ATK_STAT = {
 // 4: 22 | 18 (+1~4)
 // 5: 25 | 20 (+1~5)
 const ATTACK_SKILL_DAMAGE_BY_STAT = {
-  1: { min: 10, extraMax: 3 },
-  2: { min: 13, extraMax: 3 },
-  3: { min: 15, extraMax: 4 },
-  4: { min: 18, extraMax: 4 },
-  5: { min: 20, extraMax: 5 }
+  1: { min: 14, extraMax: 4 },
+  2: { min: 17, extraMax: 4 },
+  3: { min: 19, extraMax: 5 },
+  4: { min: 22, extraMax: 5 },
+  5: { min: 24, extraMax: 6 }
 };
 
 // 방어 스탯(1~5) -> 방어력%(완만 버전). 필요 시 여기만 조정.
 // index: defStat (1..5)
-// NOTE: 기본공격 raw 범위가 작아서(3~10) 5%/10%가 floor 처리에서 동일 결과가 나기 쉬움.
-//       def=3을 11%로 두면 def=2(5%)와 구분되는 구간이 생김.
-const DEFENSE_REDUCTION_PCT_BY_STAT = [0, 0, 5, 11, 15, 20];
+// HARD 밸런스(조금 더 버티게): 기본공격 상향에 맞춰 방어 감소율도 소폭 상향
+const DEFENSE_REDUCTION_PCT_BY_STAT = [0, 4, 10, 15, 20, 26];
 
 // 맞았을 때 최소 데미지(0 허용하고 싶으면 0으로)
 const MIN_DAMAGE_ON_HIT = 1;
@@ -106,7 +114,7 @@ function applyDefenseReduction(rawDamage, defensePercent) {
   if (base === 0) return 0;
 
   const pct = Math.max(0, Math.min(80, Math.round(Number(defensePercent) || 0)));
-  const reduced = Math.floor((base * (100 - pct)) / 100);
+  const reduced = Math.round((base * (100 - pct)) / 100);
   return Math.max(MIN_DAMAGE_ON_HIT, reduced);
 }
 
@@ -118,14 +126,16 @@ function rollAttackSkillRawDamage(skillStat) {
   const stat = Math.max(1, Math.min(5, Math.round(Number(skillStat) || 1)));
   const profile = ATTACK_SKILL_DAMAGE_BY_STAT[stat] || ATTACK_SKILL_DAMAGE_BY_STAT[1];
   const bonus = rollInt(1, profile.extraMax);
-  const raw = Math.floor(profile.min + bonus);
+  const baseRaw = Math.floor(profile.min + bonus);
+  const raw = Math.max(0, Math.round(baseRaw * ATTACK_SKILL_DAMAGE_MULTIPLIER));
   return {
     stat,
     min: profile.min,
     extraMax: profile.extraMax,
     bonus,
+    baseRaw,
     raw,
-    max: profile.min + profile.extraMax
+    max: Math.max(0, Math.round((profile.min + profile.extraMax) * ATTACK_SKILL_DAMAGE_MULTIPLIER))
   };
 }
 
@@ -264,7 +274,8 @@ function getDamageFromRuleSet(ruleSet, atkStat, defStat) {
 function getBasicAttackRawDamage(battle, attackerChar, defenderChar) {
   const atkStat = Math.max(1, Math.min(5, Math.round(Number(attackerChar?.atk) || 1)));
   const range = BASIC_RAW_DAMAGE_BY_ATK_STAT[atkStat] || BASIC_RAW_DAMAGE_BY_ATK_STAT[1];
-  return rollRawDamage(range);
+  const base = rollRawDamage(range);
+  return Math.max(0, Math.round(base * BASIC_ATTACK_DAMAGE_MULTIPLIER));
 }
 
 /**
@@ -560,18 +571,21 @@ function executeSkill({ skill, caster, targets, battle }) {
     if (skill.category === 'ATTACK') {
       // 공격 스킬은 방어 스킬로만 막을 수 있음 (회피/반격 불가)
       // 여기서는 일단 직접 데미지 적용
-      const damage = skill.effects.amount || 20;
+      const baseDamage = skill.effects.amount || 20;
+      const damage = Math.max(0, Math.round(Number(baseDamage) * ATTACK_SKILL_DAMAGE_MULTIPLIER));
       result.damage = damage;
       result.message = `${skill.name}으로 ${damage} 데미지!`;
       
     } else if (skill.category === 'DEFENSE') {
       // 방어 스킬 (패시브 방어량 증가 등)
-      result.block = skill.effects.block || 10;
+      const baseBlock = skill.effects.block || 10;
+      result.block = Math.max(0, Math.round(Number(baseBlock) * DEFENSE_SKILL_BLOCK_MULTIPLIER));
       result.message = `${skill.name}으로 ${result.block} 방어!`;
       
     } else if (skill.category === 'HEAL') {
       // 힐 스킬
-      const healAmount = skill.effects.amount || 15;
+      const baseHeal = skill.effects.amount || 15;
+      const healAmount = Math.max(0, Math.round(Number(baseHeal) * HEAL_SKILL_AMOUNT_MULTIPLIER));
       result.heal = healAmount;
       result.message = `${skill.name}으로 ${healAmount} 회복!`;
       
