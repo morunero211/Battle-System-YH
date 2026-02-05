@@ -2986,11 +2986,11 @@ class BattleSystem {
             const defStat = Math.max(1, Math.min(5, Math.round(Number(defender.defense ?? defender.def ?? 1))));
 
             // 기본공격 rawDamage(요청 반영):
-            // - atk 1~2 = 3~13
-            // - atk 3~4 = 4~13
-            // - atk 5   = 5~13
-            const minRaw = atkStat >= 5 ? 5 : (atkStat >= 3 ? 4 : 3);
-            const rawDamage = this.rollInt(minRaw, 13);
+            // - atk 1~2 = 7~20
+            // - atk 3~4 = 8~20
+            // - atk 5   = 10~20
+            const minRaw = atkStat >= 5 ? 10 : (atkStat >= 3 ? 8 : 7);
+            const rawDamage = this.rollInt(minRaw, 20);
             const defensePercent = this.getDefenseReductionPercent(defStat);
             const finalDamage = this.applyDefenseReduction(rawDamage, defensePercent);
 
