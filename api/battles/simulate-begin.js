@@ -43,7 +43,7 @@ function gradeLabel(grade) {
     case 'HARD':
       return '어려운 성공';
     case 'SUCCESS':
-      return '성공';
+      return '보통 성공';
     case 'FAIL':
     default:
       return '실패';

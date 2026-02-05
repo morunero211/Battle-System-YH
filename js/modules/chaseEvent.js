@@ -213,26 +213,34 @@ class ChaseEvent {
     }
 
     classifyAgility(roll, target) {
-        // CoC-ish: 대성공(극단) / 성공 / 실패 / 대실패
-        // - 대성공: 1
-        // - 성공: target 이하
-        // - 대실패: 100 또는 (target < 50 이면서 96~100)
-        // - 나머지: 실패
-        if (roll === 1) return 'GREAT_SUCCESS';
+        // d100 4단 성공 등급 + 실패/대실패
+        // - 대성공(CRITICAL): 1
+        // - 극단적 성공(EXTREME): 기준치의 20% 이하
+        // - 어려운 성공(HARD): 기준치의 50% 이하
+        // - 보통 성공(SUCCESS): 기준치 이하
+        // - 대실패(FUMBLE): 100 또는 (target < 50 이면서 96~100)
+        // - 실패(FAIL): 그 외 실패
+        if (roll === 1) return 'CRITICAL';
 
         const fumble = (roll === 100) || (target < 50 && roll >= 96);
         if (fumble) return 'FUMBLE';
 
-        if (roll <= target) return 'SUCCESS';
-        return 'FAIL';
+        if (roll > target) return 'FAIL';
+        if (roll <= target * 0.2) return 'EXTREME';
+        if (roll <= target * 0.5) return 'HARD';
+        return 'SUCCESS';
     }
 
     outcomeLabel(outcome) {
         switch (outcome) {
-            case 'GREAT_SUCCESS':
+            case 'CRITICAL':
                 return '대성공';
+            case 'EXTREME':
+                return '극단적 성공';
+            case 'HARD':
+                return '어려운 성공';
             case 'SUCCESS':
-                return '성공';
+                return '보통 성공';
             case 'FUMBLE':
                 return '대실패';
             case 'FAIL':
@@ -242,7 +250,9 @@ class ChaseEvent {
     }
 
     moveDelta(outcome) {
-        if (outcome === 'GREAT_SUCCESS') return 2;
+        if (outcome === 'CRITICAL') return 2;
+        if (outcome === 'EXTREME') return 1;
+        if (outcome === 'HARD') return 1;
         if (outcome === 'SUCCESS') return 1;
         if (outcome === 'FUMBLE') return -1;
         return 0;
@@ -385,8 +395,9 @@ class ChaseEvent {
             const target = this.agilityTargetFromStat(atkStat); // 1~5 → 50~70
             const roll = this.rollD100();
 
-            const isHit = roll <= target;
-            const isGreat = roll === 1;
+            const outcome = this.classifyAgility(roll, target);
+            const isHit = outcome !== 'FAIL' && outcome !== 'FUMBLE';
+            const isGreat = outcome === 'CRITICAL';
 
             if (!isHit) {
                 this.pushLog(`🎯 미니 공격 ${i + 1}/2: 판정 ${roll}/${target} → 빗나감`);
@@ -408,7 +419,7 @@ class ChaseEvent {
                 ? bs.getTotalHp(loser.char)
                 : Math.max(0, Math.round(Number(loser.char.hp) || 0));
 
-            this.pushLog(`💥 미니 공격 ${i + 1}/2: 판정 ${roll}/${target} → 적중 (${isGreat ? '대성공' : '성공'}) 피해 ${damage} (HP ${before} → ${after})`);
+            this.pushLog(`💥 미니 공격 ${i + 1}/2: 판정 ${roll}/${target} → 적중 (${this.outcomeLabel(outcome)}) 피해 ${damage} (HP ${before} → ${after})`);
         }
 
         // 전투 UI 동기화

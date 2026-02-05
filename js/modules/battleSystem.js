@@ -1446,7 +1446,7 @@ class BattleSystem {
             case 'HARD':
                 return '어려운 성공';
             case 'SUCCESS':
-                return '성공';
+                return '보통 성공';
             case 'FAIL':
             default:
                 return '실패';
@@ -2752,7 +2752,7 @@ class BattleSystem {
                 if (!t.includes(' | ')) return false;
                 if (t.startsWith('🎲')) return false;
                 if (t.includes('회피') || t.includes('반격') || t.includes('PASS')) return false;
-                return /\|\s*(대성공|극단적 성공|어려운 성공|하드|성공|실패)\s*$/.test(t);
+                return /\|\s*(대성공|극단적 성공|어려운 성공|보통 성공|하드|성공|실패)\s*$/.test(t);
             });
 
         const title = headerCandidate || (rawFirst || '행동');
@@ -3005,7 +3005,16 @@ class BattleSystem {
 
             const attackRoll = Math.floor(Math.random() * 100) + 1;
             const attackPower = (attacker.attack ?? attacker.atk ?? 1) * 10 + (attacker.skill ?? attacker.skillStat ?? 1) * 5;
-            this.addLogRaw(`🎲 1d100 ${attackRoll} / ${attackPower} | 공격 ${attackRoll > attackPower ? '실패' : '성공'} | ${attackRoll > attackPower ? '실패' : '성공'}`);
+            const grade = (attackRoll > attackPower)
+                ? 'FAIL'
+                : (attackRoll === 1)
+                    ? 'CRITICAL'
+                    : (attackRoll <= attackPower * 0.2)
+                        ? 'EXTREME'
+                        : (attackRoll <= attackPower * 0.5)
+                            ? 'HARD'
+                            : 'SUCCESS';
+            this.addLogRaw(this.formatRollLine({ roll: attackRoll, threshold: attackPower, statLabel: '공격', grade }));
 
             // 공격 판정(공격/스킬 스탯)을 사용했으므로 1회 소모
             this.consumeStatMods(attacker, 'ON_ATTACK');
