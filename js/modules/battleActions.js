@@ -263,10 +263,16 @@ class BattleActions {
 
                     const hp = document.createElement('div');
                     hp.className = 'skill-target-btn-hp';
-                    const maxHp = Number.isFinite(Number(c.maxHp)) ? Math.max(1, Math.round(Number(c.maxHp))) : 100;
-                    const totalHp = Math.max(0, Math.round(Number(c.hp) || 0));
-                    const baseHp = Math.min(maxHp, totalHp);
-                    const shieldHp = Math.max(0, totalHp - maxHp);
+                    const bs = this.app?.battleSystem;
+                    const maxHp = (typeof bs?.getMaxHp === 'function')
+                        ? bs.getMaxHp(c)
+                        : (Number.isFinite(Number(c.maxHp)) ? Math.max(1, Math.round(Number(c.maxHp))) : 100);
+                    const baseHp = (typeof bs?.getBaseHp === 'function')
+                        ? bs.getBaseHp(c)
+                        : Math.max(0, Math.min(maxHp, Math.round(Number(c.hp) || 0)));
+                    const shieldHp = (typeof bs?.getShieldHp === 'function')
+                        ? bs.getShieldHp(c)
+                        : Math.max(0, Math.round(Number(c.shieldHp) || 0));
                     hp.textContent = shieldHp > 0
                         ? `HP ${baseHp}/${maxHp} · 🛡️+${shieldHp}`
                         : `HP ${baseHp}/${maxHp}`;

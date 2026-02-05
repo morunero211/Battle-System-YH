@@ -91,7 +91,8 @@ class BattleRoom {
   getCopyPayload({ teamIndex = null } = {}) {
     const guide = this.getCopyGuideText();
     const profiles = this.getProfilesText({ teamIndex });
-    return [guide, profiles].filter((s) => String(s || '').trim()).join('\n\n');
+    // 전투 화면과 동일하게: 캐릭터 스탯(프로필)을 위에, 안내문구는 아래에 붙입니다.
+    return [profiles, guide].filter((s) => String(s || '').trim()).join('\n\n');
   }
 
   setProfilesModalText(text) {
