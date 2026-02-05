@@ -582,8 +582,7 @@ class BattleSystem {
         }
 
         const maxHp = this.getMaxHp(char);
-        const startBase = Math.round(Number(char?.battleStartBaseHp) || 0);
-        const minHp = startBase > 50 ? 50 : 0;
+    const minHp = 0;
         const beforeBase = this.getBaseHp(char);
         const beforeShield = this.getShieldHp(char);
 
@@ -591,7 +590,6 @@ class BattleSystem {
             `${char.name}`,
             `현재 HP: ${beforeBase}/${maxHp} (쉴드 ${beforeShield})`,
             `입력 범위: ${minHp} ~ ${maxHp}`,
-            (startBase > 50 ? '규칙: 시작 HP > 50 캐릭터는 HP가 50 미만으로 내려가지 않습니다.' : '')
         ].filter(Boolean).join('\n');
 
         const nextBase = await this.app?.showNumberPrompt?.({
@@ -621,18 +619,6 @@ class BattleSystem {
             if (ok) {
                 char.battleDead = false;
                 if (String(char.status) === 'dead') char.status = 'active';
-            }
-        }
-
-        if (char.battleIncapacitated && nextBase > 50) {
-            const ok = await this.app?.showConfirm?.({
-                title: '전투 불능 해제',
-                message: `${char.name}은(는) 현재 전투 불능 상태입니다. HP를 ${nextBase}로 변경하면서 전투 불능을 해제할까요?`,
-                okText: '해제',
-                cancelText: '유지'
-            });
-            if (ok) {
-                char.battleIncapacitated = false;
             }
         }
 
@@ -1229,7 +1215,7 @@ class BattleSystem {
                 .filter(Boolean)
         };
 
-        // 전투 시작 HP 기준(>50이면 50에서 전투 불능, <=50이면 0에서 사망)
+        // 전투 시작 HP 기록(로그/표시용): 전투 종료 조건은 HP 0(사망)만 사용
         TEAM_KEYS.forEach((k) => {
             (this.combatCharacters?.[k] || []).forEach((c) => {
                 if (!c) return;
@@ -1976,11 +1962,9 @@ class BattleSystem {
     ensureBattleStartHpIfMissing(char) {
         if (!char) return;
         if (!Number.isFinite(Number(char.battleStartBaseHp))) {
-            // 중요 규칙: "시작 HP > 50" 여부는 전투 시작 시점에서만 결정되어야 함.
-            // 전투 도중(특히 치유 후) 누락된 값을 현재 HP로 추정하면, 잘못해서 >50 규칙이 발동할 수 있음.
-            // 따라서 누락 케이스의 안전한 기본값은 50 이하로 캡해서 설정한다.
+            // 전투 중 누락된 값은 현재 base HP로 보정(표시/로그용)
             const inferred = Math.round(Number(this.getBaseHp(char)) || 0);
-            char.battleStartBaseHp = Math.min(50, inferred);
+            char.battleStartBaseHp = Math.max(0, inferred);
         }
     }
 
@@ -1989,7 +1973,6 @@ class BattleSystem {
         this.ensureHpSplit(char);
         this.ensureBattleStartHpIfMissing(char);
 
-        const startBase = Math.round(Number(char.battleStartBaseHp) || 0);
         const baseHp = this.getBaseHp(char);
         const totalHp = this.getTotalHp(char);
 
@@ -2000,30 +1983,14 @@ class BattleSystem {
             return;
         }
 
-        // 시작 HP가 50 초과면, 전투 중 baseHP가 50 이하가 되는 순간 전투 불능
-        if (startBase > 50) {
-            // 전투 중에는 baseHP가 50 미만으로 내려가지 않도록 고정
-            const maxHp = this.getMaxHp(char);
-            if (baseHp < 50) {
-                char.hp = Math.min(maxHp, 50);
-            }
-
-            // 전투 불능은 최초 1회만 로그/전환
-            if (!char.battleIncapacitated && this.getBaseHp(char) <= 50) {
-                char.battleIncapacitated = true;
-                this.addLog(`  🟡 ${char.name} 전투 불능! (시작 HP ${startBase} > 50, 현재 HP ${this.getBaseHp(char)} ≤ 50)${cause ? ` · ${cause}` : ''}`);
-            }
-            return;
-        }
-
-        // 시작 HP가 50 이하이면, 전투 중 totalHP가 0 이하가 되는 순간 사망
+        // 전투 중 totalHP가 0 이하가 되는 순간 사망
         if (totalHp <= 0) {
             char.battleDead = true;
             char.hp = 0;
             char.shieldHp = 0;
             // 로스터에도 표시될 수 있도록 상태를 dead로 둠(기존 시스템과 호환)
             char.status = 'dead';
-            this.addLog(`  💀 ${char.name} 사망! (시작 HP ${startBase} ≤ 50, 현재 HP 0)${cause ? ` · ${cause}` : ''}`);
+            this.addLog(`  💀 ${char.name} 사망! (현재 HP 0)${cause ? ` · ${cause}` : ''}`);
         }
     }
 
@@ -2060,26 +2027,11 @@ class BattleSystem {
         const beforeShield = this.getShieldHp(defender);
         const beforeBase = this.getBaseHp(defender);
 
-        const startBase = Math.round(Number(defender?.battleStartBaseHp) || 0);
-        const baseFloor = startBase > 50 ? 50 : 0;
-
         const shieldAbsorbed = Math.min(beforeShield, dmg);
         const remaining = dmg - shieldAbsorbed;
 
-        // 시작 baseHP가 50 초과인 캐릭터는 전투 중 baseHP가 50 미만으로 내려가지 않음
-        const allowedBaseDamage = Math.max(0, beforeBase - baseFloor);
-        const hpDamage = Math.min(allowedBaseDamage, remaining);
-
-        // 50 고정으로 인해 추가 피해가 무시되는 경우(사용자 혼동 방지용 로그, 1턴 1회)
-        if (baseFloor > 0 && remaining > 0 && hpDamage === 0 && beforeBase <= baseFloor) {
-            const turnKey = Number.isFinite(Number(this.turnIndex)) ? Number(this.turnIndex) : 0;
-            if (defender._floorDamageIgnoredTurnKey !== turnKey) {
-                defender._floorDamageIgnoredTurnKey = turnKey;
-                this.addLog(`  ℹ️ ${defender.name}은(는) 전투 불능 상태로 HP가 ${baseFloor} 미만으로 내려가지 않습니다.`);
-            }
-        }
-
-        const afterBase = Math.max(baseFloor, beforeBase - hpDamage);
+        const hpDamage = Math.min(beforeBase, remaining);
+        const afterBase = Math.max(0, beforeBase - hpDamage);
         const afterShield = Math.max(0, beforeShield - shieldAbsorbed);
         defender.hp = Math.min(maxHp, afterBase);
         defender.shieldHp = Math.max(0, afterShield);
@@ -2107,7 +2059,7 @@ class BattleSystem {
         const afterBase = Math.min(maxHp, base + heal);
         target.hp = afterBase;
         target.shieldHp = shield;
-        // 힐로는 전투 불능/사망 상태가 되돌아가지 않음(상태는 고정)
+        // 힐로는 사망 상태가 되돌아가지 않음(상태는 고정)
         return afterBase - base;
     }
 
