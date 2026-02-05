@@ -37,6 +37,23 @@ function percentile(sortedAsc, p) {
   return sortedAsc[idx];
 }
 
+function normalizeWeights({ passW = 1, dodgeW = 0, counterW = 0 } = {}) {
+  const p = Math.max(0, Number(passW) || 0);
+  const d = Math.max(0, Number(dodgeW) || 0);
+  const c = Math.max(0, Number(counterW) || 0);
+  const sum = p + d + c;
+  if (sum <= 0) return { pass: 1, dodge: 0, counter: 0 };
+  return { pass: p / sum, dodge: d / sum, counter: c / sum };
+}
+
+function pickDefenseResponse(weights) {
+  const w = weights || { pass: 1, dodge: 0, counter: 0 };
+  const r = Math.random();
+  if (r < (w.dodge || 0)) return 'DODGE';
+  if (r < (w.dodge || 0) + (w.counter || 0)) return 'COUNTER';
+  return 'PASS';
+}
+
 function summarize(values) {
   const list = values.filter((n) => Number.isFinite(n)).slice().sort((a, b) => a - b);
   const n = list.length;
@@ -60,7 +77,7 @@ function chooseFirstActor(a, b) {
   return Math.random() < 0.5 ? 0 : 1;
 }
 
-function simulateDuelOnce(aBase, bBase, { maxTurns = 2000 } = {}) {
+function simulateDuelOnce(aBase, bBase, { maxTurns = 2000, defenseResponseWeights = null } = {}) {
   const A = { ...aBase };
   const B = { ...bBase };
 
@@ -76,8 +93,12 @@ function simulateDuelOnce(aBase, bBase, { maxTurns = 2000 } = {}) {
   let hits = 0;
   let totalDamage = 0;
 
+  const weights = defenseResponseWeights || { pass: 1, dodge: 0, counter: 0 };
+
   while (turns < maxTurns && A.hp > 0 && B.hp > 0) {
     turns += 1;
+
+    const response = pickDefenseResponse(weights);
 
     const result = battleEngine.executeBasicAttack({
       battle,
@@ -85,7 +106,7 @@ function simulateDuelOnce(aBase, bBase, { maxTurns = 2000 } = {}) {
       defender,
       attackerChar: actor,
       defenderChar: target,
-      response: 'PASS'
+      response
     });
 
     if (result && result.success && Number.isFinite(Number(result.damage)) && result.damage > 0) {
@@ -116,14 +137,14 @@ function simulateDuelOnce(aBase, bBase, { maxTurns = 2000 } = {}) {
   };
 }
 
-function simulateMany(a, b, runs) {
+function simulateMany(a, b, runs, opts = {}) {
   const turns = [];
   const hits = [];
   const avgOnHit = [];
   const winners = new Map();
 
   for (let i = 0; i < runs; i++) {
-    const r = simulateDuelOnce(a, b);
+    const r = simulateDuelOnce(a, b, opts);
     turns.push(r.turns);
     hits.push(r.hits);
     avgOnHit.push(r.avgDamageOnHit);
@@ -142,11 +163,20 @@ function simulateMany(a, b, runs) {
 }
 
 function parseArgs(argv) {
-  const args = { runs: 2000 };
+  const args = { runs: 2000, pass: 1, dodge: 0, counter: 0 };
   for (let i = 2; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--runs' && argv[i + 1]) {
       args.runs = Math.max(10, Math.min(200000, Math.floor(Number(argv[i + 1]))));
+      i++;
+    } else if (a === '--pass' && argv[i + 1]) {
+      args.pass = Math.max(0, Number(argv[i + 1]) || 0);
+      i++;
+    } else if (a === '--dodge' && argv[i + 1]) {
+      args.dodge = Math.max(0, Number(argv[i + 1]) || 0);
+      i++;
+    } else if (a === '--counter' && argv[i + 1]) {
+      args.counter = Math.max(0, Number(argv[i + 1]) || 0);
       i++;
     }
   }
@@ -154,7 +184,8 @@ function parseArgs(argv) {
 }
 
 function main() {
-  const { runs } = parseArgs(process.argv);
+  const { runs, pass, dodge, counter } = parseArgs(process.argv);
+  const weights = normalizeWeights({ passW: pass, dodgeW: dodge, counterW: counter });
 
   // 임시 캐릭터(예시): 실제 데이터 감각에 맞춰 HP 100 전후 + 스탯 2~5
   const temp = makeChar({ name: '임시(테스트)', hp: 100, atk: 4, def: 3, agi: 3 });
@@ -162,11 +193,12 @@ function main() {
 
   console.log('=== HARD 전투 턴수 추정 (1v1, 기본공격, PASS 고정) ===');
   console.log(`Runs: ${runs}`);
+  console.log(`Defense response mix: PASS ${(weights.pass * 100).toFixed(1)}% | DODGE ${(weights.dodge * 100).toFixed(1)}% | COUNTER ${(weights.counter * 100).toFixed(1)}%`);
   console.log(`A: ${temp.name} | HP ${temp.hp} | ATK ${temp.atk} DEF ${temp.def} AGI ${temp.agi}`);
   console.log(`B: ${dummy.name} | HP ${dummy.hp} | ATK ${dummy.atk} DEF ${dummy.def} AGI ${dummy.agi}`);
   console.log('');
 
-  const res = simulateMany(temp, dummy, runs);
+  const res = simulateMany(temp, dummy, runs, { defenseResponseWeights: weights });
 
   console.log('--- 결과(턴 수) ---');
   console.log(res.turns);
