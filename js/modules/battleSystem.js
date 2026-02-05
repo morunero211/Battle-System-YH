@@ -2141,9 +2141,16 @@ class BattleSystem {
     }
 
     getSupportDebuffAmountBySkillStat(skillStat) {
+        return this.rollSupportAmountBySkillStat(skillStat).amount;
+    }
+
+    rollSupportAmountBySkillStat(skillStat) {
         const stat = this.clampStat1to5(skillStat);
+        const mult = 1.3;
         const table = { 1: 7, 2: 8, 3: 9, 4: 10, 5: 11 };
-        return table[stat] ?? table[1];
+        const baseAmount = table[stat] ?? table[1];
+        const amount = Math.max(0, Math.round(Number(baseAmount) * mult));
+        return { stat, baseAmount, amount, multiplier: mult };
     }
 
     supportAmountToStatDelta(amount) {
@@ -2200,9 +2207,9 @@ class BattleSystem {
         this.addLog(`\n🤝 ${attacker.name} 지원형 스킬 사용! (대상 ${n}명)`);
 
         const skillStat = this.getEffectiveStat(attacker, 'skill');
-        const amount = this.getSupportDebuffAmountBySkillStat(skillStat);
-        const delta = this.supportAmountToStatDelta(amount);
-        this.addLog(`  📎 총 디버프량: ±${amount} (스탯 환산 ±${delta})`);
+        const rolled = this.rollSupportAmountBySkillStat(skillStat);
+        const delta = this.supportAmountToStatDelta(rolled.amount);
+        this.addLog(`  📎 총 디버프량: ±${rolled.baseAmount} → x${rolled.multiplier} = ±${rolled.amount} (스탯 환산 ±${delta})`);
 
         const alliance = this.getAlliance(attackerTeamKey);
         const allies = new Set(alliance.allies);
