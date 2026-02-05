@@ -59,6 +59,12 @@ function rollInt(min, max) {
 }
 
 // ===== 전투 밸런스(정수 기반) =====
+// 즉시 실행용 배수(요청 반영)
+// - 기본공격(일반 공격/반격 포함): x2
+// - 공격형 스킬(스킬 공격): x1.5
+const BASIC_ATTACK_DAMAGE_MULTIPLIER = 2;
+const ATTACK_SKILL_DAMAGE_MULTIPLIER = 1.5;
+
 // 기본공격 rawDamage 범위(요청 반영):
 // - 공격 스탯 1,2 = 7 ~ 20
 // - 공격 스탯 3,4 = 8 ~ 20
@@ -117,14 +123,16 @@ function rollAttackSkillRawDamage(skillStat) {
   const stat = Math.max(1, Math.min(5, Math.round(Number(skillStat) || 1)));
   const profile = ATTACK_SKILL_DAMAGE_BY_STAT[stat] || ATTACK_SKILL_DAMAGE_BY_STAT[1];
   const bonus = rollInt(1, profile.extraMax);
-  const raw = Math.floor(profile.min + bonus);
+  const baseRaw = Math.floor(profile.min + bonus);
+  const raw = Math.max(0, Math.round(baseRaw * ATTACK_SKILL_DAMAGE_MULTIPLIER));
   return {
     stat,
     min: profile.min,
     extraMax: profile.extraMax,
     bonus,
+    baseRaw,
     raw,
-    max: profile.min + profile.extraMax
+    max: Math.max(0, Math.round((profile.min + profile.extraMax) * ATTACK_SKILL_DAMAGE_MULTIPLIER))
   };
 }
 
@@ -263,7 +271,8 @@ function getDamageFromRuleSet(ruleSet, atkStat, defStat) {
 function getBasicAttackRawDamage(battle, attackerChar, defenderChar) {
   const atkStat = Math.max(1, Math.min(5, Math.round(Number(attackerChar?.atk) || 1)));
   const range = BASIC_RAW_DAMAGE_BY_ATK_STAT[atkStat] || BASIC_RAW_DAMAGE_BY_ATK_STAT[1];
-  return rollRawDamage(range);
+  const base = rollRawDamage(range);
+  return Math.max(0, Math.round(base * BASIC_ATTACK_DAMAGE_MULTIPLIER));
 }
 
 /**
@@ -559,7 +568,8 @@ function executeSkill({ skill, caster, targets, battle }) {
     if (skill.category === 'ATTACK') {
       // 공격 스킬은 방어 스킬로만 막을 수 있음 (회피/반격 불가)
       // 여기서는 일단 직접 데미지 적용
-      const damage = skill.effects.amount || 20;
+      const baseDamage = skill.effects.amount || 20;
+      const damage = Math.max(0, Math.round(Number(baseDamage) * ATTACK_SKILL_DAMAGE_MULTIPLIER));
       result.damage = damage;
       result.message = `${skill.name}으로 ${damage} 데미지!`;
       

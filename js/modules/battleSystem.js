@@ -1088,7 +1088,7 @@ class BattleSystem {
                 const rolled = this.rollAttackSkillRawDamage(skillStat);
                 const perTargetRaw = ef.split === 'evenFloor' ? Math.floor((Number(rolled.raw) || 0) / n) : Number(rolled.raw) || 0;
 
-                this.addLog(`  🎲 스킬 데미지: ${rolled.min} + (1~${rolled.extraMax})[${rolled.bonus}] = ${rolled.raw} (최대 ${rolled.max})`);
+                this.addLog(`  🎲 스킬 데미지: ${rolled.min} + (1~${rolled.extraMax})[${rolled.bonus}] = ${rolled.baseRaw} → x${rolled.multiplier} = ${rolled.raw} (최대 ${rolled.max})`);
                 if (ef.split === 'evenFloor') this.addLog(`  👥 다수 분배: floor(${rolled.raw} / ${n}) = ${perTargetRaw} (각 대상 원데미지)`);
 
                 list.forEach((defender) => {
@@ -2531,6 +2531,7 @@ class BattleSystem {
 
     rollAttackSkillRawDamage(skillStat) {
         const stat = Math.max(1, Math.min(5, Math.round(Number(skillStat) || 1)));
+        const mult = 1.5;
         const table = {
             1: { min: 14, extraMax: 4 },
             2: { min: 17, extraMax: 4 },
@@ -2540,14 +2541,17 @@ class BattleSystem {
         };
         const profile = table[stat] || table[1];
         const bonus = this.rollInt(1, profile.extraMax);
-        const raw = Math.floor(profile.min + bonus);
+        const baseRaw = Math.floor(profile.min + bonus);
+        const raw = Math.max(0, Math.round(baseRaw * mult));
         return {
             stat,
             min: profile.min,
             extraMax: profile.extraMax,
             bonus,
+            baseRaw,
             raw,
-            max: profile.min + profile.extraMax
+            multiplier: mult,
+            max: Math.max(0, Math.round((profile.min + profile.extraMax) * mult))
         };
     }
 
@@ -2990,7 +2994,8 @@ class BattleSystem {
             // - atk 3~4 = 8~20
             // - atk 5   = 10~20
             const minRaw = atkStat >= 5 ? 10 : (atkStat >= 3 ? 8 : 7);
-            const rawDamage = this.rollInt(minRaw, 20);
+            const baseRawDamage = this.rollInt(minRaw, 20);
+            const rawDamage = Math.max(0, Math.round(baseRawDamage * 2));
             const defensePercent = this.getDefenseReductionPercent(defStat);
             const finalDamage = this.applyDefenseReduction(rawDamage, defensePercent);
 
@@ -3003,7 +3008,7 @@ class BattleSystem {
             this.consumeStatMods(defender, 'ON_DEFEND');
 
             this.addLogRaw(`🧮 스탯: 공격 ATK ${atkStat} / 방어 DEF ${defStat}`);
-            this.addLogRaw(`🛡️ 방어력: ${defensePercent}% (원데미지 ${rawDamage} → 실제 ${finalDamage})`);
+            this.addLogRaw(`🛡️ 방어력: ${defensePercent}% (원데미지 ${baseRawDamage} → x2 = ${rawDamage} → 실제 ${finalDamage})`);
             this.addLogRaw(`💥 데미지: ${finalDamage}`);
             if (beforeShield > 0 || applied.shieldAbsorbed > 0) {
                 this.addLogRaw(`🧱 쉴드: ${beforeShield} → ${this.getShieldHp(defender)} (흡수 ${applied.shieldAbsorbed})`);
@@ -3062,7 +3067,7 @@ class BattleSystem {
                     const defensePercent2 = this.getDefenseReductionPercent(defStat2);
                     const damage2 = this.applyDefenseReduction(rolled2.raw, defensePercent2);
 
-                    this.addLog(`  🎲 스킬 데미지: ${rolled2.min} + (1~${rolled2.extraMax})[${rolled2.bonus}] = ${rolled2.raw} (최대 ${rolled2.max})`);
+                    this.addLog(`  🎲 스킬 데미지: ${rolled2.min} + (1~${rolled2.extraMax})[${rolled2.bonus}] = ${rolled2.baseRaw} → x${rolled2.multiplier} = ${rolled2.raw} (최대 ${rolled2.max})`);
                     this.addLog(`  🛡️ 방어력: ${defensePercent2}% (원데미지 ${rolled2.raw} → 실제 ${damage2})`);
                     this.addLog(`  💥 데미지: ${damage2}`);
 
@@ -3104,7 +3109,7 @@ class BattleSystem {
         const defensePercent = this.getDefenseReductionPercent(defStat);
         const damage = this.applyDefenseReduction(rolled.raw, defensePercent);
 
-        this.addLog(`  🎲 스킬 데미지: ${rolled.min} + (1~${rolled.extraMax})[${rolled.bonus}] = ${rolled.raw} (최대 ${rolled.max})`);
+        this.addLog(`  🎲 스킬 데미지: ${rolled.min} + (1~${rolled.extraMax})[${rolled.bonus}] = ${rolled.baseRaw} → x${rolled.multiplier} = ${rolled.raw} (최대 ${rolled.max})`);
         this.addLog(`  🛡️ 방어력: ${defensePercent}% (원데미지 ${rolled.raw} → 실제 ${damage})`);
         this.addLog(`  💥 데미지: ${damage}`);
         
@@ -3164,7 +3169,7 @@ class BattleSystem {
         const rolled = this.rollAttackSkillRawDamage(skillStat);
 
         const perTargetRaw = Math.floor((Number(rolled.raw) || 0) / n);
-        this.addLog(`  🎲 스킬 데미지: ${rolled.min} + (1~${rolled.extraMax})[${rolled.bonus}] = ${rolled.raw} (최대 ${rolled.max})`);
+        this.addLog(`  🎲 스킬 데미지: ${rolled.min} + (1~${rolled.extraMax})[${rolled.bonus}] = ${rolled.baseRaw} → x${rolled.multiplier} = ${rolled.raw} (최대 ${rolled.max})`);
         this.addLog(`  👥 다수 분배: floor(${rolled.raw} / ${n}) = ${perTargetRaw} (각 대상 원데미지)`);
 
         targets.forEach((defender) => {
