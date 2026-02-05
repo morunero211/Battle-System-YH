@@ -403,7 +403,7 @@ function executeBasicAttack({
 }
 
 /**
- * 등급 비교 (EXTREME > HARD > SUCCESS > FAIL)
+ * 등급 비교 (CRITICAL > EXTREME > HARD > SUCCESS > FAIL)
  * @returns {number} -1, 0, 1
  */
 function compareGrades(grade1, grade2) {
@@ -413,8 +413,13 @@ function compareGrades(grade1, grade2) {
     'HARD': 2,
     'EXTREME': 3
   };
-  
-  return Math.sign(gradeValues[grade1] - gradeValues[grade2]);
+
+  // CRITICAL(대성공)은 EXTREME(극단적 성공)보다 상위 단계
+  gradeValues['CRITICAL'] = 4;
+
+  const v1 = Number.isFinite(Number(gradeValues[grade1])) ? Number(gradeValues[grade1]) : 0;
+  const v2 = Number.isFinite(Number(gradeValues[grade2])) ? Number(gradeValues[grade2]) : 0;
+  return Math.sign(v1 - v2);
 }
 
 /**
