@@ -89,7 +89,7 @@ const ATTACK_SKILL_DAMAGE_BY_STAT = {
 // 방어 스탯(1~5) -> 방어력%(완만 버전). 필요 시 여기만 조정.
 // index: defStat (1..5)
 // HARD 밸런스(조금 더 버티게): 기본공격 상향에 맞춰 방어 감소율도 소폭 상향
-const DEFENSE_REDUCTION_PCT_BY_STAT = [0, 0, 8, 15, 20, 26];
+const DEFENSE_REDUCTION_PCT_BY_STAT = [0, 3, 8, 15, 20, 26];
 
 // 맞았을 때 최소 데미지(0 허용하고 싶으면 0으로)
 const MIN_DAMAGE_ON_HIT = 1;
@@ -105,7 +105,7 @@ function applyDefenseReduction(rawDamage, defensePercent) {
   if (base === 0) return 0;
 
   const pct = Math.max(0, Math.min(80, Math.round(Number(defensePercent) || 0)));
-  const reduced = Math.floor((base * (100 - pct)) / 100);
+  const reduced = Math.round((base * (100 - pct)) / 100);
   return Math.max(MIN_DAMAGE_ON_HIT, reduced);
 }
 

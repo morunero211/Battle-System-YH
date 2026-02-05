@@ -2517,7 +2517,7 @@ class BattleSystem {
     // 방어 스탯(1~5) -> 방어력%(완만 버전)
     getDefenseReductionPercent(defStat) {
         const stat = Math.max(1, Math.min(5, Math.round(Number(defStat) || 1)));
-        const table = [0, 0, 8, 15, 20, 26];
+        const table = [0, 3, 8, 15, 20, 26];
         return table[stat] ?? 0;
     }
 
@@ -2525,7 +2525,7 @@ class BattleSystem {
         const base = Math.max(0, Math.floor(Number(rawDamage) || 0));
         if (base === 0) return 0;
         const pct = Math.max(0, Math.min(80, Math.round(Number(defensePercent) || 0)));
-        const reduced = Math.floor((base * (100 - pct)) / 100);
+        const reduced = Math.round((base * (100 - pct)) / 100);
         return Math.max(1, reduced);
     }
 
