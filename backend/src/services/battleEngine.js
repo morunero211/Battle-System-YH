@@ -64,6 +64,7 @@ function rollInt(min, max) {
 // - 공격형 스킬(스킬 공격): x1.5
 const BASIC_ATTACK_DAMAGE_MULTIPLIER = 1;
 const ATTACK_SKILL_DAMAGE_MULTIPLIER = 1.5;
+const DEFENSE_SKILL_BLOCK_MULTIPLIER = 1.3;
 
 // 기본공격 rawDamage 범위(요청 반영):
 // - 기존 최대치 13 → 2배면 26이 최대치
@@ -576,7 +577,8 @@ function executeSkill({ skill, caster, targets, battle }) {
       
     } else if (skill.category === 'DEFENSE') {
       // 방어 스킬 (패시브 방어량 증가 등)
-      result.block = skill.effects.block || 10;
+      const baseBlock = skill.effects.block || 10;
+      result.block = Math.max(0, Math.round(Number(baseBlock) * DEFENSE_SKILL_BLOCK_MULTIPLIER));
       result.message = `${skill.name}으로 ${result.block} 방어!`;
       
     } else if (skill.category === 'HEAL') {

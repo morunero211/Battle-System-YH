@@ -1768,7 +1768,7 @@ class BattleSystem {
         const added = this.addShieldHp(defender, rolled.raw);
         const afterTotal = this.getTotalHp(defender);
 
-        this.addLog(`  🛡️ 방어 스킬(반응) 발동: ${rolled.min} + (1~${rolled.extraMax})[${rolled.bonus}] = ${rolled.raw} (최대 ${rolled.max})`);
+        this.addLog(`  🛡️ 방어 스킬(반응) 발동: ${rolled.min} + (1~${rolled.extraMax})[${rolled.bonus}] = ${rolled.baseRaw} → x${rolled.multiplier} = ${rolled.raw} (최대 ${rolled.max})`);
         this.addLog(`  🧱 쉴드: ${beforeShield} → ${this.getShieldHp(defender)} (총 HP ${beforeTotal} → ${afterTotal})`);
 
         return { added, rolled };
@@ -2105,6 +2105,7 @@ class BattleSystem {
 
     rollShieldSkillAmountByStat(skillStat) {
         const stat = this.clampStat1to5(skillStat);
+        const mult = 1.3;
         const table = {
             1: { min: 11, extraMax: 4 },
             2: { min: 14, extraMax: 4 },
@@ -2114,8 +2115,18 @@ class BattleSystem {
         };
         const profile = table[stat] || table[1];
         const bonus = this.rollInt(1, profile.extraMax);
-        const raw = Math.floor(profile.min + bonus);
-        return { stat, min: profile.min, extraMax: profile.extraMax, bonus, raw, max: profile.min + profile.extraMax };
+        const baseRaw = Math.floor(profile.min + bonus);
+        const raw = Math.max(0, Math.round(baseRaw * mult));
+        return {
+            stat,
+            min: profile.min,
+            extraMax: profile.extraMax,
+            bonus,
+            baseRaw,
+            raw,
+            multiplier: mult,
+            max: Math.max(0, Math.round((profile.min + profile.extraMax) * mult))
+        };
     }
 
     getSupportDebuffAmountBySkillStat(skillStat) {
@@ -3234,7 +3245,7 @@ class BattleSystem {
         const shieldBase = rolled.raw;
         const perTarget = Math.floor(shieldBase / n);
 
-        this.addLog(`  🎲 쉴드량: ${rolled.min} + (1~${rolled.extraMax})[${rolled.bonus}] = ${rolled.raw} (최대 ${rolled.max})`);
+        this.addLog(`  🎲 쉴드량: ${rolled.min} + (1~${rolled.extraMax})[${rolled.bonus}] = ${rolled.baseRaw} → x${rolled.multiplier} = ${rolled.raw} (최대 ${rolled.max})`);
         this.addLog(`  👥 다수 분배: floor(${shieldBase} / ${n}) = ${perTarget} (각 대상)`);
 
         list.forEach((t) => {
