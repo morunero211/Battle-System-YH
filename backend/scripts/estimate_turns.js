@@ -77,7 +77,11 @@ function chooseFirstActor(a, b) {
   return Math.random() < 0.5 ? 0 : 1;
 }
 
-function simulateDuelOnce(aBase, bBase, { maxTurns = 2000, defenseResponseWeights = null } = {}) {
+function simulateDuelOnce(
+  aBase,
+  bBase,
+  { maxTurns = 2000, defenseResponseWeights = null, damageMultiplier = 1 } = {}
+) {
   const A = { ...aBase };
   const B = { ...bBase };
 
@@ -94,6 +98,7 @@ function simulateDuelOnce(aBase, bBase, { maxTurns = 2000, defenseResponseWeight
   let totalDamage = 0;
 
   const weights = defenseResponseWeights || { pass: 1, dodge: 0, counter: 0 };
+  const dmgMult = Number.isFinite(Number(damageMultiplier)) ? Math.max(0, Number(damageMultiplier)) : 1;
 
   while (turns < maxTurns && A.hp > 0 && B.hp > 0) {
     turns += 1;
@@ -110,7 +115,7 @@ function simulateDuelOnce(aBase, bBase, { maxTurns = 2000, defenseResponseWeight
     });
 
     if (result && result.success && Number.isFinite(Number(result.damage)) && result.damage > 0) {
-      const dmg = Math.max(0, Math.round(Number(result.damage)));
+      const dmg = Math.max(0, Math.round(Number(result.damage) * dmgMult));
       target.hp = Math.max(0, Math.round(Number(target.hp) - dmg));
       hits += 1;
       totalDamage += dmg;
@@ -163,7 +168,7 @@ function simulateMany(a, b, runs, opts = {}) {
 }
 
 function parseArgs(argv) {
-  const args = { runs: 2000, pass: 1, dodge: 0, counter: 0 };
+  const args = { runs: 2000, pass: 1, dodge: 0, counter: 0, damageMult: 1 };
   for (let i = 2; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--runs' && argv[i + 1]) {
@@ -178,13 +183,16 @@ function parseArgs(argv) {
     } else if (a === '--counter' && argv[i + 1]) {
       args.counter = Math.max(0, Number(argv[i + 1]) || 0);
       i++;
+    } else if ((a === '--damageMult' || a === '--damage-mult') && argv[i + 1]) {
+      args.damageMult = Math.max(0, Number(argv[i + 1]) || 0);
+      i++;
     }
   }
   return args;
 }
 
 function main() {
-  const { runs, pass, dodge, counter } = parseArgs(process.argv);
+  const { runs, pass, dodge, counter, damageMult } = parseArgs(process.argv);
   const weights = normalizeWeights({ passW: pass, dodgeW: dodge, counterW: counter });
 
   // 임시 캐릭터(예시): 실제 데이터 감각에 맞춰 HP 100 전후 + 스탯 2~5
@@ -194,11 +202,12 @@ function main() {
   console.log('=== HARD 전투 턴수 추정 (1v1, 기본공격, PASS 고정) ===');
   console.log(`Runs: ${runs}`);
   console.log(`Defense response mix: PASS ${(weights.pass * 100).toFixed(1)}% | DODGE ${(weights.dodge * 100).toFixed(1)}% | COUNTER ${(weights.counter * 100).toFixed(1)}%`);
+  console.log(`Damage multiplier: x${Number.isFinite(Number(damageMult)) ? Number(damageMult) : 1}`);
   console.log(`A: ${temp.name} | HP ${temp.hp} | ATK ${temp.atk} DEF ${temp.def} AGI ${temp.agi}`);
   console.log(`B: ${dummy.name} | HP ${dummy.hp} | ATK ${dummy.atk} DEF ${dummy.def} AGI ${dummy.agi}`);
   console.log('');
 
-  const res = simulateMany(temp, dummy, runs, { defenseResponseWeights: weights });
+  const res = simulateMany(temp, dummy, runs, { defenseResponseWeights: weights, damageMultiplier: damageMult });
 
   console.log('--- 결과(턴 수) ---');
   console.log(res.turns);
