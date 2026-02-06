@@ -981,6 +981,14 @@ class BattleActions {
                 this.app.battleSystem.renderBattle();
                 return;
             }
+
+            // 쉴드 보유 등으로 인해 서버 반응 단계가 자동 처리된 경우,
+            // battleSystem.submitDefenseResponse() 내부에서 이미 턴 진행(nextTurn)이 완료됩니다.
+            // 여기서 다시 nextTurn을 호출하면 턴이 2번 넘어가므로 즉시 종료합니다.
+            if (result && result.autoResolved) {
+                this.app.battleSystem.renderBattle();
+                return;
+            }
         }
         
         // UI 업데이트

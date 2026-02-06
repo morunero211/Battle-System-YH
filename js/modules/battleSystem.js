@@ -1550,7 +1550,7 @@ class BattleSystem {
         this.setActionButtonsEnabled(true);
     }
 
-    async submitDefenseResponse(responseKind) {
+    async submitDefenseResponse(responseKind, { skipUi = false } = {}) {
         try {
             const pending = this.pendingDefenseResponse;
             const apiUrl = window.CONFIG?.API_BASE_URL;
@@ -1663,9 +1663,31 @@ class BattleSystem {
                 this.evaluateHpStateTransition(attackerRef, { cause: '반격 피해' });
             }
 
-            if (typeof result.defenderHp === 'number' && defenderRef) {
-                this.setHpFromTotal(defenderRef, result.defenderHp);
-                this.evaluateHpStateTransition(defenderRef, { cause: '피해' });
+            // 방어자 HP/쉴드 반영
+            // - 서버는 totalHP만 반환하므로 setHpFromTotal로 덮어쓰면 남은 쉴드가 baseHP로 합쳐져 보일 수 있음
+            // - 따라서 "총 HP 감소량(delta)"만 로컬에서 쉴드→HP 순서로 차감
+            if (defenderRef) {
+                const beforeShield = this.getShieldHp(defenderRef);
+
+                if (responseKind === 'DEFENSE_SKILL' && shieldAmount > 0) {
+                    this.addShieldHp(defenderRef, shieldAmount);
+                }
+
+                const beforeEffectiveTotal = (responseKind === 'DEFENSE_SKILL' && shieldAmount > 0)
+                    ? (beforeDefenderTotal + shieldAmount)
+                    : beforeDefenderTotal;
+                const afterTotalFromServer = (typeof result.defenderHp === 'number')
+                    ? Math.max(0, Math.round(Number(result.defenderHp) || 0))
+                    : beforeEffectiveTotal;
+
+                const delta = Math.max(0, beforeEffectiveTotal - afterTotalFromServer);
+                if (delta > 0) {
+                    this.applyDamageWithShield(defenderRef, delta);
+                    this.evaluateHpStateTransition(defenderRef, { cause: '피해' });
+                }
+
+                // 의미 없는 lint 방지용(추가 로그 확장 시 사용)
+                void beforeShield;
             }
 
             const afterAttackerTotal = attackerRef ? this.getTotalHp(attackerRef) : 0;
@@ -1759,11 +1781,15 @@ class BattleSystem {
             }
 
             this.pendingDefenseResponse = null;
-            this.hideDefenseResponsePanel();
+            if (!skipUi) this.hideDefenseResponsePanel();
+            else this.setActionButtonsEnabled(true);
 
             // 같은 턴의 하위 단계가 끝났으니 이제 턴을 진행
             this.renderBattle();
-            this.checkBattleEnd();
+            if (this.checkBattleEnd()) {
+                this.renderBattle();
+                return;
+            }
             this.nextTurn();
         } catch (error) {
             console.error('방어자 응답 처리 에러:', error);
@@ -2985,7 +3011,12 @@ class BattleSystem {
                         // 공격 실패 등으로 즉시 종료되는 케이스
                         if (result.phase === 'RESOLVED') {
                             if (typeof result.defenderHp === 'number') {
-                                this.setHpFromTotal(defender, result.defenderHp);
+                                // 서버는 totalHP만 반환하므로, 로컬 쉴드/HP 분리 상태를 유지하기 위해
+                                // "감소량(delta)"만 쉴드→HP 순서로 적용합니다.
+                                const beforeTotal = this.getTotalHp(defender);
+                                const afterTotal = Math.max(0, Math.round(Number(result.defenderHp) || 0));
+                                const delta = Math.max(0, beforeTotal - afterTotal);
+                                if (delta > 0) this.applyDamageWithShield(defender, delta);
                             }
                             return { awaitingResponse: false };
                         }
@@ -3010,12 +3041,22 @@ class BattleSystem {
                                 pendingState: result.pendingState
                             };
 
+                            // 쉴드가 이미 있으면: 회피/반격 선택 없이 쉴드가 먼저 피해를 흡수하도록 PASS 자동 처리
+                            if (this.getShieldHp(defender) > 0) {
+                                this.setActionButtonsEnabled(false);
+                                await this.submitDefenseResponse('PASS', { skipUi: true });
+                                return { awaitingResponse: false, autoResolved: true };
+                            }
+
                             this.showDefenseResponsePanel(attacker.name, defender.name);
                             return { awaitingResponse: true };
                         }
 
                         if (typeof result.defenderHp === 'number') {
-                            this.setHpFromTotal(defender, result.defenderHp);
+                            const beforeTotal = this.getTotalHp(defender);
+                            const afterTotal = Math.max(0, Math.round(Number(result.defenderHp) || 0));
+                            const delta = Math.max(0, beforeTotal - afterTotal);
+                            if (delta > 0) this.applyDamageWithShield(defender, delta);
                         }
                         return { awaitingResponse: false };
                     }
