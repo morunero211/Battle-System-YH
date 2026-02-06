@@ -639,17 +639,26 @@ body.dark-theme main {
     display: flex;
     justify-content: space-between;
     align-items: center;
+    gap: 10px;
+    min-width: 0;
 }
 
 .character-name {
     font-weight: 500;
     color: #2c3e50;
     font-size: 0.95em;
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .character-hp {
     font-size: 0.85em;
     color: #718096;
+    flex: 0 0 auto;
+    white-space: nowrap;
 }
 
 .btn-remove {
