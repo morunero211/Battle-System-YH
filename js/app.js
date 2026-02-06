@@ -2733,8 +2733,8 @@ class BattleApp {
         }
 
         const hp = parseInt(this.elements.charHp?.value || 100);
-        if (hp < 10 || hp > 100) {
-            this.showAlert?.({ title: '입력 오류', message: 'HP는 10~100 사이로 입력해주세요!' });
+        if (hp < 0 || hp > 100) {
+            this.showAlert?.({ title: '입력 오류', message: 'HP는 0~100 사이로 입력해주세요!' });
             return;
         }
 
@@ -4514,8 +4514,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 parsed.push({ ok: false, reason: '스탯 범위 오류(1~5)', raw: line, name });
                 return;
             }
-            if (!inRange(hp, 10, 100)) {
-                parsed.push({ ok: false, reason: 'HP 범위 오류(10~100)', raw: line, name });
+            if (!inRange(hp, 0, 100)) {
+                parsed.push({ ok: false, reason: 'HP 범위 오류(0~100)', raw: line, name });
                 return;
             }
 
